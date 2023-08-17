@@ -1,0 +1,70 @@
+#!/bin/sh
+
+KERNEL_RPM=${1}
+
+validate_kernel_rpm()
+{
+    local kernel_rpm=$(basename ${1})
+    local pat='^kernel-.*\.rpm$'
+
+    if ! echo ${kernel_rpm} | grep -qE ${pat}; then
+        return 1
+    fi
+    return 0
+}
+
+strip_rpm_suffix()
+{
+    local rpm_file=$(basename ${1})
+    local len=$(echo -n ${rpm_file} | wc -c)
+    local len_suffix=4    # Length of `.rpm` suffix.
+    local len_minus_suffix=$((${len}-${len_suffix}))
+
+    echo ${rpm_file} | cut -c 1-${len_minus_suffix}
+}
+
+version_from_kernel_rpm()
+{
+    local kernel_rpm=$(basename ${1})
+    local kernel_name=$(strip_rpm_suffix ${kernel_rpm})
+    local char_start=8    # Start after `kernel-`.
+
+    echo ${kernel_name} | cut -c ${char_start}-
+}
+
+copy_boot_files()
+{
+    local tmpdir=${1}
+    local version=${2}
+
+    mkdir ${tmpdir}/boot; chmod 0755 ${tmpdir}/boot
+
+    # These follow the permissions on Amazon Linux.
+    install -m 0644 ${tmpdir}/lib/modules/${version}/config ${tmpdir}/boot/config-${version}
+    install -m 0755 ${tmpdir}/lib/modules/${version}/vmlinuz ${tmpdir}/boot/vmlinuz-${version}
+    install -m 0600 ${tmpdir}/lib/modules/${version}/System.map ${tmpdir}/boot/System.map-${version}
+
+    ln -s /lib/modules/${version}/symvers.gz ${tmpdir}/boot/symvers-${version}.gz
+}
+
+main()
+{
+    which fakeroot 2>&1 >/dev/null || fail "fakeroot command is required"
+    which rpm2cpio 2>&1 >/dev/null || fail "rpm2cpio command is required"
+
+    validate_kernel_rpm ${KERNEL_RPM} || fail "unexpected kernel rpm filename: ${KERNEL_RPM}"
+
+    local tmpdir=$(mktemp -d); chmod 0755 ${tmpdir}
+
+    rpm2cpio ${KERNEL_RPM} | cpio -idmv -D ${tmpdir} './lib/*'
+
+    local version=$(version_from_kernel_rpm ${KERNEL_RPM})
+    copy_boot_files ${tmpdir} ${version}
+
+    # Use fakeroot so files in tarball are owned by root.
+    fakeroot tar cf kernel-${version}.tar -C ${tmpdir} .
+
+    echo ${tmpdir}
+}
+
+main
