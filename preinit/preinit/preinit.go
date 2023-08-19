@@ -1,7 +1,8 @@
 package preinit
 
 import (
-	"bytes"
+	"bufio"
+	_ "crypto/sha256" // For JSON decoder.
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,29 +11,23 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 
-	"github.com/mdlayher/vsock"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"golang.org/x/sys/unix"
 )
 
 const (
-	agentPath       = "/cb_agent"
-	configPath      = "/config"
-	execBits        = 0111
-	fsTypeExt4      = "ext4"
-	koPath          = "/cbagent.ko"
-	module          = "cbagent"
-	modulesDevice   = "/dev/vdb"
-	mountExecutable = "/bin/mount"
-	pathDefault     = "/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
-	rootDevice      = "/dev/vda"
-	rootDir         = "/"
-	rootMountTmp    = "/newroot"
+	filePasswd   = "/etc/passwd"
+	fileGroup    = "/etc/group"
+	fileMetadata = "metadata.json"
+	dirRoot      = "/"
+	dirCB        = "/__cb__"
+	execBits     = 0111
+	pathDefault  = "/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
 )
-
-var executableNotFound = errors.New("executable not found")
 
 // This is a duplicate of the struct in github.com/cloudboss/cb/punk, as
 // CGO_ENABLED=0 cannot be used with that library as it requires C.
@@ -44,8 +39,7 @@ type Fuse struct {
 }
 
 type InitSpec struct {
-	AbsPath    string
-	Args       []string
+	Command    []string
 	Env        []string
 	GID        int
 	UID        int
@@ -61,7 +55,7 @@ type mount struct {
 	source  string
 	flags   uintptr
 	fsType  string
-	mode    int
+	mode    os.FileMode
 	options []string
 	target  string
 }
@@ -95,10 +89,10 @@ func mounts() error {
 			target: "/dev/mqueue",
 		},
 		{
-			source: "shm",
+			source: "tmpfs",
 			flags:  syscall.MS_NODEV | syscall.MS_NOSUID,
 			fsType: "tmpfs",
-			mode:   1777,
+			mode:   0777 | fs.ModeSticky,
 			target: "/dev/shm",
 		},
 		{
@@ -116,12 +110,6 @@ func mounts() error {
 			target: "/proc",
 		},
 		{
-			source: "binfmt_misc",
-			flags:  syscall.MS_NODEV | syscall.MS_NOEXEC | syscall.MS_NOSUID | syscall.MS_RELATIME,
-			fsType: "binfmt_misc",
-			target: "/proc/sys/fs/binfmt_misc",
-		},
-		{
 			source: "sys",
 			flags:  syscall.MS_NODEV | syscall.MS_NOEXEC | syscall.MS_NOSUID,
 			fsType: "sysfs",
@@ -129,7 +117,7 @@ func mounts() error {
 			target: "/sys",
 		},
 		{
-			source: "run",
+			source: "tmpfs",
 			flags:  syscall.MS_NODEV | syscall.MS_NOSUID,
 			fsType: "tmpfs",
 			mode:   0755,
@@ -139,7 +127,7 @@ func mounts() error {
 			target: "/run",
 		},
 		{
-			mode:   1777,
+			mode:   0777 | fs.ModeSticky,
 			target: "/run/lock",
 		},
 		{
@@ -260,6 +248,13 @@ func mounts() error {
 			target: "/sys/kernel/debug",
 		},
 	}
+
+	// Temporarily unset umask to ensure directory modes are exactly as configured.
+	oldUmask := syscall.Umask(0)
+	defer func() {
+		syscall.Umask(oldUmask)
+	}()
+
 	for _, m := range ms {
 		fmt.Printf("About to process mount: %+v\n", m)
 		_, err := os.Stat(m.target)
@@ -267,11 +262,15 @@ func mounts() error {
 			if !errors.Is(err, os.ErrNotExist) {
 				return fmt.Errorf("unexpected error checking status of %s: %w", m.target, err)
 			}
-			fmt.Println("About to make directories")
-			err := os.MkdirAll(m.target, fs.FileMode(m.mode))
+			fmt.Printf("About to make directory %s with mode %s\n", m.target, m.mode)
+			err := os.MkdirAll(m.target, m.mode)
 			if err != nil {
 				return fmt.Errorf("unable to create directory %s: %w", m.target, err)
 			}
+		}
+		justMkdir := len(m.fsType) == 0
+		if justMkdir {
+			continue
 		}
 		err = unix.Mount(m.source, m.target, m.fsType, m.flags, strings.Join(m.options, ","))
 		if err != nil {
@@ -309,57 +308,6 @@ func links() error {
 	return nil
 }
 
-func runCommand(executable string, args ...string) error {
-	cmd := exec.Command(executable, args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
-func osRelease() (string, error) {
-	utsname := unix.Utsname{}
-	err := unix.Uname(&utsname)
-	if err != nil {
-		return "", err
-	}
-	i := bytes.IndexByte(utsname.Release[:], 0)
-	return string(utsname.Release[:i]), nil
-}
-
-func modulesPath() (string, error) {
-	rel, err := osRelease()
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("/lib/modules/%s", rel), nil
-}
-
-func modprobe(module string, args []string) error {
-	m, err := os.Open(module)
-	if err != nil {
-		return err
-	}
-	return unix.FinitModule(int(m.Fd()), strings.Join(args, " "), 0)
-}
-
-func readConfig() (*Fuse, error) {
-	cx, err := vsock.Dial(unix.VMADDR_CID_HOST, 9999, nil)
-	if err != nil {
-		return nil, fmt.Errorf("unable to connect to vsock: %w", err)
-	}
-	defer cx.Close()
-
-	fmt.Println("attempting to read from socket")
-
-	fuse := &Fuse{}
-	err = json.NewDecoder(cx).Decode(fuse)
-	if err != nil {
-		return nil, err
-	}
-	return fuse, nil
-}
-
 func debug() {
 	commands := [][]string{
 		{
@@ -379,11 +327,11 @@ func debug() {
 		},
 		{
 			"/bin/ls",
-			rootMountTmp,
+			dirRoot,
 		},
 		{
 			"/bin/ls",
-			path.Join(rootMountTmp, "dev"),
+			path.Join(dirRoot, "dev"),
 		},
 	}
 	for _, command := range commands {
@@ -400,6 +348,14 @@ func debug() {
 
 }
 
+func runCommand(executable string, args ...string) error {
+	cmd := exec.Command(executable, args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
 // getenv gets the value of an environment variable from the environment
 // passed in env, rather than the process's environment as with os.Getenv.
 func getenv(env []string, key string) string {
@@ -414,7 +370,7 @@ func getenv(env []string, key string) string {
 
 func findExecutableInPath(executable, pathEnv string) (string, error) {
 	for _, dir := range filepath.SplitList(pathEnv) {
-		findPath := path.Join(rootMountTmp, dir, executable)
+		findPath := path.Join(dirRoot, dir, executable)
 		fi, err := os.Stat(findPath)
 		if err != nil {
 			continue
@@ -423,91 +379,199 @@ func findExecutableInPath(executable, pathEnv string) (string, error) {
 			return path.Join(dir, executable), nil
 		}
 	}
-	return "", executableNotFound
+	return "", fmt.Errorf("executable %s not found", executable)
 }
 
-func Setup() (*InitSpec, error) {
-	fmt.Println("This is the start of the setup")
-	err := mounts()
+func readMetadata(metadataPath string) (*v1.ConfigFile, error) {
+	f, err := os.Open(metadataPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to open %s: %w", metadataPath, err)
 	}
-	fmt.Println("After mounts()")
-	err = links()
+	defer f.Close()
+
+	metadata := &v1.ConfigFile{}
+	err = json.NewDecoder(f).Decode(metadata)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to decode metadata: %w", err)
 	}
-	fmt.Println("After links()")
-	debug()
-	fmt.Println("After debug()")
-	fuse, err := readConfig()
-	if err != nil {
-		return nil, err
-	}
-	return FuseToInitSpec(fuse)
+
+	return metadata, nil
 }
 
-func FuseToInitSpec(fuse *Fuse) (*InitSpec, error) {
-	fmt.Printf("fuse: %+v\n", fuse)
-	if len(fuse.Entrypoint) == 0 && len(fuse.Cmd) == 0 {
-		return nil, fmt.Errorf("a command is required")
-	}
+func metadataToInitSpec(metadata *v1.ConfigFile) (*InitSpec, error) {
+	initSpec := &InitSpec{}
 
-	args := fuse.Entrypoint
-	args = append(args, fuse.Cmd...)
+	var command []string
+	if metadata.Config.Entrypoint != nil {
+		command = metadata.Config.Entrypoint
+	}
+	if metadata.Config.Cmd != nil {
+		command = append(command, metadata.Config.Cmd...)
+	}
+	if command == nil {
+		command = []string{"/bin/sh"}
+	}
 
 	pathEnv := pathDefault
-	pathFuse := getenv(fuse.Env, "PATH")
-	if len(pathFuse) > 0 {
-		pathEnv = pathFuse
+	pathMetadata := getenv(metadata.Config.Env, "PATH")
+	if len(pathMetadata) > 0 {
+		pathEnv = pathMetadata
 	}
 
-	executable := args[0]
-	if !strings.HasPrefix(executable, rootDir) {
-		executablePath, err := findExecutableInPath(executable, pathEnv)
+	if !strings.HasPrefix(command[0], dirRoot) {
+		executablePath, err := findExecutableInPath(command[0], pathEnv)
 		if err != nil {
 			return nil, err
 		}
-		executable = executablePath
-		args[0] = executablePath
+		command[0] = executablePath
 	}
 
-	env := []string{fmt.Sprintf("PATH=%s", pathDefault)}
-	if len(fuse.Env) > 0 {
-		env = fuse.Env
+	initSpec.Command = command
+
+	initSpec.Env = metadata.Config.Env
+	if initSpec.Env == nil {
+		initSpec.Env = os.Environ()
 	}
 
-	workingDir := rootDir
-	if len(fuse.WorkingDir) > 0 {
-		workingDir = fuse.WorkingDir
+	initSpec.WorkingDir = metadata.Config.WorkingDir
+	if len(initSpec.WorkingDir) == 0 {
+		initSpec.WorkingDir = dirRoot
 	}
 
-	initSpec := &InitSpec{
-		AbsPath:    executable,
-		Args:       args,
-		Env:        env,
-		WorkingDir: workingDir,
-	}
 	return initSpec, nil
 }
 
-func SwitchRoot(newRoot string, initSpec *InitSpec) error {
-	fmt.Printf("initSpec: %+v\n", initSpec)
+func getUserGroup(userEntry string) (int, int, error) {
+	var (
+		user  string
+		group string
+		uid   int
+		gid   int
+	)
 
-	err := os.Chdir(newRoot)
-	if err != nil {
-		return fmt.Errorf("unable to change to %s dir: %w",
-			newRoot, err)
+	userEntryFields := strings.Split(userEntry, ":")
+	if len(userEntryFields) == 1 {
+		user = userEntryFields[0]
 	}
-	err = unix.Chroot(".")
-	if err != nil {
-		return fmt.Errorf("unable to chroot to %s dir: %w",
-			newRoot, err)
+
+	if len(user) == 0 || user == "root" {
+		return 0, 0, nil
 	}
-	err = os.Chdir(initSpec.WorkingDir)
-	if err != nil {
-		return fmt.Errorf("unable to change to %s dir in chroot: %w",
-			initSpec.WorkingDir, err)
+
+	if len(userEntryFields) == 2 {
+		group = userEntryFields[1]
 	}
-	return syscall.Exec(initSpec.AbsPath, initSpec.Args, initSpec.Env)
+
+	p, err := os.Open(filePasswd)
+	if err != nil {
+		return 0, 0, fmt.Errorf("unable to open %s: %w", filePasswd, err)
+	}
+	defer p.Close()
+
+	userFound := false
+	pScanner := bufio.NewScanner(p)
+	for pScanner.Scan() {
+		line := pScanner.Text()
+		fields := strings.Split(line, ":")
+		if fields[0] == user {
+			userFound = true
+			uid, err = strconv.Atoi(fields[2])
+			if err != nil {
+				return 0, 0, fmt.Errorf("unexpected error reading %s: %w", filePasswd, err)
+			}
+			break
+		}
+	}
+	if err = pScanner.Err(); err != nil {
+		return 0, 0, fmt.Errorf("unable to read %s: %w", filePasswd, err)
+	}
+	if !userFound {
+		return 0, 0, fmt.Errorf("user %s not found", user)
+	}
+
+	if len(group) == 0 || group == "root" {
+		return uid, gid, nil
+	}
+
+	g, err := os.Open(fileGroup)
+	if err != nil {
+		return 0, 0, fmt.Errorf("unable to open %s: %w", fileGroup, err)
+	}
+	defer g.Close()
+
+	groupFound := false
+	gScanner := bufio.NewScanner(g)
+	for gScanner.Scan() {
+		line := gScanner.Text()
+		fields := strings.Split(line, ":")
+		if fields[0] == group {
+			groupFound = true
+			gid, err = strconv.Atoi(fields[2])
+			if err != nil {
+				return 0, 0, fmt.Errorf("unexpected error reading %s: %w", fileGroup, err)
+			}
+			break
+		}
+	}
+	if err = gScanner.Err(); err != nil {
+		return 0, 0, fmt.Errorf("unable to read %s: %w", fileGroup, err)
+	}
+	if !groupFound {
+		return 0, 0, fmt.Errorf("group %s not found", group)
+	}
+
+	return uid, gid, nil
+}
+
+func DoIt() error {
+	fmt.Println("Starting init")
+
+	err := mounts()
+	if err != nil {
+		return err
+	}
+	fmt.Println("After mounts()")
+
+	err = links()
+	if err != nil {
+		return err
+	}
+	fmt.Println("After links()")
+
+	debug()
+	fmt.Println("After debug()")
+
+	metadata, err := readMetadata(filepath.Join(dirCB, fileMetadata))
+	if err != nil {
+		return err
+	}
+	initSpec, err := metadataToInitSpec(metadata)
+	if err != nil {
+		return err
+	}
+
+	if len(metadata.Config.WorkingDir) != 0 {
+		err = os.Chdir(metadata.Config.WorkingDir)
+		if err != nil {
+			return fmt.Errorf("unable to change working directory to %s: %w",
+				metadata.Config.WorkingDir, err)
+		}
+	}
+
+	initSpec.UID, initSpec.GID, err = getUserGroup(metadata.Config.User)
+	if err != nil {
+		return err
+	}
+
+	err = syscall.Setuid(initSpec.UID)
+	if err != nil {
+		return fmt.Errorf("unable to set UID: %w", err)
+	}
+
+	err = syscall.Setgid(initSpec.GID)
+	if err != nil {
+		return fmt.Errorf("unable to set GID: %w", err)
+	}
+
+	return syscall.Exec(initSpec.Command[0], initSpec.Command, initSpec.Env)
 }

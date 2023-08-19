@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -39,10 +38,12 @@ const (
 	devicePartEFI  = "/dev/sda1"
 	devicePartRoot = "/dev/sda2"
 
-	dirCB         = "/.cb"
+	dirCB         = "/__cb__"
 	dirEFI        = "/boot"
 	dirLibModules = "/lib/modules"
 	dirRoot       = "/"
+
+	fileMetadata = "metadata.json"
 
 	labelEFI  = "EFI"
 	labelRoot = "ROOT"
@@ -90,44 +91,6 @@ func dd(of string, bs, count int) (err error) {
 	}
 
 	return nil
-}
-
-func makeFS(device, fsType string) error {
-	blkid := "blkid"
-	blkidAbsPath, err := findExecutableInPath(blkid, os.Getenv("PATH"), "/")
-	if err != nil {
-		return err
-	}
-	blkidCmd := exec.Command(blkidAbsPath, device)
-	err = blkidCmd.Run()
-	if err != nil {
-		return fmt.Errorf("error running blkid on %s: %w", device, err)
-	}
-	if blkidCmd.ProcessState.ExitCode() != blkidNoInfo {
-		return fmt.Errorf("device %s already contains a filesystem", device)
-	}
-
-	mkfs := "mkfs." + fsType
-	mkfsAbsPath, err := findExecutableInPath(mkfs, os.Getenv("PATH"), "/")
-	if err != nil {
-		return err
-	}
-	mkfsCmd := exec.Command(mkfsAbsPath, device)
-	return mkfsCmd.Run()
-}
-
-func findExecutableInPath(executable, pathEnv, rootDir string) (string, error) {
-	for _, dir := range filepath.SplitList(pathEnv) {
-		findPath := path.Join(rootDir, dir, executable)
-		fi, err := os.Stat(findPath)
-		if err != nil {
-			continue
-		}
-		if fi.Mode()&execBits != 0 {
-			return path.Join(dir, executable), nil
-		}
-	}
-	return "", fmt.Errorf("%s executable not found", executable)
 }
 
 func (e errExtract) Error() string {
@@ -310,14 +273,6 @@ type cachePaths struct {
 	vmImageFile   string
 }
 
-func Map[T, U any](coll []T, f func(T) U) []U {
-	ts := make([]U, len(coll))
-	for i, t := range coll {
-		ts[i] = f(t)
-	}
-	return ts
-}
-
 func (b *Builder) MakeRawVMImage(ctrImageName string) (err error) {
 	var (
 		ctrImageDesc *remote.Descriptor
@@ -339,7 +294,7 @@ func (b *Builder) MakeRawVMImage(ctrImageName string) (err error) {
 	imageCachePath := filepath.Join(b.CacheHome, ctrImageDesc.Digest.Hex)
 	paths := cachePaths{
 		imageCache:    imageCachePath,
-		metadata:      filepath.Join(imageCachePath, "metadata.json"),
+		metadata:      filepath.Join(imageCachePath, fileMetadata),
 		rootFSArchive: filepath.Join(imageCachePath, "rootfs.tar"),
 		vmImageFile:   filepath.Join(imageCachePath, "vm.img"),
 	}
@@ -665,7 +620,7 @@ func (b *Builder) setupMetadata(ctrImage v1.Image, gfs *guestfs.Guestfs, metadat
 		return fmt.Errorf("unable to write metadata file: %w", err)
 	}
 
-	err = gfsCopyIn(gfs, metadataPath, filepath.Join(dirCB, "metadata.json"), 0, 0, 0644)
+	err = gfsCopyIn(gfs, metadataPath, filepath.Join(dirCB, fileMetadata), 0, 0, 0644)
 	if err != nil {
 		return fmt.Errorf("unable to copy metadata into VM image: %w", err)
 	}

@@ -1,4 +1,4 @@
-package cbinit
+package preinit
 
 import (
 	"testing"
