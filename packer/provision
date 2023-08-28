@@ -1,0 +1,61 @@
+#!/bin/sh -e
+
+fail()
+{
+    echo >&2 "${1}"
+    exit 1
+}
+
+files_required="${ARCHIVE_BOOTLOADER} ${ARCHIVE_KERNEL} ${ARCHIVE_PREINIT} ${EXEC_CONVERTER}"
+files_missing=
+for f in ${files_required}; do
+    [ -f ${f} ] || files_missing="${files_missing} ${f}"
+done
+[ -z "${files_missing}" ] || fail "Files missing: ${files_missing}"
+
+chmod 0755 ${EXEC_CONVERTER}
+
+apt update
+apt install -y --no-install-recommends \
+    dosfstools \
+    parted
+
+ROOT_VOL=$(readlink -f ${ROOT_VOL})
+
+[ -n "$(blkid -s PTTYPE -o value ${ROOT_VOL})" ] || \
+    parted ${ROOT_VOL} mklabel gpt
+
+[ -n "$(blkid -s PARTUUID -o value ${ROOT_VOL}p1)" ] || \
+    parted ${ROOT_VOL} mkpart efi fat16 1MiB 257MiB set 1 esp on
+
+[ -n "$(blkid -s PARTUUID -o value ${ROOT_VOL}p2)" ] || \
+    parted ${ROOT_VOL} mkpart root ext4 257MiB 100%
+
+parted ${ROOT_VOL} print
+
+[ -n "$(blkid -s TYPE -o value ${ROOT_VOL}p1)" ] || \
+    mkfs -t vfat ${ROOT_VOL}p1
+
+[ -n "$(blkid -s TYPE -o value ${ROOT_VOL}p2)" ] || \
+    mkfs -t ext4 ${ROOT_VOL}p2
+
+mountpoint -q /mnt || mount ${ROOT_VOL}p2 /mnt
+mkdir -p -m 0755 /mnt/boot
+mountpoint -q /mnt/boot || mount ${ROOT_VOL}p1 /mnt/boot
+
+mkdir -p -m 0755 /mnt/__cb__
+
+${EXEC_CONVERTER} \
+    -b ${ARCHIVE_BOOTLOADER} \
+    -d ${ROOT_VOL} \
+    -i ${CONTAINER_IMAGE} \
+    -k ${ARCHIVE_KERNEL} \
+    -p ${ARCHIVE_PREINIT}
+
+ls -l /mnt
+ls -l /mnt/__cb__
+find /mnt/boot -ls
+cat /mnt/boot/loader/entries/cb.conf
+
+umount /mnt/boot
+umount /mnt

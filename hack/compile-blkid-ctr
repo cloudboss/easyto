@@ -1,0 +1,5 @@
+#!bin/sh
+
+set -e
+
+./configure --enable-static-programs=blkid && make blkid.static

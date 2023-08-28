@@ -1,15 +1,13 @@
-include ../Makefile.inc.go
+OUT_DIR = .
+EXECUTABLE = init
 
 default: init
 
-setup:
-	$(Q)mkdir -p $(OUT_BIN_DIR)
-	$(Q)mkdir -p $(OUT_CACHE_DIR)
-
-init: setup
-	$(Q)CGO_ENABLED=0 go build -o $(OUT_BIN_DIR)/init -ldflags="-s -w" .
+init:
+	@CGO_ENABLED=1 go build -o $(OUT_DIR)/$(EXECUTABLE) \
+		-ldflags '-linkmode external -extldflags -static -s -w' .
 
 clean:
-	$(Q)rm -rf $(OUT_DIR)
+	rm -f $(OUT_DIR)/$(EXECUTABLE)
 
-.PHONY: agent clean
+.PHONY: init clean

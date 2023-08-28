@@ -1,43 +1,13 @@
 package preinit
 
 import (
+	"errors"
+	"fmt"
+	"io/fs"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
-
-func Test_findExecutableInPath(t *testing.T) {
-	testCases := []struct {
-		path       string
-		executable string
-		result     string
-		err        error
-	}{
-		{
-			path:       "/bin:/sbin:/usr/local/bin",
-			executable: "bash",
-			result:     "/bin/bash",
-			err:        nil,
-		},
-		{
-			path:       "~/bin:/bin:/sbin:/usr/local/bin",
-			executable: "crictl",
-			result:     "/usr/local/bin/crictl",
-			err:        nil,
-		},
-		{
-			path:       "~/bin:/bin:/sbin:/usr/local/bin",
-			executable: "abcheyheyhey",
-			result:     "",
-			err:        executableNotFound,
-		},
-	}
-	for _, tc := range testCases {
-		result, err := findExecutableInPath(tc.executable, tc.path)
-		assert.Equal(t, tc.result, result)
-		assert.Equal(t, tc.err, err)
-	}
-}
 
 func Test_getenv(t *testing.T) {
 	testCases := []struct {
@@ -62,5 +32,45 @@ func Test_getenv(t *testing.T) {
 	for _, tc := range testCases {
 		ev := getenv(tc.env, tc.envVar)
 		assert.Equal(t, tc.expected, ev)
+	}
+}
+
+func Test_parseMode(t *testing.T) {
+	testCases := []struct {
+		mode   string
+		result fs.FileMode
+		err    error
+	}{
+		{
+			mode:   "",
+			result: 0755,
+			err:    nil,
+		},
+		{
+			mode:   "abc",
+			result: 0,
+			err:    errors.New("invalid mode abc"),
+		},
+		{
+			mode:   "-1",
+			result: 0,
+			err:    errors.New("invalid mode -1"),
+		},
+		{
+			mode:   "256",
+			result: 0,
+			err:    errors.New("invalid mode 256"),
+		},
+		{
+			mode:   "1234567890",
+			result: 0,
+			err:    errors.New("invalid mode 1234567890"),
+		},
+	}
+	for _, tc := range testCases {
+		actual, err := parseMode(tc.mode)
+		fmt.Printf("mode: %s\n", actual)
+		assert.Equal(t, tc.result, actual)
+		assert.Equal(t, tc.err, err)
 	}
 }

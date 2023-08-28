@@ -1,0 +1,3 @@
+#!/bin/sh
+
+go build -o ${DIR_OUT}/converter -ldflags "-s -w" ./cmd/...

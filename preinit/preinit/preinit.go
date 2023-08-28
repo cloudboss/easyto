@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -20,31 +19,14 @@ import (
 )
 
 const (
-	filePasswd   = "/etc/passwd"
-	fileGroup    = "/etc/group"
-	fileMetadata = "metadata.json"
-	dirRoot      = "/"
-	dirCB        = "/__cb__"
-	execBits     = 0111
-	pathDefault  = "/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
+	filePasswd     = "/etc/passwd"
+	fileGroup      = "/etc/group"
+	fileMetadata   = "metadata.json"
+	dirRoot        = "/"
+	dirCB          = "/__cb__"
+	execBits       = 0111
+	pathEnvDefault = "/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
 )
-
-// This is a duplicate of the struct in github.com/cloudboss/cb/punk, as
-// CGO_ENABLED=0 cannot be used with that library as it requires C.
-type Fuse struct {
-	Cmd        []string `json:"cmd,omitempty"`
-	Entrypoint []string `json:"entrypoint,omitempty"`
-	Env        []string `json:"env,omitempty"`
-	WorkingDir string   `json:"working_dir,omitempty"`
-}
-
-type InitSpec struct {
-	Command    []string
-	Env        []string
-	GID        int
-	UID        int
-	WorkingDir string
-}
 
 type link struct {
 	target string
@@ -268,8 +250,8 @@ func mounts() error {
 				return fmt.Errorf("unable to create directory %s: %w", m.target, err)
 			}
 		}
-		justMkdir := len(m.fsType) == 0
-		if justMkdir {
+		skipMount := len(m.fsType) == 0
+		if skipMount {
 			continue
 		}
 		err = unix.Mount(m.source, m.target, m.fsType, m.flags, strings.Join(m.options, ","))
@@ -331,7 +313,7 @@ func debug() {
 		},
 		{
 			"/bin/ls",
-			path.Join(dirRoot, "dev"),
+			filepath.Join(dirRoot, "dev"),
 		},
 	}
 	for _, command := range commands {
@@ -370,13 +352,13 @@ func getenv(env []string, key string) string {
 
 func findExecutableInPath(executable, pathEnv string) (string, error) {
 	for _, dir := range filepath.SplitList(pathEnv) {
-		findPath := path.Join(dirRoot, dir, executable)
+		findPath := filepath.Join(dirRoot, dir, executable)
 		fi, err := os.Stat(findPath)
 		if err != nil {
 			continue
 		}
 		if fi.Mode()&execBits != 0 {
-			return path.Join(dir, executable), nil
+			return filepath.Join(dir, executable), nil
 		}
 	}
 	return "", fmt.Errorf("executable %s not found", executable)
@@ -398,47 +380,109 @@ func readMetadata(metadataPath string) (*v1.ConfigFile, error) {
 	return metadata, nil
 }
 
-func metadataToInitSpec(metadata *v1.ConfigFile) (*InitSpec, error) {
-	initSpec := &InitSpec{}
-
-	var command []string
-	if metadata.Config.Entrypoint != nil {
-		command = metadata.Config.Entrypoint
-	}
-	if metadata.Config.Cmd != nil {
-		command = append(command, metadata.Config.Cmd...)
-	}
-	if command == nil {
-		command = []string{"/bin/sh"}
+func fullCommand(vmspec *VMSpec) ([]string, error) {
+	ex := append(vmspec.Command, vmspec.Args...)
+	if ex == nil {
+		ex = []string{"/bin/sh"}
 	}
 
-	pathEnv := pathDefault
-	pathMetadata := getenv(metadata.Config.Env, "PATH")
-	if len(pathMetadata) > 0 {
-		pathEnv = pathMetadata
+	pathEnv := pathEnvDefault
+	if pathVMSpec, i := vmspec.Env.find("PATH"); i >= 0 {
+		pathEnv = pathVMSpec
 	}
 
-	if !strings.HasPrefix(command[0], dirRoot) {
-		executablePath, err := findExecutableInPath(command[0], pathEnv)
+	if !strings.HasPrefix(ex[0], dirRoot) {
+		executablePath, err := findExecutableInPath(ex[0], pathEnv)
 		if err != nil {
 			return nil, err
 		}
-		command[0] = executablePath
+		ex[0] = executablePath
+	}
+	return ex, nil
+}
+
+// envToEnv converts an array of "key=value" strings to an EnvVarSource.
+func envToEnv(envVars []string) (EnvVarSource, error) {
+	source := make(EnvVarSource, len(envVars))
+	for i, envVar := range envVars {
+		fields := strings.Split(envVar, "=")
+		if len(fields) < 1 {
+			return nil, fmt.Errorf("invalid environment variable '%s'", envVar)
+		}
+		source[i].Name = fields[0]
+		if len(fields) > 1 {
+			source[i].Value = strings.Join(fields[1:], "=")
+		}
+	}
+	return source, nil
+}
+
+func metadataToVMSpec(metadata *v1.ConfigFile) (*VMSpec, error) {
+	vmSpec := &VMSpec{
+		Command:  metadata.Config.Entrypoint,
+		Args:     metadata.Config.Cmd,
+		Security: SecurityContext{},
 	}
 
-	initSpec.Command = command
+	env, err := envToEnv(metadata.Config.Env)
+	if err != nil {
+		return nil, err
+	}
+	vmSpec.Env = env
 
-	initSpec.Env = metadata.Config.Env
-	if initSpec.Env == nil {
-		initSpec.Env = os.Environ()
+	vmSpec.WorkingDir = metadata.Config.WorkingDir
+	if len(vmSpec.WorkingDir) == 0 {
+		vmSpec.WorkingDir = dirRoot
 	}
 
-	initSpec.WorkingDir = metadata.Config.WorkingDir
-	if len(initSpec.WorkingDir) == 0 {
-		initSpec.WorkingDir = dirRoot
+	uid, gid, err := getUserGroup(metadata.Config.User)
+	if err != nil {
+		return nil, err
+	}
+	vmSpec.Security.RunAsUserID = uid
+	vmSpec.Security.RunAsGroupID = gid
+
+	return vmSpec, nil
+}
+
+// entryID parses entryFile in the format of /etc/passwd or /etc/group to get
+// the numeric ID for the given entry. The entryFile has fields delimited by `:`
+// characters; the first field is the entry (user or group name as a string), and
+// the third field is its numeric ID. Additional fields are ignored, so it is able
+// to parse /etc/passwd and /etc/group, although their number of fields differ.
+// The function returns the numeric ID or an error if it is not found.
+func entryID(entryFile, entry string) (int, error) {
+	id := 0
+
+	p, err := os.Open(entryFile)
+	if err != nil {
+		return 0, fmt.Errorf("unable to open %s: %w", entryFile, err)
+	}
+	defer p.Close()
+
+	entryFound := false
+	pScanner := bufio.NewScanner(p)
+	for pScanner.Scan() {
+		line := pScanner.Text()
+		fields := strings.Split(line, ":")
+		if fields[0] == entry {
+			entryFound = true
+			id, err = strconv.Atoi(fields[2])
+			if err != nil {
+				return 0, fmt.Errorf("unexpected error reading %s: %w",
+					entryFile, err)
+			}
+			break
+		}
+	}
+	if err = pScanner.Err(); err != nil {
+		return 0, fmt.Errorf("unable to read %s: %w", entryFile, err)
+	}
+	if !entryFound {
+		return 0, fmt.Errorf("%s not found in %s", entry, entryFile)
 	}
 
-	return initSpec, nil
+	return id, nil
 }
 
 func getUserGroup(userEntry string) (int, int, error) {
@@ -447,6 +491,7 @@ func getUserGroup(userEntry string) (int, int, error) {
 		group string
 		uid   int
 		gid   int
+		err   error
 	)
 
 	userEntryFields := strings.Split(userEntry, ":")
@@ -462,68 +507,117 @@ func getUserGroup(userEntry string) (int, int, error) {
 		group = userEntryFields[1]
 	}
 
-	p, err := os.Open(filePasswd)
+	uid, err = entryID(filePasswd, user)
 	if err != nil {
-		return 0, 0, fmt.Errorf("unable to open %s: %w", filePasswd, err)
-	}
-	defer p.Close()
-
-	userFound := false
-	pScanner := bufio.NewScanner(p)
-	for pScanner.Scan() {
-		line := pScanner.Text()
-		fields := strings.Split(line, ":")
-		if fields[0] == user {
-			userFound = true
-			uid, err = strconv.Atoi(fields[2])
-			if err != nil {
-				return 0, 0, fmt.Errorf("unexpected error reading %s: %w", filePasswd, err)
-			}
-			break
-		}
-	}
-	if err = pScanner.Err(); err != nil {
-		return 0, 0, fmt.Errorf("unable to read %s: %w", filePasswd, err)
-	}
-	if !userFound {
-		return 0, 0, fmt.Errorf("user %s not found", user)
+		return 0, 0, err
 	}
 
 	if len(group) == 0 || group == "root" {
 		return uid, gid, nil
 	}
 
-	g, err := os.Open(fileGroup)
+	gid, err = entryID(fileGroup, group)
 	if err != nil {
-		return 0, 0, fmt.Errorf("unable to open %s: %w", fileGroup, err)
-	}
-	defer g.Close()
-
-	groupFound := false
-	gScanner := bufio.NewScanner(g)
-	for gScanner.Scan() {
-		line := gScanner.Text()
-		fields := strings.Split(line, ":")
-		if fields[0] == group {
-			groupFound = true
-			gid, err = strconv.Atoi(fields[2])
-			if err != nil {
-				return 0, 0, fmt.Errorf("unexpected error reading %s: %w", fileGroup, err)
-			}
-			break
-		}
-	}
-	if err = gScanner.Err(); err != nil {
-		return 0, 0, fmt.Errorf("unable to read %s: %w", fileGroup, err)
-	}
-	if !groupFound {
-		return 0, 0, fmt.Errorf("group %s not found", group)
+		return 0, 0, err
 	}
 
 	return uid, gid, nil
 }
 
-func DoIt() error {
+func parseMode(mode string) (fs.FileMode, error) {
+	if len(mode) == 0 {
+		return 0755, nil
+	}
+	n, err := strconv.ParseInt(mode, 8, 0)
+	if err != nil {
+		return 0, fmt.Errorf("invalid mode %s", mode)
+	}
+	return fs.FileMode(n), nil
+}
+
+func handleVolumeEBS(volume *EBSVolumeSource, index int) error {
+	fmt.Printf("Handling volume: %+v\n", volume)
+
+	if len(volume.Device) == 0 {
+		return errors.New("volume must have device")
+	}
+
+	if len(volume.FSType) == 0 {
+		return errors.New("volume must have filesystem type")
+	}
+
+	if len(volume.Mount.Directory) == 0 {
+		return errors.New("volume must have mount point")
+	}
+
+	mode, err := parseMode(volume.Mount.Mode)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Parsed mode %s into %s\n", volume.Mount.Mode, mode)
+
+	err = os.MkdirAll(volume.Mount.Directory, mode)
+	if err != nil {
+		return fmt.Errorf("unable to create mount point %s: %w",
+			volume.Mount.Directory, err)
+	}
+	fmt.Printf("Created mount point %s\n", volume.Mount.Directory)
+
+	err = os.Chown(volume.Mount.Directory, volume.Mount.UserID,
+		volume.Mount.GroupID)
+	if err != nil {
+		return fmt.Errorf("unable to change ownership of mount point: %w", err)
+	}
+	fmt.Printf("Changed ownership of mount point %s\n", volume.Mount.Directory)
+
+	mkfsPath := filepath.Join(dirCB, "mkfs."+volume.FSType)
+	if _, err := os.Stat(mkfsPath); os.IsNotExist(err) {
+		return fmt.Errorf("unsupported filesystem type %s for volume at index %d",
+			volume.FSType, index)
+	}
+
+	err = runCommand(mkfsPath, volume.Device)
+	if err != nil {
+		return fmt.Errorf("unable to create filesystem on %s: %w", volume.Device, err)
+	}
+	fmt.Printf("Created %s filesystem on %s\n", volume.FSType, volume.Device)
+
+	err = unix.Mount(volume.Device, volume.Mount.Directory, volume.FSType, 0, "")
+	if err != nil {
+		return fmt.Errorf("unable to mount %s on %s: %w", volume.Mount.Directory,
+			volume.FSType, err)
+	}
+	fmt.Printf("Mounted %s on %s\n", volume.Device, volume.Mount.Directory)
+
+	return nil
+}
+
+func execCommand(vmspec *VMSpec) error {
+	command, err := fullCommand(vmspec)
+	if err != nil {
+		return err
+	}
+
+	err = os.Chdir(vmspec.WorkingDir)
+	if err != nil {
+		return fmt.Errorf("unable to change working directory to %s: %w",
+			vmspec.WorkingDir, err)
+	}
+
+	err = syscall.Setuid(vmspec.Security.RunAsUserID)
+	if err != nil {
+		return fmt.Errorf("unable to set UID: %w", err)
+	}
+
+	err = syscall.Setgid(vmspec.Security.RunAsGroupID)
+	if err != nil {
+		return fmt.Errorf("unable to set GID: %w", err)
+	}
+
+	return syscall.Exec(command[0], command, vmspec.Env.toStrings())
+}
+
+func Run() error {
 	fmt.Println("Starting init")
 
 	err := mounts()
@@ -538,6 +632,9 @@ func DoIt() error {
 	}
 	fmt.Println("After links()")
 
+	linkEBSDevicesErrC := make(chan error)
+	go linkEBSDevices(linkEBSDevicesErrC)
+
 	debug()
 	fmt.Println("After debug()")
 
@@ -545,33 +642,50 @@ func DoIt() error {
 	if err != nil {
 		return err
 	}
-	initSpec, err := metadataToInitSpec(metadata)
+	fmt.Println("After readMetadata()")
+
+	vmSpec, err := metadataToVMSpec(metadata)
+	if err != nil {
+		return err
+	}
+	fmt.Println("After metadataToVMSpec()")
+
+	userData, err := getUserData()
+	if err != nil {
+		return err
+	}
+	fmt.Println("After getUserData()")
+	vmSpec = vmSpec.merge(userData)
+	fmt.Println("After vmSpec.merge()")
+
+	// Ensure linkEBSDevices() is done before handling volumes.
+	err = <-linkEBSDevicesErrC
 	if err != nil {
 		return err
 	}
 
-	if len(metadata.Config.WorkingDir) != 0 {
-		err = os.Chdir(metadata.Config.WorkingDir)
+	for i, volume := range vmSpec.Volumes {
+		if volume.EBS != nil {
+			err = handleVolumeEBS(volume.EBS, i)
+			if err != nil {
+				return err
+			}
+			continue
+		}
+		if volume.SecretsManager != nil {
+			continue
+		}
+		return fmt.Errorf("invalid volume defined at index %d", i)
+	}
+	fmt.Println("After handling volumes")
+
+	if vmSpec.Security.ReadonlyRootFS {
+		err = unix.Mount("", dirRoot, "", syscall.MS_REMOUNT|syscall.MS_RDONLY, "")
 		if err != nil {
-			return fmt.Errorf("unable to change working directory to %s: %w",
-				metadata.Config.WorkingDir, err)
+			return fmt.Errorf("unable to remount root as readonly: %w", err)
 		}
 	}
 
-	initSpec.UID, initSpec.GID, err = getUserGroup(metadata.Config.User)
-	if err != nil {
-		return err
-	}
-
-	err = syscall.Setuid(initSpec.UID)
-	if err != nil {
-		return fmt.Errorf("unable to set UID: %w", err)
-	}
-
-	err = syscall.Setgid(initSpec.GID)
-	if err != nil {
-		return fmt.Errorf("unable to set GID: %w", err)
-	}
-
-	return syscall.Exec(initSpec.Command[0], initSpec.Command, initSpec.Env)
+	fmt.Println("About to run entrypoint")
+	return execCommand(vmSpec)
 }

@@ -19,22 +19,19 @@ var (
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cmd.SilenceUsage = true
 
-			cacheHome, err := expandPath(cfg.cacheHome)
-			if err != nil {
-				return fmt.Errorf("failed to expand cache directory: %w", err)
-			}
-
 			builder, err := ctr2ami.NewBuilder(
 				ctr2ami.WithBootloaderPath(cfg.bootloaderPath),
-				ctr2ami.WithCacheHome(cacheHome),
-				ctr2ami.WithInitPath(cfg.initPath),
+				ctr2ami.WithCTRImageName(cfg.image),
 				ctr2ami.WithKernelPath(cfg.kernelPath),
+				ctr2ami.WithPreinitPath(cfg.preinitPath),
+				ctr2ami.WithVMImageDevice(cfg.vmImageDevice),
+				ctr2ami.WithVMImageMount(cfg.vmImageMount),
 			)
 			if err != nil {
 				return fmt.Errorf("failed to create VM image builder: %w", err)
 			}
 
-			err = builder.MakeRawVMImage(cfg.image)
+			err = builder.MakeVMImage()
 			if err != nil {
 				return fmt.Errorf("failed to convert container image to VM image: %w", err)
 			}
@@ -46,25 +43,30 @@ var (
 
 type config struct {
 	bootloaderPath string
-	cacheHome      string
 	image          string
-	initPath       string
 	kernelPath     string
+	preinitPath    string
+	vmImageDevice  string
+	vmImageMount   string
 }
 
 func init() {
 	cmd.Flags().StringVarP(&cfg.bootloaderPath, "bootloader-path", "b", "",
 		"Path to a tar file containing bootloader files.")
 	cmd.MarkFlagRequired("bootloader-path")
-	cmd.Flags().StringVarP(&cfg.cacheHome, "cache-home", "c", "~/.ctr2ami",
-		"Directory in which to cache images.")
 	cmd.Flags().StringVarP(&cfg.image, "container-image", "i", "", "Container image to convert.")
 	cmd.MarkFlagRequired("container-image")
 	cmd.Flags().StringVarP(&cfg.kernelPath, "kernel-path", "k", "",
 		"Path to a tar file containing kernel and modules.")
 	cmd.MarkFlagRequired("kernel-path")
-	cmd.Flags().StringVarP(&cfg.initPath, "init-path", "", "", "Path to an init executable.")
-	cmd.MarkFlagRequired("init-path")
+	cmd.Flags().StringVarP(&cfg.preinitPath, "preinit-path", "p", "",
+		"Path to a tar file containing preinit and dependencies.")
+	cmd.MarkFlagRequired("preinit-path")
+	cmd.Flags().StringVarP(&cfg.vmImageDevice, "vm-image-device", "d", "",
+		"Device on which VM image will be created.")
+	cmd.MarkFlagRequired("vm-image-device")
+	cmd.Flags().StringVarP(&cfg.vmImageMount, "vm-image-mount", "m", "/mnt",
+		"Remote directory on which VM image device will be mounted.")
 }
 
 func expandPath(pth string) (string, error) {

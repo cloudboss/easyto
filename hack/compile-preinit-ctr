@@ -1,0 +1,4 @@
+#!/bin/sh
+
+go build -o ${DIR_OUT}/preinit \
+    -ldflags "-linkmode external -extldflags -static -s -w" .

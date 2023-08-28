@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	err := preinit.DoIt()
+	err := preinit.Run()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to set up init: %s\n", err)
 		os.Exit(1)

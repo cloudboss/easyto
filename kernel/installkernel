@@ -1,0 +1,16 @@
+#!/bin/sh
+# Mounted as /sbin/installkernel in the kernel build container.
+
+set -e
+
+version=${1}
+vmlinuz=${2}
+system_map=${3}
+destdir=${4}
+
+mapdir=$(dirname ${system_map})
+config=${mapdir}/.config
+
+install -m 0644 ${config} ${destdir}/config-${version}
+install -m 0644 ${system_map} ${destdir}/System.map-${version}
+install -m 0644 ${vmlinuz} ${destdir}/vmlinuz-${version}
