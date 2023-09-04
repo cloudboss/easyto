@@ -13,16 +13,18 @@ COMMIT_ID_HEAD := $(shell git rev-parse HEAD)
 CTR_IMAGE_GO := golang:1.21.0-alpine3.18
 CTR_IMAGE_LOCAL := $(PROJECT):$(COMMIT_ID_HEAD)
 
+KERNEL_ORG := https://cdn.kernel.org/pub/linux
+
 E2FSPROGS_VERSION := 1.47.0
 E2FSPROGS_SRC := e2fsprogs-$(E2FSPROGS_VERSION)
 E2FSPROGS_ARCHIVE := $(E2FSPROGS_SRC).tar.gz
-E2FSPROGS_URL := https://cdn.kernel.org/pub/linux/kernel/people/tytso/e2fsprogs/v$(E2FSPROGS_VERSION)/$(E2FSPROGS_ARCHIVE)
+E2FSPROGS_URL := $(KERNEL_ORG)/kernel/people/tytso/e2fsprogs/v$(E2FSPROGS_VERSION)/$(E2FSPROGS_ARCHIVE)
 
 KERNEL_VERSION := 6.1.48
 KERNEL_VERSION_MAJ := $(shell echo $(KERNEL_VERSION) | cut -c 1)
 KERNEL_SRC := linux-$(KERNEL_VERSION)
 KERNEL_ARCHIVE := $(KERNEL_SRC).tar.xz
-KERNEL_URL := https://cdn.kernel.org/pub/linux/kernel/v$(KERNEL_VERSION_MAJ).x/$(KERNEL_ARCHIVE)
+KERNEL_URL := $(KERNEL_ORG)/kernel/v$(KERNEL_VERSION_MAJ).x/$(KERNEL_ARCHIVE)
 
 SYSTEMD_BOOT_VERSION := 252.12-1~deb12u1
 SYSTEMD_BOOT_ARCHIVE := systemd-boot-efi_$(SYSTEMD_BOOT_VERSION)_amd64.deb
@@ -31,7 +33,7 @@ SYSTEMD_BOOT_URL := https://ftp.debian.org/debian/pool/main/s/systemd/$(SYSTEMD_
 UTIL_LINUX_VERSION := 2.39
 UTIL_LINUX_SRC := util-linux-$(UTIL_LINUX_VERSION)
 UTIL_LINUX_ARCHIVE := $(UTIL_LINUX_SRC).tar.gz
-UTIL_LINUX_URL := https://cdn.kernel.org/pub/linux/utils/util-linux/v$(UTIL_LINUX_VERSION)/$(UTIL_LINUX_ARCHIVE)
+UTIL_LINUX_URL := $(KERNEL_ORG)/utils/util-linux/v$(UTIL_LINUX_VERSION)/$(UTIL_LINUX_ARCHIVE)
 
 HAS_COMMAND_AR := $(DIR_OUT)/.command-ar
 HAS_COMMAND_CURL := $(DIR_OUT)/.command-curl
