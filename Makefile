@@ -33,11 +33,11 @@ UTIL_LINUX_SRC := util-linux-$(UTIL_LINUX_VERSION)
 UTIL_LINUX_ARCHIVE := $(UTIL_LINUX_SRC).tar.gz
 UTIL_LINUX_URL := https://cdn.kernel.org/pub/linux/utils/util-linux/v$(UTIL_LINUX_VERSION)/$(UTIL_LINUX_ARCHIVE)
 
-HAS_AR := $(DIR_OUT)/.command-ar
-HAS_CURL := $(DIR_OUT)/.command-curl
-HAS_DOCKER := $(DIR_OUT)/.command-docker
-HAS_FAKEROOT := $(DIR_OUT)/.command-fakeroot
-HAS_XZCAT := $(DIR_OUT)/.command-xzcat
+HAS_COMMAND_AR := $(DIR_OUT)/.command-ar
+HAS_COMMAND_CURL := $(DIR_OUT)/.command-curl
+HAS_COMMAND_DOCKER := $(DIR_OUT)/.command-docker
+HAS_COMMAND_FAKEROOT := $(DIR_OUT)/.command-fakeroot
+HAS_COMMAND_XZCAT := $(DIR_OUT)/.command-xzcat
 HAS_IMAGE_LOCAL := $(DIR_OUT)/.image-local-$(COMMIT_ID_HEAD)
 
 default: release
@@ -82,7 +82,7 @@ release-kernel: $(DIR_RELEASE)/kernel-$(KERNEL_VERSION).tar
 
 release: release-bootloader release-converter release-preinit release-kernel
 
-$(DIR_BOOTLOADER)/boot/EFI/BOOT/BOOTX64.EFI: $(HAS_AR) $(HAS_XZCAT) \
+$(DIR_BOOTLOADER)/boot/EFI/BOOT/BOOTX64.EFI: $(HAS_COMMAND_AR) $(HAS_COMMAND_XZCAT) \
 		$(DIR_OUT)/$(SYSTEMD_BOOT_ARCHIVE)
 	@$(MAKE) $(DIR_BOOTLOADER)/tmp/ $(DIR_BOOTLOADER)/boot/EFI/BOOT/
 	@ar --output $(DIR_BOOTLOADER)/tmp xf $(DIR_OUT)/$(SYSTEMD_BOOT_ARCHIVE) data.tar.xz
@@ -91,7 +91,7 @@ $(DIR_BOOTLOADER)/boot/EFI/BOOT/BOOTX64.EFI: $(HAS_AR) $(HAS_XZCAT) \
 		--xform "s|.*/systemd-bootx64.efi|_output/bootloader/boot/EFI/BOOT/BOOTX64.EFI|" \
 		./usr/lib/systemd/boot/efi/systemd-bootx64.efi
 
-$(DIR_OUT)/$(SYSTEMD_BOOT_ARCHIVE): $(HAS_CURL)
+$(DIR_OUT)/$(SYSTEMD_BOOT_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -o $(DIR_OUT)/$(SYSTEMD_BOOT_ARCHIVE) $(SYSTEMD_BOOT_URL)
 
 $(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(E2FSPROGS_SRC)
@@ -104,7 +104,7 @@ $(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(E2FSPRO
 $(DIR_OUT)/$(E2FSPROGS_SRC): $(DIR_OUT)/$(E2FSPROGS_ARCHIVE)
 	@tar zxf $(DIR_OUT)/$(E2FSPROGS_ARCHIVE) -C $(DIR_OUT)
 
-$(DIR_OUT)/$(E2FSPROGS_ARCHIVE): $(HAS_CURL)
+$(DIR_OUT)/$(E2FSPROGS_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -o $(DIR_OUT)/$(E2FSPROGS_ARCHIVE) $(E2FSPROGS_URL)
 
 $(DIR_PREINIT)/$(DIR_CB)/mke2fs: $(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs
@@ -132,10 +132,10 @@ $(DIR_KERNEL)/boot/vmlinuz-$(KERNEL_VERSION): $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(KE
 	@rm -f $(DIR_KERNEL)/$(DIR_CB)/lib/modules/$(KERNEL_VERSION)/build
 	@rm -f $(DIR_KERNEL)/$(DIR_CB)/lib/modules/$(KERNEL_VERSION)/source
 
-$(DIR_OUT)/$(KERNEL_SRC): $(HAS_XZCAT) $(DIR_OUT)/$(KERNEL_ARCHIVE)
+$(DIR_OUT)/$(KERNEL_SRC): $(HAS_COMMAND_XZCAT) $(DIR_OUT)/$(KERNEL_ARCHIVE)
 	@xzcat $(DIR_OUT)/$(KERNEL_ARCHIVE) | tar xf - -C $(DIR_OUT)
 
-$(DIR_OUT)/$(KERNEL_ARCHIVE): $(HAS_CURL)
+$(DIR_OUT)/$(KERNEL_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -o $(DIR_OUT)/$(KERNEL_ARCHIVE) $(KERNEL_URL)
 
 $(DIR_PREINIT)/$(DIR_CB)/blkid: $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static
@@ -150,7 +150,7 @@ $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(UTIL_
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-blkid-ctr)"
 
 # Container image build is done in an empty directory to speed it up.
-$(HAS_IMAGE_LOCAL): $(HAS_DOCKER)
+$(HAS_IMAGE_LOCAL): $(HAS_COMMAND_DOCKER)
 	@$(MAKE) $(DIR_OUT)/dockerbuild/
 	@docker build --build-arg FROM=$(CTR_IMAGE_GO) \
 		--build-arg GID=$$(id -g) \
@@ -163,25 +163,25 @@ $(HAS_IMAGE_LOCAL): $(HAS_DOCKER)
 $(DIR_OUT)/$(UTIL_LINUX_SRC): $(DIR_OUT)/$(UTIL_LINUX_ARCHIVE)
 	@tar zxf $(DIR_OUT)/$(UTIL_LINUX_ARCHIVE) -C $(DIR_OUT)
 
-$(DIR_OUT)/$(UTIL_LINUX_ARCHIVE): $(HAS_CURL)
+$(DIR_OUT)/$(UTIL_LINUX_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -o $(DIR_OUT)/$(UTIL_LINUX_ARCHIVE) $(UTIL_LINUX_URL)
 
-$(DIR_RELEASE)/boot.tar: $(HAS_FAKEROOT) $(DIR_BOOTLOADER)/boot/EFI/BOOT/BOOTX64.EFI
+$(DIR_RELEASE)/boot.tar: $(HAS_COMMAND_FAKEROOT) $(DIR_BOOTLOADER)/boot/EFI/BOOT/BOOTX64.EFI
 	@$(MAKE) $(DIR_RELEASE)/ $(DIR_BOOTLOADER)/boot/loader/entries/
 	@chmod -R 0755 $(DIR_BOOTLOADER)
 	@cd $(DIR_BOOTLOADER) && fakeroot tar cf $(DIR_RELEASE)/boot.tar boot
 
-$(DIR_RELEASE)/converter.tar.gz: $(HAS_FAKEROOT) $(DIR_OUT)/converter
+$(DIR_RELEASE)/converter.tar.gz: $(HAS_COMMAND_FAKEROOT) $(DIR_OUT)/converter
 	@$(MAKE) $(DIR_RELEASE)/
 	@cd $(DIR_OUT) && fakeroot tar zcf $(DIR_RELEASE)/converter.tar.gz converter
 
-$(DIR_RELEASE)/kernel-$(KERNEL_VERSION).tar: $(HAS_FAKEROOT) \
+$(DIR_RELEASE)/kernel-$(KERNEL_VERSION).tar: $(HAS_COMMAND_FAKEROOT) \
 		$(DIR_KERNEL)/boot/vmlinuz-$(KERNEL_VERSION)
 	@$(MAKE) $(DIR_RELEASE)/
 	@cd $(DIR_KERNEL) && fakeroot tar cf $(DIR_RELEASE)/kernel-$(KERNEL_VERSION).tar .
 
 $(DIR_RELEASE)/preinit.tar: \
-		$(HAS_FAKEROOT) \
+		$(HAS_COMMAND_FAKEROOT) \
 		$(DIR_PREINIT)/$(DIR_CB)/blkid \
 		$(DIR_PREINIT)/$(DIR_CB)/mke2fs \
 		$(DIR_PREINIT)/$(DIR_CB)/mkfs.ext2 \
