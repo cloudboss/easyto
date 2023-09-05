@@ -1,4 +1,7 @@
 PROJECT := $(shell basename ${PWD})
+OS := $(shell uname | tr [:upper:] [:lower:])
+ARCH := $(shell arch=$$(uname -m); [ "$${arch}" = "x86_64" ] && echo "amd64" || echo $${arch})
+VERSION :=
 
 DIR_ROOT := $(shell echo ${PWD})
 DIR_OUT := $(DIR_ROOT)/_output
@@ -8,6 +11,10 @@ DIR_BOOTLOADER := $(DIR_OUT)/bootloader
 DIR_PREINIT := $(DIR_OUT)/preinit
 DIR_KERNEL := $(DIR_OUT)/kernel
 DIR_RELEASE := $(DIR_OUT)/release
+DIR_RELEASE_ASSETS := $(DIR_RELEASE)/assets
+DIR_RELEASE_BIN := $(DIR_RELEASE)/bin
+DIR_RELEASE_PACKER := $(DIR_RELEASE)/packer
+DIR_RELEASE_PACKER_PLUGIN := $(DIR_RELEASE_PACKER)/plugins/github.com/hashicorp/amazon
 
 COMMIT_ID_HEAD := $(shell git rev-parse HEAD)
 CTR_IMAGE_GO := golang:1.21.0-alpine3.18
@@ -26,6 +33,15 @@ KERNEL_SRC := linux-$(KERNEL_VERSION)
 KERNEL_ARCHIVE := $(KERNEL_SRC).tar.xz
 KERNEL_URL := $(KERNEL_ORG)/kernel/v$(KERNEL_VERSION_MAJ).x/$(KERNEL_ARCHIVE)
 
+PACKER_VERSION := 1.9.4
+PACKER_ARCHIVE := packer_$(PACKER_VERSION)_$(OS)_$(ARCH).zip
+PACKER_URL := https://releases.hashicorp.com/packer/$(PACKER_VERSION)/$(PACKER_ARCHIVE)
+
+PACKER_PLUGIN_AMZ_VERSION := 1.2.6
+PACKER_PLUGIN_AMZ_FILE := packer-plugin-amazon_v$(PACKER_PLUGIN_AMZ_VERSION)_x5.0_$(OS)_$(ARCH)
+PACKER_PLUGIN_AMZ_ARCHIVE := $(PACKER_PLUGIN_AMZ_FILE).zip
+PACKER_PLUGIN_AMZ_URL := https://github.com/hashicorp/packer-plugin-amazon/releases/download/v$(PACKER_PLUGIN_AMZ_VERSION)/$(PACKER_PLUGIN_AMZ_ARCHIVE)
+
 SYSTEMD_BOOT_VERSION := 252.12-1~deb12u1
 SYSTEMD_BOOT_ARCHIVE := systemd-boot-efi_$(SYSTEMD_BOOT_VERSION)_amd64.deb
 SYSTEMD_BOOT_URL := https://ftp.debian.org/debian/pool/main/s/systemd/$(SYSTEMD_BOOT_ARCHIVE)
@@ -39,6 +55,7 @@ HAS_COMMAND_AR := $(DIR_OUT)/.command-ar
 HAS_COMMAND_CURL := $(DIR_OUT)/.command-curl
 HAS_COMMAND_DOCKER := $(DIR_OUT)/.command-docker
 HAS_COMMAND_FAKEROOT := $(DIR_OUT)/.command-fakeroot
+HAS_COMMAND_UNZIP := $(DIR_OUT)/.command-unzip
 HAS_COMMAND_XZCAT := $(DIR_OUT)/.command-xzcat
 HAS_IMAGE_LOCAL := $(DIR_OUT)/.image-local-$(COMMIT_ID_HEAD)
 
@@ -63,26 +80,24 @@ e2fsprogs: $(DIR_PREINIT)/$(DIR_CB)/mke2fs $(DIR_PREINIT)/$(DIR_CB)/mkfs.ext2 \
 
 kernel: $(DIR_KERNEL)/boot/vmlinuz-$(KERNEL_VERSION)
 
-preinit: $(HAS_IMAGE_LOCAL)
-	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
-	@docker run -it \
-		-v $(DIR_ROOT):/code \
-		-e DIR_OUT=/code/_output/preinit/$(DIR_CB) \
-		-e GOPATH=/code/_output/go \
-		-e GOCACHE=/code/_output/gocache \
-		-e CGO_ENABLED=1 \
-		-w /code/preinit \
-		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-preinit-ctr)"
+preinit: $(DIR_PREINIT)/$(DIR_CB)/preinit
 
-release-bootloader: $(DIR_RELEASE)/boot.tar
+packer: $(DIR_RELEASE_PACKER)/build.pkr.hcl \
+		$(DIR_RELEASE_PACKER)/packer \
+		$(DIR_RELEASE_PACKER)/provision \
+		$(DIR_RELEASE_PACKER_PLUGIN)/$(PACKER_PLUGIN_AMZ_FILE)_SHA256SUM
 
-release-converter: $(DIR_RELEASE)/converter.tar.gz
+unpack: $(DIR_OUT)/unpack
 
-release-preinit: $(DIR_RELEASE)/preinit.tar
+assets-bootloader: $(DIR_RELEASE_ASSETS)/boot.tar
 
-release-kernel: $(DIR_RELEASE)/kernel-$(KERNEL_VERSION).tar
+assets-converter: $(DIR_RELEASE_ASSETS)/converter
 
-release: release-bootloader release-converter release-preinit release-kernel
+assets-preinit: $(DIR_RELEASE_ASSETS)/preinit.tar
+
+assets-kernel: $(DIR_RELEASE_ASSETS)/kernel-$(KERNEL_VERSION).tar
+
+release: $(DIR_RELEASE)/unpack-$(VERSION)-$(OS)-$(ARCH).tar.gz
 
 $(DIR_BOOTLOADER)/boot/EFI/BOOT/BOOTX64.EFI: $(HAS_COMMAND_AR) $(HAS_COMMAND_XZCAT) \
 		$(DIR_OUT)/$(SYSTEMD_BOOT_ARCHIVE)
@@ -116,6 +131,18 @@ $(DIR_PREINIT)/$(DIR_CB)/mke2fs: $(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs
 $(DIR_PREINIT)/$(DIR_CB)/mkfs.ext%: $(DIR_PREINIT)/$(DIR_CB)/mke2fs
 	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
 	@ln -f $(DIR_PREINIT)/$(DIR_CB)/mke2fs $(DIR_PREINIT)/$(DIR_CB)/mkfs.ext$*
+
+$(DIR_PREINIT)/$(DIR_CB)/preinit: $(HAS_IMAGE_LOCAL) \
+		$(shell find preinit -type f -path '*.go' ! -path '*_test.go')
+	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
+	@docker run -it \
+		-v $(DIR_ROOT):/code \
+		-e DIR_OUT=/code/_output/preinit/$(DIR_CB) \
+		-e GOPATH=/code/_output/go \
+		-e GOCACHE=/code/_output/gocache \
+		-e CGO_ENABLED=1 \
+		-w /code/preinit \
+		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-preinit-ctr)"
 
 # Other files are created by the kernel build, but vmlinuz-$(KERNEL_VERSION) will
 # be used to indicate the target is created. It is the last file created by the build
@@ -168,29 +195,83 @@ $(DIR_OUT)/$(UTIL_LINUX_SRC): $(DIR_OUT)/$(UTIL_LINUX_ARCHIVE)
 $(DIR_OUT)/$(UTIL_LINUX_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -o $(DIR_OUT)/$(UTIL_LINUX_ARCHIVE) $(UTIL_LINUX_URL)
 
-$(DIR_RELEASE)/boot.tar: $(HAS_COMMAND_FAKEROOT) $(DIR_BOOTLOADER)/boot/EFI/BOOT/BOOTX64.EFI
-	@$(MAKE) $(DIR_RELEASE)/ $(DIR_BOOTLOADER)/boot/loader/entries/
+$(DIR_RELEASE_ASSETS)/boot.tar: $(HAS_COMMAND_FAKEROOT) $(DIR_BOOTLOADER)/boot/EFI/BOOT/BOOTX64.EFI
+	@$(MAKE) $(DIR_RELEASE_ASSETS)/ $(DIR_BOOTLOADER)/boot/loader/entries/
 	@chmod -R 0755 $(DIR_BOOTLOADER)
-	@cd $(DIR_BOOTLOADER) && fakeroot tar cf $(DIR_RELEASE)/boot.tar boot
+	@cd $(DIR_BOOTLOADER) && fakeroot tar cf $(DIR_RELEASE_ASSETS)/boot.tar boot
 
-$(DIR_RELEASE)/converter.tar.gz: $(HAS_COMMAND_FAKEROOT) $(DIR_OUT)/converter
-	@$(MAKE) $(DIR_RELEASE)/
-	@cd $(DIR_OUT) && fakeroot tar zcf $(DIR_RELEASE)/converter.tar.gz converter
+$(DIR_RELEASE_ASSETS)/converter: $(DIR_OUT)/converter
+	@$(MAKE) $(DIR_RELEASE_ASSETS)/
+	@install -m 0755 $(DIR_OUT)/converter $(DIR_RELEASE_ASSETS)/converter
 
-$(DIR_RELEASE)/kernel-$(KERNEL_VERSION).tar: $(HAS_COMMAND_FAKEROOT) \
+$(DIR_RELEASE_ASSETS)/kernel-$(KERNEL_VERSION).tar: $(HAS_COMMAND_FAKEROOT) \
 		$(DIR_KERNEL)/boot/vmlinuz-$(KERNEL_VERSION)
-	@$(MAKE) $(DIR_RELEASE)/
-	@cd $(DIR_KERNEL) && fakeroot tar cf $(DIR_RELEASE)/kernel-$(KERNEL_VERSION).tar .
+	@$(MAKE) $(DIR_RELEASE_ASSETS)/
+	@cd $(DIR_KERNEL) && fakeroot tar cf $(DIR_RELEASE_ASSETS)/kernel-$(KERNEL_VERSION).tar .
 
-$(DIR_RELEASE)/preinit.tar: \
+$(DIR_RELEASE_ASSETS)/preinit.tar: \
 		$(HAS_COMMAND_FAKEROOT) \
 		$(DIR_PREINIT)/$(DIR_CB)/blkid \
 		$(DIR_PREINIT)/$(DIR_CB)/mke2fs \
 		$(DIR_PREINIT)/$(DIR_CB)/mkfs.ext2 \
 		$(DIR_PREINIT)/$(DIR_CB)/mkfs.ext3 \
-		$(DIR_PREINIT)/$(DIR_CB)/mkfs.ext4
-	@$(MAKE) $(DIR_RELEASE)/
-	@cd $(DIR_PREINIT) && fakeroot tar cf $(DIR_RELEASE)/preinit.tar .
+		$(DIR_PREINIT)/$(DIR_CB)/mkfs.ext4 \
+		$(DIR_PREINIT)/$(DIR_CB)/preinit
+	@$(MAKE) $(DIR_RELEASE_ASSETS)/
+	@cd $(DIR_PREINIT) && fakeroot tar cf $(DIR_RELEASE_ASSETS)/preinit.tar .
+
+$(DIR_RELEASE)/unpack-$(VERSION)-$(OS)-$(ARCH).tar.gz: $(HAS_COMMAND_FAKEROOT) packer \
+		$(DIR_RELEASE_ASSETS)/boot.tar \
+		$(DIR_RELEASE_ASSETS)/converter \
+		$(DIR_RELEASE_ASSETS)/preinit.tar \
+		$(DIR_RELEASE_ASSETS)/kernel-$(KERNEL_VERSION).tar \
+		$(DIR_RELEASE_BIN)/unpack
+	@[ -n "$(VERSION)" ] || (echo "VERSION is required"; exit 1)
+	@cd $(DIR_RELEASE) && \
+		fakeroot tar czf $(DIR_RELEASE)/unpack-$(VERSION)-$(OS)-$(ARCH).tar.gz assets bin packer
+
+$(DIR_RELEASE_BIN)/unpack: $(DIR_OUT)/unpack
+	@$(MAKE) $(DIR_RELEASE_BIN)/
+	@install -m 0755 $(DIR_OUT)/unpack $(DIR_RELEASE_BIN)/unpack
+
+$(DIR_OUT)/unpack: $(HAS_IMAGE_LOCAL) unpack/*.go
+	@[ -d $(DIR_OUT) ] || mkdir -p $(DIR_OUT)
+	@docker run -it \
+		-v $(DIR_ROOT):/code \
+		-e DIR_OUT=/code/_output \
+		-e GOPATH=/code/_output/go \
+		-e GOCACHE=/code/_output/gocache \
+		-e CGO_ENABLED=0 \
+		-w /code/unpack \
+		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-unpack-ctr)"
+
+$(DIR_RELEASE_PACKER)/packer: $(HAS_COMMAND_UNZIP) $(DIR_OUT)/$(PACKER_ARCHIVE)
+	@$(MAKE) $(DIR_RELEASE_PACKER)/
+	@unzip -o $(DIR_OUT)/$(PACKER_ARCHIVE) -d $(DIR_RELEASE_PACKER)
+	@touch $(DIR_RELEASE_PACKER)/packer
+
+$(DIR_OUT)/$(PACKER_ARCHIVE): $(HAS_COMMAND_CURL)
+	@curl -o $(DIR_OUT)/$(PACKER_ARCHIVE) $(PACKER_URL)
+
+$(DIR_RELEASE_PACKER)/build.pkr.hcl: $(DIR_ROOT)/packer/build.pkr.hcl
+	@$(MAKE) $(DIR_RELEASE_PACKER)/
+	@install -m 0644 $(DIR_ROOT)/packer/build.pkr.hcl $(DIR_RELEASE_PACKER)/build.pkr.hcl
+
+$(DIR_RELEASE_PACKER)/provision: $(DIR_ROOT)/packer/provision
+	@install -m 0755 $(DIR_ROOT)/packer/provision $(DIR_RELEASE_PACKER)/provision
+
+$(DIR_RELEASE_PACKER_PLUGIN)/$(PACKER_PLUGIN_AMZ_FILE)_SHA256SUM: $(DIR_RELEASE_PACKER_PLUGIN)/$(PACKER_PLUGIN_AMZ_FILE)
+	@sha256sum $(DIR_RELEASE_PACKER_PLUGIN)/$(PACKER_PLUGIN_AMZ_FILE) | \
+		awk '{print $1}' > $(DIR_RELEASE_PACKER_PLUGIN)/$(PACKER_PLUGIN_AMZ_FILE)_SHA256SUM
+
+$(DIR_RELEASE_PACKER_PLUGIN)/$(PACKER_PLUGIN_AMZ_FILE): $(HAS_COMMAND_UNZIP) \
+		$(DIR_OUT)/$(PACKER_PLUGIN_AMZ_ARCHIVE)
+	@$(MAKE) $(DIR_RELEASE_PACKER_PLUGIN)/
+	@unzip -o $(DIR_OUT)/$(PACKER_PLUGIN_AMZ_ARCHIVE) -d $(DIR_RELEASE_PACKER_PLUGIN)
+	@touch $(DIR_RELEASE_PACKER_PLUGIN)/$(PACKER_PLUGIN_AMZ_FILE)
+
+$(DIR_OUT)/$(PACKER_PLUGIN_AMZ_ARCHIVE): $(HAS_COMMAND_CURL)
+	@curl -L -o $(DIR_OUT)/$(PACKER_PLUGIN_AMZ_ARCHIVE) $(PACKER_PLUGIN_AMZ_URL)
 
 # Create empty file `_output/.command-abc` if command `abc` is found.
 $(DIR_OUT)/.command-%:
