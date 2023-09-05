@@ -632,7 +632,7 @@ func Run() error {
 	}
 	fmt.Println("After links()")
 
-	linkEBSDevicesErrC := make(chan error)
+	linkEBSDevicesErrC := make(chan error, 1)
 	go linkEBSDevices(linkEBSDevicesErrC)
 
 	debug()
