@@ -2,6 +2,7 @@ package preinit
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -121,12 +122,21 @@ func getUserData(endpoint ...string) (*VMSpec, error) {
 		endpoint0 = endpoint[0]
 	}
 
+	vmspec := &VMSpec{}
+
 	resp, err := getIMDSv2("/latest/user-data", endpoint0)
 	if err != nil {
-		return nil, err
+		// Return an empty VMSpec when no user data is defined.
+		hErr := &httpError{}
+		if errors.As(err, &hErr) && hErr.statusCode == http.StatusNotFound {
+			fmt.Printf("Got http error %+v\n", hErr)
+			return vmspec, nil
+		} else {
+			fmt.Printf("Got error %+v\n", err)
+			return nil, err
+		}
 	}
 
-	vmspec := &VMSpec{}
 	err = json.NewDecoder(resp.Body).Decode(vmspec)
 	if err != nil {
 		return nil, err
