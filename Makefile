@@ -237,7 +237,8 @@ $(DIR_RELEASE_BIN)/unpack: $(DIR_OUT)/unpack
 	@$(MAKE) $(DIR_RELEASE_BIN)/
 	@install -m 0755 $(DIR_OUT)/unpack $(DIR_RELEASE_BIN)/unpack
 
-$(DIR_OUT)/unpack: $(HAS_IMAGE_LOCAL) unpack/*.go
+$(DIR_OUT)/unpack: $(HAS_IMAGE_LOCAL) \
+		$(shell find unpack -type f -path '*.go' ! -path '*_test.go')
 	@[ -d $(DIR_OUT) ] || mkdir -p $(DIR_OUT)
 	@docker run -it \
 		-v $(DIR_ROOT):/code \
