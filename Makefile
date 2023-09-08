@@ -65,15 +65,7 @@ bootloader: $(DIR_BOOTLOADER)/boot/EFI/BOOT/BOOTX64.EFI
 
 blkid: $(DIR_PREINIT)/$(DIR_CB)/blkid
 
-converter: $(HAS_IMAGE_LOCAL)
-	@docker run -it \
-		-v $(DIR_ROOT):/code \
-		-e DIR_OUT=/code/_output \
-		-e GOPATH=/code/_output/go \
-		-e GOCACHE=/code/_output/gocache \
-		-e CGO_ENABLED=0 \
-		-w /code/ctr2ami \
-		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-converter-ctr)"
+converter: $(DIR_OUT)/converter
 
 e2fsprogs: $(DIR_PREINIT)/$(DIR_CB)/mke2fs $(DIR_PREINIT)/$(DIR_CB)/mkfs.ext2 \
 	$(DIR_PREINIT)/$(DIR_CB)/mkfs.ext3 $(DIR_PREINIT)/$(DIR_CB)/mkfs.ext4
@@ -203,6 +195,17 @@ $(DIR_RELEASE_ASSETS)/boot.tar: $(HAS_COMMAND_FAKEROOT) $(DIR_BOOTLOADER)/boot/E
 $(DIR_RELEASE_ASSETS)/converter: $(DIR_OUT)/converter
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/
 	@install -m 0755 $(DIR_OUT)/converter $(DIR_RELEASE_ASSETS)/converter
+
+$(DIR_OUT)/converter: $(HAS_IMAGE_LOCAL) \
+		$(shell find ctr2ami -type f -path '*.go' ! -path '*_test.go')
+	@docker run -it \
+		-v $(DIR_ROOT):/code \
+		-e DIR_OUT=/code/_output \
+		-e GOPATH=/code/_output/go \
+		-e GOCACHE=/code/_output/gocache \
+		-e CGO_ENABLED=0 \
+		-w /code/ctr2ami \
+		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-converter-ctr)"
 
 $(DIR_RELEASE_ASSETS)/kernel-$(KERNEL_VERSION).tar: $(HAS_COMMAND_FAKEROOT) \
 		$(DIR_KERNEL)/boot/vmlinuz-$(KERNEL_VERSION)
