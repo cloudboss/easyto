@@ -10,11 +10,12 @@ DIR_OUT_CB := $(DIR_ROOT)/_output/$(DIR_CB)
 DIR_BOOTLOADER := $(DIR_OUT)/bootloader
 DIR_PREINIT := $(DIR_OUT)/preinit
 DIR_KERNEL := $(DIR_OUT)/kernel
-DIR_RELEASE := $(DIR_OUT)/release
+DIR_RELEASE := $(DIR_OUT)/release/$(OS)/$(ARCH)
 DIR_RELEASE_ASSETS := $(DIR_RELEASE)/assets
 DIR_RELEASE_BIN := $(DIR_RELEASE)/bin
 DIR_RELEASE_PACKER := $(DIR_RELEASE)/packer
 DIR_RELEASE_PACKER_PLUGIN := $(DIR_RELEASE_PACKER)/plugins/github.com/hashicorp/amazon
+DIR_OSARCH_BUILD := $(DIR_OUT)/osarch/$(OS)/$(ARCH)
 
 COMMIT_ID_HEAD := $(shell git rev-parse HEAD)
 CTR_IMAGE_GO := golang:1.21.0-alpine3.18
@@ -79,7 +80,7 @@ packer: $(DIR_RELEASE_PACKER)/build.pkr.hcl \
 		$(DIR_RELEASE_PACKER)/provision \
 		$(DIR_RELEASE_PACKER_PLUGIN)/$(PACKER_PLUGIN_AMZ_FILE)_SHA256SUM
 
-unpack: $(DIR_OUT)/unpack
+unpack: $(DIR_OSARCH_BUILD)/unpack
 
 assets-bootloader: $(DIR_RELEASE_ASSETS)/boot.tar
 
@@ -89,7 +90,15 @@ assets-preinit: $(DIR_RELEASE_ASSETS)/preinit.tar
 
 assets-kernel: $(DIR_RELEASE_ASSETS)/kernel-$(KERNEL_VERSION).tar
 
-release: $(DIR_RELEASE)/unpack-$(VERSION)-$(OS)-$(ARCH).tar.gz
+release-one: $(DIR_RELEASE)/unpack-$(VERSION)-$(OS)-$(ARCH).tar.gz
+
+release:
+	for os in linux darwin; do \
+		for arch in amd64 arm64; do \
+			$(MAKE) $(DIR_OUT)/release/$${os}/$${arch}/unpack-$(VERSION)-$${os}-$${arch}.tar.gz \
+				OS=$${os} ARCH=$${arch}; \
+		done; \
+	done
 
 $(DIR_BOOTLOADER)/boot/EFI/BOOT/BOOTX64.EFI: $(HAS_COMMAND_AR) $(HAS_COMMAND_XZCAT) \
 		$(DIR_OUT)/$(SYSTEMD_BOOT_ARCHIVE)
@@ -233,19 +242,21 @@ $(DIR_RELEASE)/unpack-$(VERSION)-$(OS)-$(ARCH).tar.gz: $(HAS_COMMAND_FAKEROOT) p
 	@cd $(DIR_RELEASE) && \
 		fakeroot tar czf $(DIR_RELEASE)/unpack-$(VERSION)-$(OS)-$(ARCH).tar.gz assets bin packer
 
-$(DIR_RELEASE_BIN)/unpack: $(DIR_OUT)/unpack
+$(DIR_RELEASE_BIN)/unpack: $(DIR_OSARCH_BUILD)/unpack
 	@$(MAKE) $(DIR_RELEASE_BIN)/
-	@install -m 0755 $(DIR_OUT)/unpack $(DIR_RELEASE_BIN)/unpack
+	@install -m 0755 $(DIR_OSARCH_BUILD)/unpack $(DIR_RELEASE_BIN)/unpack
 
-$(DIR_OUT)/unpack: $(HAS_IMAGE_LOCAL) \
+$(DIR_OSARCH_BUILD)/unpack: $(HAS_IMAGE_LOCAL) \
 		$(shell find unpack -type f -path '*.go' ! -path '*_test.go')
-	@[ -d $(DIR_OUT) ] || mkdir -p $(DIR_OUT)
+	@[ -d $(DIR_OSARCH_BUILD) ] || mkdir -p $(DIR_OSARCH_BUILD)
 	@docker run -it \
 		-v $(DIR_ROOT):/code \
-		-e DIR_OUT=/code/_output \
+		-e DIR_OUT=/code/_output/osarch/$(OS)/$(ARCH) \
 		-e GOPATH=/code/_output/go \
 		-e GOCACHE=/code/_output/gocache \
 		-e CGO_ENABLED=0 \
+		-e GOARCH=$(ARCH) \
+		-e GOOS=$(OS) \
 		-e KERNEL_VERSION=$(KERNEL_VERSION) \
 		-w /code/unpack \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-unpack-ctr)"
