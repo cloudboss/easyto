@@ -27,7 +27,7 @@ E2FSPROGS_SRC := e2fsprogs-$(E2FSPROGS_VERSION)
 E2FSPROGS_ARCHIVE := $(E2FSPROGS_SRC).tar.gz
 E2FSPROGS_URL := $(KERNEL_ORG)/kernel/people/tytso/e2fsprogs/v$(E2FSPROGS_VERSION)/$(E2FSPROGS_ARCHIVE)
 
-KERNEL_VERSION := 6.1.48
+KERNEL_VERSION := 6.1.52
 KERNEL_VERSION_MAJ := $(shell echo $(KERNEL_VERSION) | cut -c 1)
 KERNEL_SRC := linux-$(KERNEL_VERSION)
 KERNEL_ARCHIVE := $(KERNEL_SRC).tar.xz
@@ -246,6 +246,7 @@ $(DIR_OUT)/unpack: $(HAS_IMAGE_LOCAL) \
 		-e GOPATH=/code/_output/go \
 		-e GOCACHE=/code/_output/gocache \
 		-e CGO_ENABLED=0 \
+		-e KERNEL_VERSION=$(KERNEL_VERSION) \
 		-w /code/unpack \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-unpack-ctr)"
 

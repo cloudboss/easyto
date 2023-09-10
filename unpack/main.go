@@ -9,10 +9,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const (
-	kernelVersion = "6.1.48"
-)
-
 var (
 	cfg = &config{}
 	cmd = cobra.Command{
@@ -52,6 +48,8 @@ var (
 			return packer.Run()
 		},
 	}
+	// Value of kernelVersion is defined with ldflags.
+	kernelVersion string
 )
 
 type config struct {
