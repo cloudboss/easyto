@@ -50,6 +50,8 @@ const (
 
 	labelEFI  = "EFI"
 	labelRoot = "ROOT"
+
+	pathProcNetPNP = "/proc/net/pnp"
 )
 
 var (
@@ -242,6 +244,11 @@ func (b *Builder) MakeVMImage() (err error) {
 		return err
 	}
 
+	err = b.setupResolver()
+	if err != nil {
+		return err
+	}
+
 	err = b.setupMetadata(ctrImage, filepath.Join(b.VMImageMount, dirCB, fileMetadata))
 	if err != nil {
 		return err
@@ -352,6 +359,40 @@ func (b *Builder) setupKernel() error {
 	err = os.Symlink(linkTargetPath, linkPath)
 	if err != nil {
 		return fmt.Errorf("unable to link %s to %s: %w", linkPath, linkTargetPath, err)
+	}
+
+	return nil
+}
+
+func (b *Builder) setupResolver() error {
+	oldMask := syscall.Umask(0)
+	defer func() {
+		syscall.Umask(oldMask)
+	}()
+
+	etcPath := filepath.Join(b.VMImageMount, "etc")
+	if _, err := os.Stat(etcPath); os.IsNotExist(err) {
+		err = os.MkdirAll(etcPath, 0755)
+		if err != nil {
+			return fmt.Errorf("unable to create directory %s: %w", etcPath, err)
+		}
+	}
+
+	resolveConfPath := filepath.Join(etcPath, "resolv.conf")
+
+	if _, err := os.Lstat(resolveConfPath); err == nil {
+		err := os.Remove(resolveConfPath)
+		if err != nil {
+			return fmt.Errorf("unable to remove existing %s: %w", resolveConfPath, err)
+		}
+	} else if !(err == nil || os.IsNotExist(err)) {
+		return fmt.Errorf("unable to stat %s: %w", resolveConfPath, err)
+	}
+
+	err := os.Symlink(pathProcNetPNP, resolveConfPath)
+	if err != nil {
+		return fmt.Errorf("unable to link %s to %s: %w", resolveConfPath,
+			pathProcNetPNP, err)
 	}
 
 	return nil
