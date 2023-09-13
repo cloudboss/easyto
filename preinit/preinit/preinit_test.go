@@ -2,7 +2,6 @@ package preinit
 
 import (
 	"errors"
-	"fmt"
 	"io/fs"
 	"testing"
 
@@ -47,6 +46,16 @@ func Test_parseMode(t *testing.T) {
 			err:    nil,
 		},
 		{
+			mode:   "0755",
+			result: 0755,
+			err:    nil,
+		},
+		{
+			mode:   "0644",
+			result: 0644,
+			err:    nil,
+		},
+		{
 			mode:   "abc",
 			result: 0,
 			err:    errors.New("invalid mode abc"),
@@ -57,9 +66,9 @@ func Test_parseMode(t *testing.T) {
 			err:    errors.New("invalid mode -1"),
 		},
 		{
-			mode:   "256",
+			mode:   "258",
 			result: 0,
-			err:    errors.New("invalid mode 256"),
+			err:    errors.New("invalid mode 258"),
 		},
 		{
 			mode:   "1234567890",
@@ -69,7 +78,6 @@ func Test_parseMode(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		actual, err := parseMode(tc.mode)
-		fmt.Printf("mode: %s\n", actual)
 		assert.Equal(t, tc.result, actual)
 		assert.Equal(t, tc.err, err)
 	}

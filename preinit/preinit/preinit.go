@@ -532,6 +532,9 @@ func parseMode(mode string) (fs.FileMode, error) {
 	if err != nil {
 		return 0, fmt.Errorf("invalid mode %s", mode)
 	}
+	if n < 0 {
+		return 0, fmt.Errorf("invalid mode %s", mode)
+	}
 	return fs.FileMode(n), nil
 }
 
