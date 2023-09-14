@@ -1,10 +1,15 @@
 package preinit
 
+import (
+	"errors"
+	"fmt"
+)
+
 type VMSpec struct {
 	Args       []string        `json:"cmd,omitempty"`
 	Command    []string        `json:"entrypoint,omitempty"`
 	Env        EnvVarSource    `json:"env,omitempty"`
-	EnvFrom    []EnvFromSource `json:"env-from,omitempty"`
+	EnvFrom    EnvFromSource   `json:"env-from,omitempty"`
 	Security   SecurityContext `json:"security,omitempty"`
 	Volumes    []Volume        `json:"volumes,omitempty"`
 	WorkingDir string          `json:"working-dir,omitempty"`
@@ -40,12 +45,19 @@ func (v *VMSpec) merge(other *VMSpec) *VMSpec {
 		newVMSpec.Volumes = other.Volumes
 	}
 
-	// TODO: deal with this later.
-	// if vspec.EnvFrom != nil {
-	// 	v.EnvFrom = vspec.EnvFrom
-	// }
+	if other.EnvFrom != nil {
+		newVMSpec.EnvFrom = other.EnvFrom
+	}
 
 	return newVMSpec
+}
+
+func (v *VMSpec) Validate() error {
+	var errs error
+	for _, ef := range v.EnvFrom {
+		errs = errors.Join(errs, ef.Validate())
+	}
+	return errs
 }
 
 type EnvVar struct {
@@ -93,10 +105,36 @@ func (e EnvVarSource) toStrings() []string {
 	return stringEnv
 }
 
-type EnvFromSource struct {
-	Prefix         string                  `json:"prefix,omitempty"`
-	SecretsManager SecretsManagerEnvSource `json:"secrets-manager,omitempty"`
-	S3Object       S3ObjectEnvSource       `json:"s3-object,omitempty"`
+type EnvFromSource []EnvFrom
+
+type EnvFrom struct {
+	Prefix         string                   `json:"prefix,omitempty"`
+	S3Object       *S3ObjectEnvSource       `json:"s3-object,omitempty"`
+	SecretsManager *SecretsManagerEnvSource `json:"secrets-manager,omitempty"`
+	SSMParameter   *SSMParameterEnvSource   `json:"ssm-parameter,omitempty"`
+}
+
+func (e *EnvFrom) Validate() error {
+	nonNils := 0
+	if e.S3Object != nil {
+		nonNils++
+	}
+	if e.SecretsManager != nil {
+		nonNils++
+	}
+	if e.SSMParameter != nil {
+		nonNils++
+	}
+	if nonNils != 1 {
+		return fmt.Errorf("expected 1 environment source, got %d", nonNils)
+	}
+	return nil
+}
+
+type S3ObjectEnvSource struct {
+	Bucket   string `json:"bucket,omitempty"`
+	Object   string `json:"object,omitempty"`
+	Optional bool   `json:"optional,omitempty"`
 }
 
 type SecretsManagerEnvSource struct {
@@ -104,9 +142,8 @@ type SecretsManagerEnvSource struct {
 	Optional bool   `json:"optional,omitempty"`
 }
 
-type S3ObjectEnvSource struct {
-	Bucket   string `json:"bucket,omitempty"`
-	Object   string `json:"object,omitempty"`
+type SSMParameterEnvSource struct {
+	Path     string `json:"path,omitempty"`
 	Optional bool   `json:"optional,omitempty"`
 }
 

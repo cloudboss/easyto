@@ -14,11 +14,13 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/cloudboss/easyto/preinit/aws"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"golang.org/x/sys/unix"
 )
 
 const (
+	fileCACerts    = "amazon.pem"
 	filePasswd     = "/etc/passwd"
 	fileGroup      = "/etc/group"
 	fileMetadata   = "metadata.json"
@@ -617,11 +619,81 @@ func execCommand(vmspec *VMSpec) error {
 		return fmt.Errorf("unable to set GID: %w", err)
 	}
 
-	return syscall.Exec(command[0], command, vmspec.Env.toStrings())
+	region, err := getRegion()
+	if err != nil {
+		return err
+	}
+
+	conn, err := aws.NewConnection(region)
+	if err != nil {
+		return err
+	}
+
+	env, err := resolveAllEnvs(conn, vmspec.Env, vmspec.EnvFrom)
+	if err != nil {
+		return fmt.Errorf("unable to resolve all environment variables: %w", err)
+	}
+
+	return syscall.Exec(command[0], command, env.toStrings())
+}
+
+func resolveAllEnvs(conn aws.Connection, env EnvVarSource, envFrom EnvFromSource) (EnvVarSource, error) {
+	var (
+		errs        error
+		resolvedEnv EnvVarSource
+	)
+
+	for _, e := range envFrom {
+		if e.SSMParameter != nil {
+			parameters, err := conn.SSMClient().GetParameters(e.SSMParameter.Path)
+			if !(err == nil || e.SSMParameter.Optional) {
+				errs = errors.Join(errs, err)
+			}
+			if err == nil {
+				// Use mapAnyToMapString() to filter out any nested
+				// paths below e.SSMParameter.Path.
+				for k, v := range mapAnyToMapString(parameters) {
+					ev := EnvVar{Name: k, Value: v}
+					resolvedEnv = append(resolvedEnv, ev)
+				}
+			}
+		}
+	}
+	if errs != nil {
+		return nil, errs
+	}
+
+	lenEnv := len(env)
+	allEnv := make(EnvVarSource, lenEnv+len(resolvedEnv))
+
+	for i, e := range env {
+		allEnv[i] = e
+	}
+
+	for i, e := range resolvedEnv {
+		allEnv[lenEnv+i] = e
+	}
+
+	return allEnv, nil
+}
+
+func mapAnyToMapString(anyMap map[string]any) map[string]string {
+	stringMap := map[string]string{}
+	for k, v := range anyMap {
+		switch v.(type) {
+		case string:
+			stringMap[k] = v.(string)
+		}
+	}
+	return stringMap
 }
 
 func Run() error {
 	fmt.Println("Starting init")
+
+	// Override Go's builtin known certificate directories, for
+	// making API calls to AWS.
+	os.Setenv("SSL_CERT_FILE", filepath.Join(dirCB, fileCACerts))
 
 	err := mounts()
 	if err != nil {
@@ -655,11 +727,16 @@ func Run() error {
 
 	userData, err := getUserData()
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to get user data: %w", err)
 	}
 	fmt.Println("After getUserData()")
 	vmSpec = vmSpec.merge(userData)
 	fmt.Println("After vmSpec.merge()")
+
+	err = vmSpec.Validate()
+	if err != nil {
+		return fmt.Errorf("user data failed to validate: %w", err)
+	}
 
 	// Ensure linkEBSDevices() is done before handling volumes.
 	err = <-linkEBSDevicesErrC

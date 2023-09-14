@@ -168,6 +168,10 @@ $(DIR_OUT)/$(KERNEL_SRC): $(HAS_COMMAND_XZCAT) $(DIR_OUT)/$(KERNEL_ARCHIVE)
 $(DIR_OUT)/$(KERNEL_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -o $(DIR_OUT)/$(KERNEL_ARCHIVE) $(KERNEL_URL)
 
+$(DIR_PREINIT)/$(DIR_CB)/amazon.pem: amazon.pem
+	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
+	@install -m 0644 amazon.pem $(DIR_PREINIT)/$(DIR_CB)/amazon.pem
+
 $(DIR_PREINIT)/$(DIR_CB)/blkid: $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static
 	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
 	@install -m 0755 $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static $(DIR_PREINIT)/$(DIR_CB)/blkid
@@ -223,6 +227,7 @@ $(DIR_RELEASE_ASSETS)/kernel-$(KERNEL_VERSION).tar: $(HAS_COMMAND_FAKEROOT) \
 
 $(DIR_RELEASE_ASSETS)/preinit.tar: \
 		$(HAS_COMMAND_FAKEROOT) \
+		$(DIR_PREINIT)/$(DIR_CB)/amazon.pem \
 		$(DIR_PREINIT)/$(DIR_CB)/blkid \
 		$(DIR_PREINIT)/$(DIR_CB)/mke2fs \
 		$(DIR_PREINIT)/$(DIR_CB)/mkfs.ext2 \

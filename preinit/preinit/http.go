@@ -145,6 +145,25 @@ func getUserData(endpoint ...string) (*VMSpec, error) {
 	return vmspec, nil
 }
 
+func getRegion(endpoint ...string) (string, error) {
+	endpoint0 := endpointMetadataDefault
+	if len(endpoint) > 0 {
+		endpoint0 = endpoint[0]
+	}
+
+	resp, err := getIMDSv2("/latest/meta-data/placement/region", endpoint0)
+	if err != nil {
+		return "", fmt.Errorf("unable to get region: %w", err)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", &httpError{errorCode: errorCodeBodyUnreadable, wrapped: err}
+	}
+
+	return string(body), nil
+}
+
 func isErrorStatus(status int) bool {
 	return status >= http.StatusBadRequest
 }
