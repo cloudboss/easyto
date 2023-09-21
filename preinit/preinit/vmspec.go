@@ -8,11 +8,12 @@ import (
 type VMSpec struct {
 	Args       []string        `json:"cmd,omitempty"`
 	Command    []string        `json:"entrypoint,omitempty"`
-	Env        EnvVarSource    `json:"env,omitempty"`
+	Env        NameValueSource `json:"env,omitempty"`
 	EnvFrom    EnvFromSource   `json:"env-from,omitempty"`
 	Security   SecurityContext `json:"security,omitempty"`
 	Volumes    []Volume        `json:"volumes,omitempty"`
 	WorkingDir string          `json:"working-dir,omitempty"`
+	Sysctls    NameValueSource `json:"sysctls,omitempty"`
 }
 
 func (v *VMSpec) merge(other *VMSpec) *VMSpec {
@@ -49,6 +50,10 @@ func (v *VMSpec) merge(other *VMSpec) *VMSpec {
 		newVMSpec.EnvFrom = other.EnvFrom
 	}
 
+	if other.Sysctls != nil {
+		newVMSpec.Sysctls = other.Sysctls
+	}
+
 	return newVMSpec
 }
 
@@ -60,19 +65,18 @@ func (v *VMSpec) Validate() error {
 	return errs
 }
 
-type EnvVar struct {
+type NameValue struct {
 	Name  string `json:"name,omitempty"`
 	Value string `json:"value,omitempty"`
 }
 
-type EnvVarSource []EnvVar
+type NameValueSource []NameValue
 
-// find returns the value of the environment variable key with its index,
-// or -1 if not found.
-func (e EnvVarSource) find(key string) (string, int) {
-	for i, envVar := range e {
-		if envVar.Name == key {
-			return envVar.Value, i
+// find returns the value of the item at key with its index, or -1 if not found.
+func (n NameValueSource) find(key string) (string, int) {
+	for i, item := range n {
+		if item.Name == key {
+			return item.Value, i
 		}
 	}
 	return "", -1
@@ -80,29 +84,29 @@ func (e EnvVarSource) find(key string) (string, int) {
 
 // merge will merge EnvVars from other with its own EnvVars, returning a new
 // copy. Overridden values will come first in the returned copy.
-func (e EnvVarSource) merge(other EnvVarSource) EnvVarSource {
+func (n NameValueSource) merge(other NameValueSource) NameValueSource {
 	if other == nil {
-		cp := e
+		cp := n
 		return cp
 	}
-	newEnvVars := EnvVarSource{}
-	for _, envVar := range e {
-		if _, j := other.find(envVar.Name); j < 0 {
-			newEnvVars = append(newEnvVars, EnvVar{
-				Name:  envVar.Name,
-				Value: envVar.Value,
+	newItems := NameValueSource{}
+	for _, item := range n {
+		if _, j := other.find(item.Name); j < 0 {
+			newItems = append(newItems, NameValue{
+				Name:  item.Name,
+				Value: item.Value,
 			})
 		}
 	}
-	return append(newEnvVars, other...)
+	return append(newItems, other...)
 }
 
-func (e EnvVarSource) toStrings() []string {
-	stringEnv := make([]string, len(e))
-	for i, envVar := range e {
-		stringEnv[i] = envVar.Name + "=" + envVar.Value
+func (n NameValueSource) toStrings() []string {
+	stringItems := make([]string, len(n))
+	for i, item := range n {
+		stringItems[i] = item.Name + "=" + item.Value
 	}
-	return stringEnv
+	return stringItems
 }
 
 type EnvFromSource []EnvFrom

@@ -403,9 +403,9 @@ func fullCommand(vmspec *VMSpec) ([]string, error) {
 	return ex, nil
 }
 
-// envToEnv converts an array of "key=value" strings to an EnvVarSource.
-func envToEnv(envVars []string) (EnvVarSource, error) {
-	source := make(EnvVarSource, len(envVars))
+// envToEnv converts an array of "key=value" strings to a NameValueSource.
+func envToEnv(envVars []string) (NameValueSource, error) {
+	source := make(NameValueSource, len(envVars))
 	for i, envVar := range envVars {
 		fields := strings.Split(envVar, "=")
 		if len(fields) < 1 {
@@ -637,10 +637,10 @@ func execCommand(vmspec *VMSpec) error {
 	return syscall.Exec(command[0], command, env.toStrings())
 }
 
-func resolveAllEnvs(conn aws.Connection, env EnvVarSource, envFrom EnvFromSource) (EnvVarSource, error) {
+func resolveAllEnvs(conn aws.Connection, env NameValueSource, envFrom EnvFromSource) (NameValueSource, error) {
 	var (
 		errs        error
-		resolvedEnv EnvVarSource
+		resolvedEnv NameValueSource
 	)
 
 	for _, e := range envFrom {
@@ -653,7 +653,7 @@ func resolveAllEnvs(conn aws.Connection, env EnvVarSource, envFrom EnvFromSource
 				// Use mapAnyToMapString() to filter out any nested
 				// paths below e.SSMParameter.Path.
 				for k, v := range mapAnyToMapString(parameters) {
-					ev := EnvVar{Name: k, Value: v}
+					ev := NameValue{Name: k, Value: v}
 					resolvedEnv = append(resolvedEnv, ev)
 				}
 			}
@@ -664,7 +664,7 @@ func resolveAllEnvs(conn aws.Connection, env EnvVarSource, envFrom EnvFromSource
 	}
 
 	lenEnv := len(env)
-	allEnv := make(EnvVarSource, lenEnv+len(resolvedEnv))
+	allEnv := make(NameValueSource, lenEnv+len(resolvedEnv))
 
 	for i, e := range env {
 		allEnv[i] = e
@@ -736,6 +736,11 @@ func Run() error {
 	err = vmSpec.Validate()
 	if err != nil {
 		return fmt.Errorf("user data failed to validate: %w", err)
+	}
+
+	err = SetSysctls(vmSpec.Sysctls)
+	if err != nil {
+		return err
 	}
 
 	// Ensure linkEBSDevices() is done before handling volumes.

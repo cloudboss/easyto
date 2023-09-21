@@ -17,26 +17,26 @@ func Test_VMSpec_userDataOverride(t *testing.T) {
 	}
 }
 
-func Test_EnvVarSource_merge(t *testing.T) {
+func Test_NameValueSource_merge(t *testing.T) {
 	testCases := []struct {
-		orig     EnvVarSource
-		other    EnvVarSource
-		expected EnvVarSource
+		orig     NameValueSource
+		other    NameValueSource
+		expected NameValueSource
 	}{
 		{
-			orig:     EnvVarSource{},
-			other:    EnvVarSource{},
-			expected: EnvVarSource{},
+			orig:     NameValueSource{},
+			other:    NameValueSource{},
+			expected: NameValueSource{},
 		},
 		{
-			orig: EnvVarSource{
+			orig: NameValueSource{
 				{
 					Name:  "abc",
 					Value: "xyz",
 				},
 			},
 			other: nil,
-			expected: EnvVarSource{
+			expected: NameValueSource{
 				{
 					Name:  "abc",
 					Value: "xyz",
@@ -45,28 +45,13 @@ func Test_EnvVarSource_merge(t *testing.T) {
 		},
 		{
 			orig: nil,
-			other: EnvVarSource{
+			other: NameValueSource{
 				{
 					Name:  "abc",
 					Value: "xyz",
 				},
 			},
-			expected: EnvVarSource{
-				{
-					Name:  "abc",
-					Value: "xyz",
-				},
-			},
-		},
-		{
-			orig: EnvVarSource{
-				{
-					Name:  "abc",
-					Value: "xyz",
-				},
-			},
-			other: EnvVarSource{},
-			expected: EnvVarSource{
+			expected: NameValueSource{
 				{
 					Name:  "abc",
 					Value: "xyz",
@@ -74,14 +59,14 @@ func Test_EnvVarSource_merge(t *testing.T) {
 			},
 		},
 		{
-			orig: EnvVarSource{},
-			other: EnvVarSource{
+			orig: NameValueSource{
 				{
 					Name:  "abc",
 					Value: "xyz",
 				},
 			},
-			expected: EnvVarSource{
+			other: NameValueSource{},
+			expected: NameValueSource{
 				{
 					Name:  "abc",
 					Value: "xyz",
@@ -89,19 +74,34 @@ func Test_EnvVarSource_merge(t *testing.T) {
 			},
 		},
 		{
-			orig: EnvVarSource{
+			orig: NameValueSource{},
+			other: NameValueSource{
 				{
 					Name:  "abc",
 					Value: "xyz",
 				},
 			},
-			other: EnvVarSource{
+			expected: NameValueSource{
+				{
+					Name:  "abc",
+					Value: "xyz",
+				},
+			},
+		},
+		{
+			orig: NameValueSource{
+				{
+					Name:  "abc",
+					Value: "xyz",
+				},
+			},
+			other: NameValueSource{
 				{
 					Name:  "abc",
 					Value: "yxz",
 				},
 			},
-			expected: EnvVarSource{
+			expected: NameValueSource{
 				{
 					Name:  "abc",
 					Value: "yxz",
@@ -109,7 +109,7 @@ func Test_EnvVarSource_merge(t *testing.T) {
 			},
 		},
 		{
-			orig: EnvVarSource{
+			orig: NameValueSource{
 				{
 					Name:  "abc",
 					Value: "xyz",
@@ -119,13 +119,13 @@ func Test_EnvVarSource_merge(t *testing.T) {
 					Value: "xyz",
 				},
 			},
-			other: EnvVarSource{
+			other: NameValueSource{
 				{
 					Name:  "abc",
 					Value: "yxz",
 				},
 			},
-			expected: EnvVarSource{
+			expected: NameValueSource{
 				{
 					Name:  "abc",
 					Value: "yxz",

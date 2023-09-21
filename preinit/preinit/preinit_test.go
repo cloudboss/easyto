@@ -118,27 +118,27 @@ func (s *mockSSMClient) GetParameters(ssmPath string) (map[string]any, error) {
 
 func Test_resolveAllEnvs(t *testing.T) {
 	testCases := []struct {
-		env     EnvVarSource
+		env     NameValueSource
 		envFrom EnvFromSource
-		result  EnvVarSource
+		result  NameValueSource
 		err     error
 		fail    bool
 	}{
 		{
-			env:     EnvVarSource{},
+			env:     NameValueSource{},
 			envFrom: EnvFromSource{},
-			result:  EnvVarSource{},
+			result:  NameValueSource{},
 			err:     nil,
 		},
 		{
-			env: EnvVarSource{
+			env: NameValueSource{
 				{
 					Name:  "ABC",
 					Value: "abc",
 				},
 			},
 			envFrom: EnvFromSource{},
-			result: EnvVarSource{
+			result: NameValueSource{
 				{
 					Name:  "ABC",
 					Value: "abc",
@@ -147,7 +147,7 @@ func Test_resolveAllEnvs(t *testing.T) {
 			err: nil,
 		},
 		{
-			env: EnvVarSource{},
+			env: NameValueSource{},
 			envFrom: EnvFromSource{
 				{
 					SSMParameter: &SSMParameterEnvSource{
@@ -155,7 +155,7 @@ func Test_resolveAllEnvs(t *testing.T) {
 					},
 				},
 			},
-			result: EnvVarSource{
+			result: NameValueSource{
 				{
 					Name:  "ABC",
 					Value: "abc-value",
@@ -168,7 +168,7 @@ func Test_resolveAllEnvs(t *testing.T) {
 			err: nil,
 		},
 		{
-			env: EnvVarSource{
+			env: NameValueSource{
 				{
 					Name:  "CDE",
 					Value: "cde",
@@ -181,7 +181,7 @@ func Test_resolveAllEnvs(t *testing.T) {
 					},
 				},
 			},
-			result: EnvVarSource{
+			result: NameValueSource{
 				{
 					Name:  "CDE",
 					Value: "cde",
@@ -202,7 +202,7 @@ func Test_resolveAllEnvs(t *testing.T) {
 			// if they are defined in user data, but no check is done to ensure
 			// there are no duplicates in the user data itself. Let execve() be the
 			// decider on the behavior in this case.
-			env: EnvVarSource{
+			env: NameValueSource{
 				{
 					Name:  "ABC",
 					Value: "abc",
@@ -215,7 +215,7 @@ func Test_resolveAllEnvs(t *testing.T) {
 					},
 				},
 			},
-			result: EnvVarSource{
+			result: NameValueSource{
 				{
 					Name:  "ABC",
 					Value: "abc",
@@ -232,7 +232,7 @@ func Test_resolveAllEnvs(t *testing.T) {
 			err: nil,
 		},
 		{
-			env: EnvVarSource{},
+			env: NameValueSource{},
 			envFrom: EnvFromSource{
 				{
 					SSMParameter: &SSMParameterEnvSource{
@@ -241,12 +241,12 @@ func Test_resolveAllEnvs(t *testing.T) {
 					},
 				},
 			},
-			result: EnvVarSource{},
+			result: NameValueSource{},
 			err:    nil,
 			fail:   true,
 		},
 		{
-			env: EnvVarSource{
+			env: NameValueSource{
 				{
 					Name:  "ABC",
 					Value: "abc",
@@ -260,7 +260,7 @@ func Test_resolveAllEnvs(t *testing.T) {
 					},
 				},
 			},
-			result: EnvVarSource{
+			result: NameValueSource{
 				{
 					Name:  "ABC",
 					Value: "abc",
@@ -270,7 +270,7 @@ func Test_resolveAllEnvs(t *testing.T) {
 			fail: true,
 		},
 		{
-			env: EnvVarSource{},
+			env: NameValueSource{},
 			envFrom: EnvFromSource{
 				{
 					SSMParameter: &SSMParameterEnvSource{
@@ -287,7 +287,7 @@ func Test_resolveAllEnvs(t *testing.T) {
 	for _, tc := range testCases {
 		conn := newMockConnection(tc.fail)
 		actual, err := resolveAllEnvs(conn, tc.env, tc.envFrom)
-		assert.Equal(t, tc.result, actual)
+		assert.ElementsMatch(t, tc.result, actual)
 		assert.EqualValues(t, tc.err, err)
 	}
 }
