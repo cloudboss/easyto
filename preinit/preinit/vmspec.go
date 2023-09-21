@@ -33,8 +33,8 @@ func (v *VMSpec) merge(other *VMSpec) *VMSpec {
 	if other.Security.RunAsGroupID != 0 {
 		newVMSpec.Security.RunAsGroupID = other.Security.RunAsGroupID
 	}
-	if other.Security.RunAsGroupID != 0 {
-		newVMSpec.Security.RunAsGroupID = other.Security.RunAsGroupID
+	if other.Security.RunAsUserID != 0 {
+		newVMSpec.Security.RunAsUserID = other.Security.RunAsUserID
 	}
 
 	if len(other.WorkingDir) != 0 {

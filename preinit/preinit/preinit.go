@@ -603,22 +603,6 @@ func execCommand(vmspec *VMSpec) error {
 		return err
 	}
 
-	err = os.Chdir(vmspec.WorkingDir)
-	if err != nil {
-		return fmt.Errorf("unable to change working directory to %s: %w",
-			vmspec.WorkingDir, err)
-	}
-
-	err = syscall.Setuid(vmspec.Security.RunAsUserID)
-	if err != nil {
-		return fmt.Errorf("unable to set UID: %w", err)
-	}
-
-	err = syscall.Setgid(vmspec.Security.RunAsGroupID)
-	if err != nil {
-		return fmt.Errorf("unable to set GID: %w", err)
-	}
-
 	region, err := getRegion()
 	if err != nil {
 		return err
@@ -632,6 +616,22 @@ func execCommand(vmspec *VMSpec) error {
 	env, err := resolveAllEnvs(conn, vmspec.Env, vmspec.EnvFrom)
 	if err != nil {
 		return fmt.Errorf("unable to resolve all environment variables: %w", err)
+	}
+
+	err = os.Chdir(vmspec.WorkingDir)
+	if err != nil {
+		return fmt.Errorf("unable to change working directory to %s: %w",
+			vmspec.WorkingDir, err)
+	}
+
+	err = syscall.Setgid(vmspec.Security.RunAsGroupID)
+	if err != nil {
+		return fmt.Errorf("unable to set GID: %w", err)
+	}
+
+	err = syscall.Setuid(vmspec.Security.RunAsUserID)
+	if err != nil {
+		return fmt.Errorf("unable to set UID: %w", err)
 	}
 
 	return syscall.Exec(command[0], command, env.toStrings())
