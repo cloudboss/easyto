@@ -6,8 +6,8 @@ import (
 )
 
 type VMSpec struct {
-	Args       []string        `json:"cmd,omitempty"`
-	Command    []string        `json:"entrypoint,omitempty"`
+	Args       []string        `json:"args,omitempty"`
+	Command    []string        `json:"command,omitempty"`
 	Env        NameValueSource `json:"env,omitempty"`
 	EnvFrom    EnvFromSource   `json:"env-from,omitempty"`
 	Security   SecurityContext `json:"security,omitempty"`
