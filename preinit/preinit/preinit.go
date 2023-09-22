@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -28,6 +29,10 @@ const (
 	dirCB          = "/__cb__"
 	execBits       = 0111
 	pathEnvDefault = "/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
+
+	// Signal sent by the "ACPI tiny power button" kernel driver.
+	// It is assumed the kernel will be compiled to use it.
+	SIGPWRBTN = syscall.Signal(0x26)
 )
 
 type link struct {
@@ -597,28 +602,8 @@ func handleVolumeEBS(volume *EBSVolumeSource, index int) error {
 	return nil
 }
 
-func execCommand(vmspec *VMSpec) error {
-	command, err := fullCommand(vmspec)
-	if err != nil {
-		return err
-	}
-
-	region, err := getRegion()
-	if err != nil {
-		return err
-	}
-
-	conn, err := aws.NewConnection(region)
-	if err != nil {
-		return err
-	}
-
-	env, err := resolveAllEnvs(conn, vmspec.Env, vmspec.EnvFrom)
-	if err != nil {
-		return fmt.Errorf("unable to resolve all environment variables: %w", err)
-	}
-
-	err = os.Chdir(vmspec.WorkingDir)
+func doExec(vmspec *VMSpec, command []string, env NameValueSource) error {
+	err := os.Chdir(vmspec.WorkingDir)
 	if err != nil {
 		return fmt.Errorf("unable to change working directory to %s: %w",
 			vmspec.WorkingDir, err)
@@ -635,6 +620,54 @@ func execCommand(vmspec *VMSpec) error {
 	}
 
 	return syscall.Exec(command[0], command, env.toStrings())
+}
+
+func doForkExec(vmspec *VMSpec, command []string, env NameValueSource) error {
+	cmd := exec.Cmd{
+		Args:   command,
+		Dir:    vmspec.WorkingDir,
+		Env:    env.toStrings(),
+		Path:   command[0],
+		Stderr: os.Stderr,
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		SysProcAttr: &syscall.SysProcAttr{
+			Credential: &syscall.Credential{
+				Gid: uint32(vmspec.Security.RunAsGroupID),
+				Uid: uint32(vmspec.Security.RunAsUserID),
+			},
+		},
+	}
+
+	err := cmd.Start()
+	if err != nil {
+		return fmt.Errorf("unable to start %s: %w", command[0], err)
+	}
+
+	return waitForShutdown(cmd)
+}
+
+func waitForShutdown(cmd exec.Cmd) error {
+	sigC := make(chan os.Signal, 1)
+	signal.Notify(sigC, SIGPWRBTN)
+
+	waitC := make(chan error, 1)
+	go func() {
+		waitC <- cmd.Wait()
+	}()
+
+	select {
+	case <-waitC:
+		fmt.Println("Command exited")
+	case <-sigC:
+		fmt.Println("Got poweroff signal")
+		// Error check ignored because we are going to shut down no matter what.
+		_ = cmd.Process.Signal(syscall.SIGTERM)
+	}
+
+	// TODO: wait for graceful shutdown and unmount file systems.
+
+	return syscall.Reboot(syscall.LINUX_REBOOT_CMD_POWER_OFF)
 }
 
 func resolveAllEnvs(conn aws.Connection, env NameValueSource, envFrom EnvFromSource) (NameValueSource, error) {
@@ -771,6 +804,33 @@ func Run() error {
 		}
 	}
 
+	command, err := fullCommand(vmSpec)
+	if err != nil {
+		return err
+	}
+
+	region, err := getRegion()
+	if err != nil {
+		return err
+	}
+
+	conn, err := aws.NewConnection(region)
+	if err != nil {
+		return err
+	}
+
+	env, err := resolveAllEnvs(conn, vmSpec.Env, vmSpec.EnvFrom)
+	if err != nil {
+		return fmt.Errorf("unable to resolve all environment variables: %w", err)
+	}
+
 	fmt.Println("About to run entrypoint")
-	return execCommand(vmSpec)
+
+	if vmSpec.ReplaceInit {
+		err = doExec(vmSpec, command, env)
+	} else {
+		err = doForkExec(vmSpec, command, env)
+	}
+
+	return err
 }

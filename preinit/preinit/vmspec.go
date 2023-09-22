@@ -6,14 +6,15 @@ import (
 )
 
 type VMSpec struct {
-	Args       []string        `json:"args,omitempty"`
-	Command    []string        `json:"command,omitempty"`
-	Env        NameValueSource `json:"env,omitempty"`
-	EnvFrom    EnvFromSource   `json:"env-from,omitempty"`
-	Security   SecurityContext `json:"security,omitempty"`
-	Volumes    []Volume        `json:"volumes,omitempty"`
-	WorkingDir string          `json:"working-dir,omitempty"`
-	Sysctls    NameValueSource `json:"sysctls,omitempty"`
+	Args        []string        `json:"args,omitempty"`
+	Command     []string        `json:"command,omitempty"`
+	Env         NameValueSource `json:"env,omitempty"`
+	EnvFrom     EnvFromSource   `json:"env-from,omitempty"`
+	ReplaceInit bool            `json:"replace-init,omitempty"`
+	Security    SecurityContext `json:"security,omitempty"`
+	Sysctls     NameValueSource `json:"sysctls,omitempty"`
+	Volumes     []Volume        `json:"volumes,omitempty"`
+	WorkingDir  string          `json:"working-dir,omitempty"`
 }
 
 func (v *VMSpec) merge(other *VMSpec) *VMSpec {
@@ -24,6 +25,8 @@ func (v *VMSpec) merge(other *VMSpec) *VMSpec {
 	}
 	if other.Command != nil {
 		newVMSpec.Command = other.Command
+		// Always wipe the args from the image if the command is overridden.
+		newVMSpec.Args = other.Args
 	}
 
 	newVMSpec.Env = newVMSpec.Env.merge(other.Env)

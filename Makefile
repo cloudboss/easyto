@@ -148,7 +148,7 @@ $(DIR_PREINIT)/$(DIR_CB)/preinit: $(HAS_IMAGE_LOCAL) \
 # Other files are created by the kernel build, but vmlinuz-$(KERNEL_VERSION) will
 # be used to indicate the target is created. It is the last file created by the build
 # via the $(DIR_ROOT)/kernel/installkernel script mounted in the build container.
-$(DIR_KERNEL)/boot/vmlinuz-$(KERNEL_VERSION): $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(KERNEL_SRC)
+$(DIR_KERNEL)/boot/vmlinuz-$(KERNEL_VERSION): $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(KERNEL_SRC) kernel/config
 	@$(MAKE) $(DIR_KERNEL)/boot/ $(DIR_KERNEL)/$(DIR_CB)/
 	@docker run -it \
 		-v $(DIR_OUT)/$(KERNEL_SRC):/code \
