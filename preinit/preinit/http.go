@@ -1,12 +1,13 @@
 package preinit
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+
+	yaml "github.com/goccy/go-yaml"
 )
 
 const (
@@ -137,7 +138,7 @@ func getUserData(endpoint ...string) (*VMSpec, error) {
 		}
 	}
 
-	err = json.NewDecoder(resp.Body).Decode(vmspec)
+	err = yaml.NewDecoder(resp.Body).Decode(vmspec)
 	if err != nil {
 		return nil, err
 	}
