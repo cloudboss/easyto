@@ -174,10 +174,10 @@ type SecretsManagerVolumeSource struct {
 
 type Mount struct {
 	Directory string   `json:"directory,omitempty"`
-	GroupID   int      `json:"group,omitempty"`
+	GroupID   int      `json:"group-id,omitempty"`
 	Mode      string   `json:"mode,omitempty"`
 	Options   []string `json:"options,omitempty"`
-	UserID    int      `json:"owner,omitempty"`
+	UserID    int      `json:"user-id,omitempty"`
 }
 
 type SecurityContext struct {
