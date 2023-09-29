@@ -4,18 +4,19 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	"github.com/cloudboss/easyto/preinit/maps"
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_parametersToMap(t *testing.T) {
 	testCases := []struct {
 		parameters []types.Parameter
-		result     map[string]any
+		result     maps.ParameterMap
 		prefix     string
 	}{
 		{
 			parameters: []types.Parameter{},
-			result:     map[string]any{},
+			result:     maps.ParameterMap{},
 			prefix:     "/zzzzz",
 		},
 		{
@@ -33,9 +34,9 @@ func Test_parametersToMap(t *testing.T) {
 					Value: p("xyz-value"),
 				},
 			},
-			result: map[string]any{
+			result: maps.ParameterMap{
 				"abc": "abc-value",
-				"subpath": map[string]any{
+				"subpath": maps.ParameterMap{
 					"abc": "subpath-abc-value",
 				},
 				"xyz": "xyz-value",
@@ -57,7 +58,7 @@ func Test_parametersToMap(t *testing.T) {
 					Value: p("xyz-value"),
 				},
 			},
-			result: map[string]any{},
+			result: maps.ParameterMap{},
 			prefix: "zzzzz",
 		},
 	}

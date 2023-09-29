@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/cloudboss/easyto/preinit/aws"
+	"github.com/cloudboss/easyto/preinit/maps"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -102,14 +103,14 @@ type mockSSMClient struct {
 	fail bool
 }
 
-func (s *mockSSMClient) GetParameters(ssmPath string) (map[string]any, error) {
+func (s *mockSSMClient) GetParameters(ssmPath string) (maps.ParameterMap, error) {
 	if s.fail {
 		return nil, errors.New("fail")
 	}
-	pMap := map[string]any{
+	pMap := maps.ParameterMap{
 		"ABC": "abc-value",
 		"XYZ": "xyz-value",
-		"subpath": map[string]any{
+		"subpath": maps.ParameterMap{
 			"ABC": "subpath-abc-value",
 		},
 	}
@@ -289,42 +290,5 @@ func Test_resolveAllEnvs(t *testing.T) {
 		actual, err := resolveAllEnvs(conn, tc.env, tc.envFrom)
 		assert.ElementsMatch(t, tc.result, actual)
 		assert.EqualValues(t, tc.err, err)
-	}
-}
-
-func Test_mapAnyToMapString(t *testing.T) {
-	testCases := []struct {
-		anyMap map[string]any
-		result map[string]string
-	}{
-		{
-			anyMap: map[string]any{},
-			result: map[string]string{},
-		},
-		{
-			anyMap: map[string]any{
-				"subpath": map[string]any{
-					"abc": "subpath-abc-value",
-				},
-			},
-			result: map[string]string{},
-		},
-		{
-			anyMap: map[string]any{
-				"abc": "abc-value",
-				"subpath": map[string]any{
-					"abc": "subpath-abc-value",
-				},
-				"xyz": "xyz-value",
-			},
-			result: map[string]string{
-				"abc": "abc-value",
-				"xyz": "xyz-value",
-			},
-		},
-	}
-	for _, tc := range testCases {
-		actual := mapAnyToMapString(tc.anyMap)
-		assert.EqualValues(t, tc.result, actual)
 	}
 }

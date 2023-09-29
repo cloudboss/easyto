@@ -9,10 +9,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	"github.com/cloudboss/easyto/preinit/maps"
 )
 
 type SSMClient interface {
-	GetParameters(ssmPath string) (map[string]any, error)
+	GetParameters(ssmPath string) (maps.ParameterMap, error)
 }
 
 type ssmClient struct {
@@ -25,7 +26,7 @@ func NewSSMClient(cfg aws.Config) SSMClient {
 	}
 }
 
-func (s *ssmClient) GetParameters(ssmPath string) (map[string]any, error) {
+func (s *ssmClient) GetParameters(ssmPath string) (maps.ParameterMap, error) {
 	parameters, err := s.getParameters(ssmPath)
 	if err != nil {
 		return nil, err
@@ -60,7 +61,7 @@ func (s *ssmClient) getParameters(ssmPath string) ([]types.Parameter, error) {
 	return parameters, nil
 }
 
-func parametersToMap(parameters []types.Parameter, prefix string) map[string]any {
+func parametersToMap(parameters []types.Parameter, prefix string) maps.ParameterMap {
 	if !strings.HasSuffix(prefix, "/") {
 		prefix = prefix + "/"
 	}

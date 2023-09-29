@@ -602,6 +602,18 @@ func handleVolumeEBS(volume *EBSVolumeSource, index int) error {
 	return nil
 }
 
+func handleVolumeSSMParameter(volume *SSMParameterVolumeSource, conn aws.Connection) error {
+	parameters, err := conn.SSMClient().GetParameters(volume.Path)
+	if !(err == nil || volume.Optional) {
+		return fmt.Errorf("unable to get SSM parameters at path %s: %w", volume.Path, err)
+	}
+	if err == nil {
+		return parameters.Write(volume.Mount.Directory, "", volume.Mount.UserID,
+			volume.Mount.GroupID)
+	}
+	return nil
+}
+
 func doExec(vmspec *VMSpec, command []string, env NameValueSource) error {
 	err := os.Chdir(vmspec.WorkingDir)
 	if err != nil {
@@ -683,9 +695,9 @@ func resolveAllEnvs(conn aws.Connection, env NameValueSource, envFrom EnvFromSou
 				errs = errors.Join(errs, err)
 			}
 			if err == nil {
-				// Use mapAnyToMapString() to filter out any nested
+				// Use ToMapString() to filter out any nested
 				// paths below e.SSMParameter.Path.
-				for k, v := range mapAnyToMapString(parameters) {
+				for k, v := range parameters.ToMapString() {
 					ev := NameValue{Name: k, Value: v}
 					resolvedEnv = append(resolvedEnv, ev)
 				}
@@ -708,17 +720,6 @@ func resolveAllEnvs(conn aws.Connection, env NameValueSource, envFrom EnvFromSou
 	}
 
 	return allEnv, nil
-}
-
-func mapAnyToMapString(anyMap map[string]any) map[string]string {
-	stringMap := map[string]string{}
-	for k, v := range anyMap {
-		switch v.(type) {
-		case string:
-			stringMap[k] = v.(string)
-		}
-	}
-	return stringMap
 }
 
 func Run() error {
@@ -776,6 +777,16 @@ func Run() error {
 		return err
 	}
 
+	region, err := getRegion()
+	if err != nil {
+		return err
+	}
+
+	conn, err := aws.NewConnection(region)
+	if err != nil {
+		return err
+	}
+
 	// Ensure linkEBSDevices() is done before handling volumes.
 	err = <-linkEBSDevicesErrC
 	if err != nil {
@@ -790,7 +801,11 @@ func Run() error {
 			}
 			continue
 		}
-		if volume.SecretsManager != nil {
+		if volume.SSMParameter != nil {
+			err = handleVolumeSSMParameter(volume.SSMParameter, conn)
+			if err != nil {
+				return err
+			}
 			continue
 		}
 		return fmt.Errorf("invalid volume defined at index %d", i)
@@ -805,16 +820,6 @@ func Run() error {
 	}
 
 	command, err := fullCommand(vmSpec)
-	if err != nil {
-		return err
-	}
-
-	region, err := getRegion()
-	if err != nil {
-		return err
-	}
-
-	conn, err := aws.NewConnection(region)
 	if err != nil {
 		return err
 	}

@@ -157,6 +157,7 @@ type SSMParameterEnvSource struct {
 type Volume struct {
 	EBS            *EBSVolumeSource            `json:"ebs,omitempty"`
 	SecretsManager *SecretsManagerVolumeSource `json:"secrets-manager,omitempty"`
+	SSMParameter   *SSMParameterVolumeSource   `json:"ssm-parameter,omitempty"`
 }
 
 type EBSVolumeSource struct {
@@ -170,6 +171,12 @@ type EBSVolumeSource struct {
 type SecretsManagerVolumeSource struct {
 	Name       string `json:"name,omitempty"`
 	MountPoint Mount  `json:"mount-point,omitempty"`
+}
+
+type SSMParameterVolumeSource struct {
+	Mount    Mount  `json:"mount,omitempty"`
+	Optional bool   `json:"optional,omitempty"`
+	Path     string `json:"path,omitempty"`
 }
 
 type Mount struct {
