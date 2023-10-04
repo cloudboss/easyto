@@ -76,6 +76,7 @@ func (p ParameterMap) writeString(dest, value string, uid, gid int) error {
 	if err != nil {
 		return fmt.Errorf("unable to create file %s: %w", dest, err)
 	}
+	defer f.Close()
 
 	_, err = f.Write([]byte(value))
 	if err != nil {
