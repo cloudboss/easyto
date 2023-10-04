@@ -85,7 +85,7 @@ func (n NameValueSource) find(key string) (string, int) {
 	return "", -1
 }
 
-// merge will merge EnvVars from other with its own EnvVars, returning a new
+// merge will merge NameValues from other with its own NameValues, returning a new
 // copy. Overridden values will come first in the returned copy.
 func (n NameValueSource) merge(other NameValueSource) NameValueSource {
 	if other == nil {
