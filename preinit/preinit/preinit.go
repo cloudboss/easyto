@@ -812,23 +812,19 @@ func Run() error {
 			if err != nil {
 				return err
 			}
-			continue
 		}
 		if volume.SSMParameter != nil {
 			err = handleVolumeSSMParameter(volume.SSMParameter, conn)
 			if err != nil {
 				return err
 			}
-			continue
 		}
 		if volume.S3 != nil {
 			err = handleVolumeS3(volume.S3, conn)
 			if err != nil {
 				return err
 			}
-			continue
 		}
-		return fmt.Errorf("invalid volume defined at index %d", i)
 	}
 	fmt.Println("After handling volumes")
 
