@@ -34,6 +34,9 @@ func Mkdirs(fs afero.Fs, dir string, uid, gid int, mode os.FileMode) error {
 		if !(err == nil || os.IsExist(err)) {
 			return fmt.Errorf("unable to create directory %s: %w", d, err)
 		}
+		if os.IsExist(err) {
+			continue
+		}
 		err = fs.Chown(d, uid, gid)
 		if err != nil {
 			return fmt.Errorf("unable to set permissions on directory %s: %w", d, err)
