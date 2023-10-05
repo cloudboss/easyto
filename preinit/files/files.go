@@ -36,8 +36,7 @@ func Mkdirs(fs afero.Fs, dir string, uid, gid int, mode os.FileMode) error {
 		}
 		err = fs.Chown(d, uid, gid)
 		if err != nil {
-			return fmt.Errorf("unable to set permissions on directory %s: %w",
-				d, err)
+			return fmt.Errorf("unable to set permissions on directory %s: %w", d, err)
 		}
 	}
 	return nil

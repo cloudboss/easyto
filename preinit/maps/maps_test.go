@@ -54,13 +54,13 @@ func Test_ParameterMap_Write(t *testing.T) {
 
 		for _, dir := range tc.dirs {
 			exists, err := afero.DirExists(fs, dir)
-			assert.True(t, exists)
+			assert.True(t, exists, "directory %s does not exist", dir)
 			assert.Nil(t, err)
 		}
 
 		for k, v := range tc.files {
 			hasBytes, err := afero.FileContainsBytes(fs, k, v)
-			assert.True(t, hasBytes)
+			assert.True(t, hasBytes, "file %s does not contain expected contents", k)
 			assert.Nil(t, err)
 		}
 	}

@@ -3,6 +3,7 @@ package preinit
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 type VMSpec struct {
@@ -122,18 +123,20 @@ type EnvFrom struct {
 }
 
 func (e *EnvFrom) Validate() error {
-	nonNils := 0
+	envNames := []string{}
 	if e.S3Object != nil {
-		nonNils++
+		envNames = append(envNames, "s3-object")
 	}
 	if e.SecretsManager != nil {
-		nonNils++
+		envNames = append(envNames, "secrets-manager")
 	}
 	if e.SSMParameter != nil {
-		nonNils++
+		envNames = append(envNames, "ssm-parameter")
 	}
-	if nonNils != 1 {
-		return fmt.Errorf("expected 1 environment source, got %d", nonNils)
+	lenEnvNames := len(envNames)
+	if lenEnvNames > 1 {
+		return fmt.Errorf("expected 1 environment source, got %d: %s", lenEnvNames,
+			strings.Join(envNames, ", "))
 	}
 	return nil
 }

@@ -605,7 +605,7 @@ func handleVolumeEBS(volume *EBSVolumeSource, index int) error {
 func handleVolumeSSMParameter(volume *SSMParameterVolumeSource, conn aws.Connection) error {
 	parameters, err := conn.SSMClient().GetParameters(volume.Path)
 	if !(err == nil || volume.Optional) {
-		return fmt.Errorf("unable to get SSM parameters at path %s: %w", volume.Path, err)
+		return err
 	}
 	if err == nil {
 		return parameters.Write(volume.Mount.Directory, "", volume.Mount.UserID,

@@ -49,7 +49,7 @@ func (s *ssmClient) getParameters(ssmPath string) ([]types.Parameter, error) {
 				NextToken:      nextToken,
 			})
 		if err != nil {
-			return nil, fmt.Errorf("unable to get parameters at path %s: %w", ssmPath, err)
+			return nil, fmt.Errorf("unable to get SSM parameters at path %s: %w", ssmPath, err)
 		}
 		parameters = append(parameters, out.Parameters...)
 		if out.NextToken == nil {
