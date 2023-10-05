@@ -614,6 +614,19 @@ func handleVolumeSSMParameter(volume *SSMParameterVolumeSource, conn aws.Connect
 	return nil
 }
 
+func handleVolumeS3(volume *S3VolumeSource, conn aws.Connection) error {
+	s3Client := conn.S3Client()
+	objects, err := s3Client.ListObjects(volume.Bucket, volume.KeyPrefix)
+	if !(err == nil || volume.Optional) {
+		return err
+	}
+	if err == nil {
+		return s3Client.CopyObjects(objects, volume.Mount.Directory, "", volume.Mount.UserID,
+			volume.Mount.GroupID)
+	}
+	return nil
+}
+
 func doExec(vmspec *VMSpec, command []string, env NameValueSource) error {
 	err := os.Chdir(vmspec.WorkingDir)
 	if err != nil {
@@ -803,6 +816,13 @@ func Run() error {
 		}
 		if volume.SSMParameter != nil {
 			err = handleVolumeSSMParameter(volume.SSMParameter, conn)
+			if err != nil {
+				return err
+			}
+			continue
+		}
+		if volume.S3 != nil {
+			err = handleVolumeS3(volume.S3, conn)
 			if err != nil {
 				return err
 			}

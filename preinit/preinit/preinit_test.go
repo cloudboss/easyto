@@ -99,6 +99,10 @@ func (c *mockConnection) SSMClient() aws.SSMClient {
 	return c.ssmClient
 }
 
+func (c *mockConnection) S3Client() aws.S3Client {
+	return nil
+}
+
 type mockSSMClient struct {
 	fail bool
 }

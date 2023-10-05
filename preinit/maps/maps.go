@@ -102,3 +102,47 @@ func (p ParameterMap) ToMapString() map[string]string {
 	}
 	return stringMap
 }
+
+type WriteFunc[T any] func(dest string, value T, uid, gid int) error
+
+func Write[T any](m map[string]any, w WriteFunc[T], dest, subPath string, uid, gid int) error {
+	var (
+		source any
+		ok     bool
+	)
+
+	source = m
+	if len(subPath) > 0 {
+		if source, ok = m[subPath]; !ok {
+			return fmt.Errorf("subPath %s not found", subPath)
+		}
+	}
+
+	switch value := source.(type) {
+	case T:
+		return w(dest, value, uid, gid)
+	case map[string]any:
+		return write(value, w, dest, uid, gid)
+	}
+
+	return nil
+}
+
+func write[T any](m map[string]any, w WriteFunc[T], dest string, uid, gid int) error {
+	for k, v := range m {
+		newDest := filepath.Join(dest, k)
+		switch value := v.(type) {
+		case T:
+			err := w(newDest, value, uid, gid)
+			if err != nil {
+				return fmt.Errorf("unable to write %s: %w", dest, err)
+			}
+		case map[string]any:
+			err := write(value, w, newDest, uid, gid)
+			if err != nil {
+				return fmt.Errorf("unable to write %s: %w", dest, err)
+			}
+		}
+	}
+	return nil
+}

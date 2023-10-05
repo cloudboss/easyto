@@ -66,6 +66,9 @@ func (v *VMSpec) Validate() error {
 	for _, ef := range v.EnvFrom {
 		errs = errors.Join(errs, ef.Validate())
 	}
+	for _, ef := range v.Volumes {
+		errs = errors.Join(errs, ef.Validate())
+	}
 	return errs
 }
 
@@ -161,6 +164,29 @@ type Volume struct {
 	EBS            *EBSVolumeSource            `json:"ebs,omitempty"`
 	SecretsManager *SecretsManagerVolumeSource `json:"secrets-manager,omitempty"`
 	SSMParameter   *SSMParameterVolumeSource   `json:"ssm-parameter,omitempty"`
+	S3             *S3VolumeSource             `json:"s3,omitempty"`
+}
+
+func (v *Volume) Validate() error {
+	volumeNames := []string{}
+	if v.EBS != nil {
+		volumeNames = append(volumeNames, "ebs")
+	}
+	if v.SecretsManager != nil {
+		volumeNames = append(volumeNames, "secrets-manager")
+	}
+	if v.SSMParameter != nil {
+		volumeNames = append(volumeNames, "ssm-parameter")
+	}
+	if v.S3 != nil {
+		volumeNames = append(volumeNames, "s3")
+	}
+	lenVolumeNames := len(volumeNames)
+	if lenVolumeNames > 1 {
+		return fmt.Errorf("expected 1 volume source, got %d: %s", lenVolumeNames,
+			strings.Join(volumeNames, ", "))
+	}
+	return nil
 }
 
 type EBSVolumeSource struct {
@@ -180,6 +206,13 @@ type SSMParameterVolumeSource struct {
 	Mount    Mount  `json:"mount,omitempty"`
 	Optional bool   `json:"optional,omitempty"`
 	Path     string `json:"path,omitempty"`
+}
+
+type S3VolumeSource struct {
+	Bucket    string `json:"bucket,omitempty"`
+	KeyPrefix string `json:"key-prefix,omitempty"`
+	Mount     Mount  `json:"mount,omitempty"`
+	Optional  bool   `json:"optional,omitempty"`
 }
 
 type Mount struct {

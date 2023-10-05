@@ -10,11 +10,13 @@ import (
 
 type Connection interface {
 	SSMClient() SSMClient
+	S3Client() S3Client
 }
 
 type connection struct {
 	cfg       aws.Config
 	ssmClient SSMClient
+	s3Client  S3Client
 }
 
 func NewConnection(region string) (*connection, error) {
@@ -30,6 +32,13 @@ func (c *connection) SSMClient() SSMClient {
 		c.ssmClient = NewSSMClient(c.cfg)
 	}
 	return c.ssmClient
+}
+
+func (c *connection) S3Client() S3Client {
+	if c.s3Client == nil {
+		c.s3Client = NewS3Client(c.cfg)
+	}
+	return c.s3Client
 }
 
 func p[T any](v T) *T {
