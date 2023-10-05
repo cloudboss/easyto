@@ -89,6 +89,7 @@ locals {
 
 data "amazon-ami" "builder_ami" {
   filters                     = {
+    architecture              = "x86_64"
     name                      = var.builder_ami_pattern
     root-device-type          = "ebs"
     virtualization-type       = "hvm"
