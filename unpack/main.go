@@ -24,6 +24,7 @@ var (
 					kernelVersion),
 				"-var", fmt.Sprintf("exec_converter=%s/converter", cfg.assetDir),
 				"-var", fmt.Sprintf("container_image=%s", cfg.containerImage),
+				"-var", fmt.Sprintf("root_vol_size=%d", cfg.size),
 				"-var", fmt.Sprintf("subnet_id=%s", cfg.subnetID),
 				"build.pkr.hcl",
 			}
@@ -57,6 +58,7 @@ type config struct {
 	assetDir       string
 	containerImage string
 	packerDir      string
+	size           int
 	subnetID       string
 }
 
@@ -90,6 +92,9 @@ func init() {
 	cmd.Flags().StringVarP(&cfg.containerImage, "container-image", "c", "",
 		"Name of the container image.")
 	cmd.MarkFlagRequired("container-image")
+
+	cmd.Flags().IntVarP(&cfg.size, "size", "S", 2,
+		"Size of the image root volume in GB.")
 
 	cmd.Flags().StringVarP(&cfg.subnetID, "subnet-id", "s", "",
 		"Name of the subnet in which to run the image builder.")
