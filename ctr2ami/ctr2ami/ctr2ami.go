@@ -471,7 +471,16 @@ func untarReader(reader io.Reader, destDir string, verbose bool) error {
 			}
 		case tar.TypeDir:
 			err = os.Mkdir(dest, fi.Mode())
-			if err != nil && os.IsExist(err) {
+			if err != nil && os.IsNotExist(err) {
+				// Try to create directories individually with os.Mkdir so that permissions
+				// match the archive, but if a subdirectory entry comes before the parent
+				// directory, fall back to os.MkdirAll to create the hierarchy.
+				err = os.MkdirAll(dest, fi.Mode())
+				if err != nil {
+					return newErrExtract(tar.TypeDir, err)
+				}
+			} else if err != nil && os.IsExist(err) {
+				// Directory already exists, so just set the mode.
 				err = os.Chmod(dest, fi.Mode())
 				if err != nil {
 					return newErrExtract(tar.TypeDir, err)
