@@ -17,13 +17,17 @@ RUN apk add \
     libtool \
     linux-headers \
     lz4 \
+    lzo-dev \
     make \
     musl-dev \
     openssl \
     openssl-dev \
     pahole \
     perl \
-    python3
+    python3 \
+    util-linux-dev \
+    zlib-static \
+    zstd-static
 
 RUN getent group ${GID} 2>&1 >/dev/null || addgroup -g ${GID} build && \
     group_name=$(getent group ${GID} | awk -F : '{print $1}') && \

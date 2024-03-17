@@ -23,6 +23,11 @@ CTR_IMAGE_LOCAL := $(PROJECT):$(COMMIT_ID_HEAD)
 
 KERNEL_ORG := https://cdn.kernel.org/pub/linux
 
+BTRFSPROGS_VERSION := 6.5.2
+BTRFSPROGS_SRC := btrfs-progs-v$(BTRFSPROGS_VERSION)
+BTRFSPROGS_ARCHIVE := $(BTRFSPROGS_SRC).tar.xz
+BTRFSPROGS_URL := $(KERNEL_ORG)/kernel/people/kdave/btrfs-progs/$(BTRFSPROGS_ARCHIVE)
+
 E2FSPROGS_VERSION := 1.47.0
 E2FSPROGS_SRC := e2fsprogs-$(E2FSPROGS_VERSION)
 E2FSPROGS_ARCHIVE := $(E2FSPROGS_SRC).tar.gz
@@ -65,6 +70,8 @@ default: release
 bootloader: $(DIR_BOOTLOADER)/boot/EFI/BOOT/BOOTX64.EFI
 
 blkid: $(DIR_PREINIT)/$(DIR_CB)/blkid
+
+btrfsprogs: $(DIR_PREINIT)/$(DIR_CB)/mkfs.btrfs
 
 converter: $(DIR_OUT)/converter
 
@@ -111,6 +118,23 @@ $(DIR_BOOTLOADER)/boot/EFI/BOOT/BOOTX64.EFI: $(HAS_COMMAND_AR) $(HAS_COMMAND_XZC
 
 $(DIR_OUT)/$(SYSTEMD_BOOT_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -o $(DIR_OUT)/$(SYSTEMD_BOOT_ARCHIVE) $(SYSTEMD_BOOT_URL)
+
+$(DIR_PREINIT)/$(DIR_CB)/mkfs.btrfs: $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static
+	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static $(DIR_PREINIT)/$(DIR_CB)/mkfs.btrfs
+
+$(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(BTRFSPROGS_SRC)
+	@docker run -it \
+		-v $(DIR_OUT)/$(BTRFSPROGS_SRC):/code \
+		-e LDFLAGS=-s \
+		-w /code \
+		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-btrfsprogs-ctr)"
+
+$(DIR_OUT)/$(BTRFSPROGS_SRC): $(HAS_COMMAND_XZCAT) $(DIR_OUT)/$(BTRFSPROGS_ARCHIVE)
+	@xzcat $(DIR_OUT)/$(BTRFSPROGS_ARCHIVE) | tar xf - -C $(DIR_OUT)
+
+$(DIR_OUT)/$(BTRFSPROGS_ARCHIVE): $(HAS_COMMAND_CURL)
+	@curl -o $(DIR_OUT)/$(BTRFSPROGS_ARCHIVE) $(BTRFSPROGS_URL)
 
 $(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(E2FSPROGS_SRC)
 	@docker run -it \
@@ -230,6 +254,7 @@ $(DIR_RELEASE_ASSETS)/preinit.tar: \
 		$(DIR_PREINIT)/$(DIR_CB)/amazon.pem \
 		$(DIR_PREINIT)/$(DIR_CB)/blkid \
 		$(DIR_PREINIT)/$(DIR_CB)/mke2fs \
+		$(DIR_PREINIT)/$(DIR_CB)/mkfs.btrfs \
 		$(DIR_PREINIT)/$(DIR_CB)/mkfs.ext2 \
 		$(DIR_PREINIT)/$(DIR_CB)/mkfs.ext3 \
 		$(DIR_PREINIT)/$(DIR_CB)/mkfs.ext4 \
