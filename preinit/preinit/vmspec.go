@@ -3,6 +3,7 @@ package preinit
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -14,7 +15,7 @@ type VMSpec struct {
 	ReplaceInit bool            `json:"replace-init,omitempty"`
 	Security    SecurityContext `json:"security,omitempty"`
 	Sysctls     NameValueSource `json:"sysctls,omitempty"`
-	Volumes     []Volume        `json:"volumes,omitempty"`
+	Volumes     Volumes         `json:"volumes,omitempty"`
 	WorkingDir  string          `json:"working-dir,omitempty"`
 }
 
@@ -189,6 +190,30 @@ func (v *Volume) Validate() error {
 	return nil
 }
 
+type Volumes []Volume
+
+func (v Volumes) MountPoints() []string {
+	mountPoints := []string{}
+	for _, v := range v {
+		if v.EBS != nil {
+			mountPoints = append(mountPoints, v.EBS.Mount.Directory)
+		}
+		if v.SecretsManager != nil {
+			mountPoints = append(mountPoints, v.SecretsManager.Mount.Directory)
+		}
+		if v.SSMParameter != nil {
+			mountPoints = append(mountPoints, v.SSMParameter.Mount.Directory)
+		}
+		if v.S3 != nil {
+			mountPoints = append(mountPoints, v.S3.Mount.Directory)
+		}
+	}
+	// Reverse sort the mountpoints so children are listed before their
+	// parents, to make it easier to unmount them in the correct order.
+	sort.Sort(sort.Reverse(sort.StringSlice(mountPoints)))
+	return mountPoints
+}
+
 type EBSVolumeSource struct {
 	Attach bool   `json:"attach,omitempty"`
 	Device string `json:"device,omitempty"`
@@ -198,8 +223,8 @@ type EBSVolumeSource struct {
 }
 
 type SecretsManagerVolumeSource struct {
-	Name       string `json:"name,omitempty"`
-	MountPoint Mount  `json:"mount-point,omitempty"`
+	Name  string `json:"name,omitempty"`
+	Mount Mount  `json:"mount,omitempty"`
 }
 
 type SSMParameterVolumeSource struct {

@@ -3,10 +3,12 @@ package preinit
 import (
 	"errors"
 	"io/fs"
+	"os"
 	"testing"
 
 	"github.com/cloudboss/easyto/preinit/aws"
 	"github.com/cloudboss/easyto/preinit/maps"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -294,5 +296,69 @@ func Test_resolveAllEnvs(t *testing.T) {
 		actual, err := resolveAllEnvs(conn, tc.env, tc.envFrom)
 		assert.ElementsMatch(t, tc.result, actual)
 		assert.EqualValues(t, tc.err, err)
+	}
+}
+
+func Test_isMounted(t *testing.T) {
+	const mtabPath = "/proc/mounts"
+	testCases := []struct {
+		name         string
+		mountPoint   string
+		mtabPath     string
+		mtabContents string
+		mounted      bool
+		errored      bool
+	}{
+		{
+			name:       "returns error",
+			mountPoint: "/abc",
+			mtabPath:   "/wrong/mounts",
+			mtabContents: `/dev/nvme0n1p2 /boot ext4 rw,seclabel,relatime 0 0
+/dev/nvme0n1p1 /boot/efi vfat rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=ascii,shortname=winnt,errors=remount-ro 0 0
+tmpfs /tmp tmpfs rw,seclabel,nosuid,nodev,nr_inodes=1048576,inode64 0 0
+binfmt_misc /proc/sys/fs/binfmt_misc binfmt_misc rw,nosuid,nodev,noexec,relatime 0 0`,
+			mounted: false,
+			errored: true,
+		},
+		{
+			name:       "not mounted",
+			mountPoint: "/abc",
+			mtabPath:   mtabPath,
+			mtabContents: `/dev/nvme0n1p2 /boot ext4 rw,seclabel,relatime 0 0
+/dev/nvme0n1p1 /boot/efi vfat rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=ascii,shortname=winnt,errors=remount-ro 0 0
+tmpfs /tmp tmpfs rw,seclabel,nosuid,nodev,nr_inodes=1048576,inode64 0 0
+binfmt_misc /proc/sys/fs/binfmt_misc binfmt_misc rw,nosuid,nodev,noexec,relatime 0 0`,
+			mounted: false,
+		},
+		{
+			name:       "is mounted",
+			mountPoint: "/abc",
+			mtabPath:   mtabPath,
+			mtabContents: `/dev/nvme0n1p2 /boot ext4 rw,seclabel,relatime 0 0
+/dev/nvme0n1p3 /abc ext4 rw,seclabel,relatime 0 0
+/dev/nvme0n1p1 /boot/efi vfat rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=ascii,shortname=winnt,errors=remount-ro 0 0
+tmpfs /tmp tmpfs rw,seclabel,nosuid,nodev,nr_inodes=1048576,inode64 0 0
+binfmt_misc /proc/sys/fs/binfmt_misc binfmt_misc rw,nosuid,nodev,noexec,relatime 0 0`,
+			mounted: true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fs := afero.NewMemMapFs()
+			mounts, err := fs.OpenFile(mtabPath, os.O_RDWR|os.O_CREATE, 0644)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer mounts.Close()
+			_, err = mounts.WriteString(tc.mtabContents)
+			if err != nil {
+				t.Fatal(err)
+			}
+			mounted, err := isMounted(fs, tc.mountPoint, tc.mtabPath)
+			assert.Equal(t, tc.mounted, mounted)
+			if err != nil {
+				assert.True(t, tc.errored)
+			}
+		})
 	}
 }

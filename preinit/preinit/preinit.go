@@ -14,9 +14,11 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/cloudboss/easyto/preinit/aws"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/spf13/afero"
 	"golang.org/x/sys/unix"
 )
 
@@ -25,6 +27,7 @@ const (
 	filePasswd     = "/etc/passwd"
 	fileGroup      = "/etc/group"
 	fileMetadata   = "metadata.json"
+	fileMounts     = "/proc/mounts"
 	dirRoot        = "/"
 	dirCB          = "/__cb__"
 	execBits       = 0111
@@ -669,30 +672,142 @@ func doForkExec(vmspec *VMSpec, command []string, env NameValueSource) error {
 		return fmt.Errorf("unable to start %s: %w", command[0], err)
 	}
 
-	return waitForShutdown(cmd)
+	waitForShutdown(vmspec, cmd)
+	return nil
 }
 
-func waitForShutdown(cmd exec.Cmd) error {
-	sigC := make(chan os.Signal, 1)
-	signal.Notify(sigC, SIGPWRBTN)
+func waitForShutdown(vmSpec *VMSpec, cmd exec.Cmd) {
+	poweroffC := make(chan os.Signal, 1)
+	signal.Notify(poweroffC, SIGPWRBTN)
 
-	waitC := make(chan error, 1)
+	doneC := make(chan struct{}, 1)
+
 	go func() {
-		waitC <- cmd.Wait()
+		for {
+			if _, err := syscall.Wait4(-1, nil, 0, nil); err == syscall.ECHILD {
+				break
+			}
+		}
+		doneC <- struct{}{}
 	}()
 
-	select {
-	case <-waitC:
-		fmt.Println("Command exited")
-	case <-sigC:
-		fmt.Println("Got poweroff signal")
-		// Error check ignored because we are going to shut down no matter what.
-		_ = cmd.Process.Signal(syscall.SIGTERM)
+	forever := time.Duration(1<<63 - 1)
+	aMinute := time.Duration(60 * time.Second)
+	stopped := false
+
+	// Create a timeout with an unreachable duration, to
+	// be adjusted when a shutdown signal is received.
+	timeout := time.NewTimer(forever)
+
+	for !stopped {
+		select {
+		case <-poweroffC:
+			fmt.Println("Got poweroff signal")
+			// Send a SIGTERM to the process.
+			cmd.Process.Signal(syscall.SIGTERM)
+			// Set a reasonable timeout in case it doesn't shut down gracefully.
+			timeout.Reset(aMinute)
+		case <-doneC:
+			fmt.Println("Command exited")
+			stopped = true
+		case <-timeout.C:
+			fmt.Println("Timeout waiting for graceful shutdown")
+			cmd.Process.Signal(syscall.SIGKILL)
+			stopped = true
+		}
 	}
 
-	// TODO: wait for graceful shutdown and unmount file systems.
+	mountPoints := vmSpec.Volumes.MountPoints()
+	osFS := afero.NewOsFs()
 
-	return syscall.Reboot(syscall.LINUX_REBOOT_CMD_POWER_OFF)
+	err := unmountAll(osFS, mountPoints)
+	if err != nil {
+		fmt.Printf("Error unmounting volumes: %s\n", err)
+	}
+
+	// Best-effort wait, even if there were unmount errors. This can be improved
+	// so it doesn't wait unnecessarily if no calls to unmount succeeded.
+	waitForUnmounts(osFS, fileMounts, mountPoints, aMinute)
+
+	// Time to power down no matter what.
+	syscall.Reboot(syscall.LINUX_REBOOT_CMD_POWER_OFF)
+}
+
+// unmountAll remounts / as readonly and lazily unmounts all the volumes in the list of mount points.
+func unmountAll(fs afero.Fs, mountPoints []string) error {
+	var errs error
+
+	err := unix.Mount("", dirRoot, "", syscall.MS_REMOUNT|syscall.MS_RDONLY, "")
+	if err != nil {
+		errs = errors.Join(errs, fmt.Errorf("unable to remount / as read-only: %w", err))
+	}
+
+	for _, mountPoint := range mountPoints {
+		err := syscall.Unmount(mountPoint, syscall.MNT_DETACH)
+		if err != nil {
+			errs = errors.Join(errs, fmt.Errorf("unable to unmount %s: %w", mountPoint, err))
+		}
+	}
+
+	syscall.Sync()
+
+	return errs
+}
+
+func waitForUnmounts(fs afero.Fs, mtab string, mountPoints []string, timeout time.Duration) {
+	unmounted := map[string]struct{}{}
+	end := time.Now().Add(timeout)
+
+loop:
+	fmt.Printf("Waiting for unmounts: %+v\n", mountPoints)
+	for _, mountPoint := range mountPoints {
+		mounted, err := isMounted(fs, mountPoint, mtab)
+		if err != nil {
+			fmt.Printf("Unable to check if %s is mounted: %s\n", mountPoint, err)
+		}
+		if !mounted {
+			unmounted[mountPoint] = struct{}{}
+			fmt.Printf("%s is unmounted\n", mountPoint)
+		}
+	}
+
+	now := time.Now()
+	lenUnmounted := len(unmounted)
+	lenMountPoints := len(mountPoints)
+
+	if now.Before(end) && lenUnmounted < lenMountPoints {
+		goto loop
+	}
+
+	if now.After(end) && lenUnmounted < lenMountPoints {
+		fmt.Println("Timeout waiting for unmounts")
+		return
+	}
+
+	fmt.Println("All unmounts complete")
+}
+
+func isMounted(fs afero.Fs, mountPoint, mtab string) (bool, error) {
+	f, err := fs.Open(mtab)
+	if err != nil {
+		return false, fmt.Errorf("unable to open %s: %w", mtab, err)
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			return false, fmt.Errorf("invalid line in %s: %s", mtab, line)
+		}
+		mtabMountPoint := fields[1]
+		if mtabMountPoint == mountPoint {
+			return true, nil
+		}
+	}
+
+	return false, err
 }
 
 func resolveAllEnvs(conn aws.Connection, env NameValueSource, envFrom EnvFromSource) (NameValueSource, error) {
