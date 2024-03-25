@@ -3,6 +3,7 @@ package preinit
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -49,4 +50,17 @@ func linkEBSDevices(c chan error) {
 		}
 	}
 	c <- nil
+}
+
+func deviceHasFS(blkidPath, devicePath string) (bool, error) {
+	cmd := exec.Command(blkidPath, devicePath)
+	err := cmd.Run()
+	switch cmd.ProcessState.ExitCode() {
+	case 0:
+		return true, nil
+	case 2:
+		return false, nil
+	default:
+		return false, err
+	}
 }

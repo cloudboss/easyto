@@ -583,17 +583,22 @@ func handleVolumeEBS(volume *EBSVolumeSource, index int) error {
 	}
 	fmt.Printf("Changed ownership of mount point %s\n", volume.Mount.Directory)
 
-	mkfsPath := filepath.Join(dirCB, "mkfs."+volume.FSType)
-	if _, err := os.Stat(mkfsPath); os.IsNotExist(err) {
-		return fmt.Errorf("unsupported filesystem type %s for volume at index %d",
-			volume.FSType, index)
-	}
-
-	err = runCommand(mkfsPath, volume.Device)
+	hasFS, err := deviceHasFS(filepath.Join(dirCB, "blkid"), volume.Device)
 	if err != nil {
-		return fmt.Errorf("unable to create filesystem on %s: %w", volume.Device, err)
+		return fmt.Errorf("unable to determine if %s has a filesystem: %w", volume.Device, err)
 	}
-	fmt.Printf("Created %s filesystem on %s\n", volume.FSType, volume.Device)
+	if !hasFS {
+		mkfsPath := filepath.Join(dirCB, "mkfs."+volume.FSType)
+		if _, err := os.Stat(mkfsPath); os.IsNotExist(err) {
+			return fmt.Errorf("unsupported filesystem type %s for volume at index %d",
+				volume.FSType, index)
+		}
+		err = runCommand(mkfsPath, volume.Device)
+		if err != nil {
+			return fmt.Errorf("unable to create filesystem on %s: %w", volume.Device, err)
+		}
+		fmt.Printf("Created %s filesystem on %s\n", volume.FSType, volume.Device)
+	}
 
 	err = unix.Mount(volume.Device, volume.Mount.Directory, volume.FSType, 0, "")
 	if err != nil {
