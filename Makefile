@@ -129,6 +129,7 @@ $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(
 		-e LDFLAGS=-s \
 		-w /code \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-btrfsprogs-ctr)"
+	@touch $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static
 
 $(DIR_OUT)/$(BTRFSPROGS_SRC): $(HAS_COMMAND_XZCAT) $(DIR_OUT)/$(BTRFSPROGS_ARCHIVE)
 	@xzcat $(DIR_OUT)/$(BTRFSPROGS_ARCHIVE) | tar xf - -C $(DIR_OUT)
