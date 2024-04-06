@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -29,6 +28,7 @@ const (
 	fileMetadata   = "metadata.json"
 	fileMounts     = "/proc/mounts"
 	dirRoot        = "/"
+	dirRun         = "/run"
 	dirCB          = "/__cb__"
 	execBits       = 0111
 	pathEnvDefault = "/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
@@ -116,11 +116,11 @@ func mounts() error {
 			options: []string{
 				"mode=0755",
 			},
-			target: "/run",
+			target: dirRun,
 		},
 		{
 			mode:   0777 | fs.ModeSticky,
-			target: "/run/lock",
+			target: filepath.Join(dirRun, "lock"),
 		},
 		{
 			source: "tmpfs",
@@ -656,71 +656,36 @@ func doExec(vmspec *VMSpec, command []string, env NameValueSource) error {
 }
 
 func doForkExec(vmspec *VMSpec, command []string, env NameValueSource) error {
-	cmd := exec.Cmd{
-		Args:   command,
-		Dir:    vmspec.WorkingDir,
-		Env:    env.toStrings(),
-		Path:   command[0],
-		Stderr: os.Stderr,
-		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		SysProcAttr: &syscall.SysProcAttr{
-			Credential: &syscall.Credential{
-				Gid: uint32(vmspec.Security.RunAsGroupID),
-				Uid: uint32(vmspec.Security.RunAsUserID),
-			},
-		},
-	}
-
-	err := cmd.Start()
+	chronyRunPath := filepath.Join(dirRun, "chrony")
+	err := os.MkdirAll(chronyRunPath, 0755)
 	if err != nil {
-		return fmt.Errorf("unable to start %s: %w", command[0], err)
+		return fmt.Errorf("unable to create %s: %w", chronyRunPath, err)
 	}
 
-	waitForShutdown(vmspec, cmd)
+	serviceChrony := Service{
+		Args: []string{filepath.Join(dirCB, "chronyd"), "-n"},
+		Env:  []string{},
+	}
+	serviceMain := Service{
+		Args: command,
+		Dir:  vmspec.WorkingDir,
+		Env:  env.toStrings(),
+		GID:  uint32(vmspec.Security.RunAsGroupID),
+		UID:  uint32(vmspec.Security.RunAsUserID),
+	}
+
+	supervisor := &Supervisor{
+		Services: []Service{serviceChrony, serviceMain},
+		Timeout:  10 * time.Second,
+	}
+	supervisor.Start()
+
+	waitForShutdown(vmspec, supervisor)
 	return nil
 }
 
-func waitForShutdown(vmSpec *VMSpec, cmd exec.Cmd) {
-	poweroffC := make(chan os.Signal, 1)
-	signal.Notify(poweroffC, SIGPWRBTN)
-
-	doneC := make(chan struct{}, 1)
-
-	go func() {
-		for {
-			if _, err := syscall.Wait4(-1, nil, 0, nil); err == syscall.ECHILD {
-				break
-			}
-		}
-		doneC <- struct{}{}
-	}()
-
-	forever := time.Duration(1<<63 - 1)
-	aMinute := time.Duration(60 * time.Second)
-	stopped := false
-
-	// Create a timeout with an unreachable duration, to
-	// be adjusted when a shutdown signal is received.
-	timeout := time.NewTimer(forever)
-
-	for !stopped {
-		select {
-		case <-poweroffC:
-			fmt.Println("Got poweroff signal")
-			// Send a SIGTERM to the process.
-			cmd.Process.Signal(syscall.SIGTERM)
-			// Set a reasonable timeout in case it doesn't shut down gracefully.
-			timeout.Reset(aMinute)
-		case <-doneC:
-			fmt.Println("Command exited")
-			stopped = true
-		case <-timeout.C:
-			fmt.Println("Timeout waiting for graceful shutdown")
-			cmd.Process.Signal(syscall.SIGKILL)
-			stopped = true
-		}
-	}
+func waitForShutdown(vmSpec *VMSpec, supervisor *Supervisor) {
+	supervisor.Wait()
 
 	mountPoints := vmSpec.Volumes.MountPoints()
 	osFS := afero.NewOsFs()
@@ -732,7 +697,7 @@ func waitForShutdown(vmSpec *VMSpec, cmd exec.Cmd) {
 
 	// Best-effort wait, even if there were unmount errors. This can be improved
 	// so it doesn't wait unnecessarily if no calls to unmount succeeded.
-	waitForUnmounts(osFS, fileMounts, mountPoints, aMinute)
+	waitForUnmounts(osFS, fileMounts, mountPoints, 10*time.Second)
 
 	// Time to power down no matter what.
 	syscall.Reboot(syscall.LINUX_REBOOT_CMD_POWER_OFF)

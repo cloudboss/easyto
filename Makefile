@@ -57,6 +57,11 @@ UTIL_LINUX_SRC := util-linux-$(UTIL_LINUX_VERSION)
 UTIL_LINUX_ARCHIVE := $(UTIL_LINUX_SRC).tar.gz
 UTIL_LINUX_URL := $(KERNEL_ORG)/utils/util-linux/v$(UTIL_LINUX_VERSION)/$(UTIL_LINUX_ARCHIVE)
 
+CHRONY_VERSION := 4.5
+CHRONY_SRC := chrony-$(CHRONY_VERSION)
+CHRONY_ARCHIVE := $(CHRONY_SRC).tar.gz
+CHRONY_URL := https://chrony-project.org/releases/$(CHRONY_ARCHIVE)
+
 HAS_COMMAND_AR := $(DIR_OUT)/.command-ar
 HAS_COMMAND_CURL := $(DIR_OUT)/.command-curl
 HAS_COMMAND_DOCKER := $(DIR_OUT)/.command-docker
@@ -208,6 +213,22 @@ $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(UTIL_
 		-w /code \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-blkid-ctr)"
 
+$(DIR_PREINIT)/$(DIR_CB)/chronyd: $(DIR_OUT)/$(CHRONY_SRC)/chronyd
+	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(CHRONY_SRC)/chronyd $(DIR_PREINIT)/$(DIR_CB)/chronyd
+
+$(DIR_PREINIT)/$(DIR_CB)/chronyc: $(DIR_OUT)/$(CHRONY_SRC)/chronyd
+	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(CHRONY_SRC)/chronyc $(DIR_PREINIT)/$(DIR_CB)/chronyc
+
+$(DIR_OUT)/$(CHRONY_SRC)/chronyd: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(CHRONY_SRC)
+	@docker run -it \
+		-v $(DIR_ROOT)/_output/$(CHRONY_SRC):/code \
+		-e SYSCONFDIR=/$(DIR_CB) \
+		-w /code \
+		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-chrony-ctr)"
+	@touch $(DIR_OUT)/$(CHRONY_SRC)/chronyd $(DIR_OUT)/$(CHRONY_SRC)/chronyc
+
 # Container image build is done in an empty directory to speed it up.
 $(HAS_IMAGE_LOCAL): $(HAS_COMMAND_DOCKER)
 	@$(MAKE) $(DIR_OUT)/dockerbuild/
@@ -224,6 +245,12 @@ $(DIR_OUT)/$(UTIL_LINUX_SRC): $(DIR_OUT)/$(UTIL_LINUX_ARCHIVE)
 
 $(DIR_OUT)/$(UTIL_LINUX_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -o $(DIR_OUT)/$(UTIL_LINUX_ARCHIVE) $(UTIL_LINUX_URL)
+
+$(DIR_OUT)/$(CHRONY_SRC): $(DIR_OUT)/$(CHRONY_ARCHIVE)
+	@tar zxf $(DIR_OUT)/$(CHRONY_ARCHIVE) -C $(DIR_OUT)
+
+$(DIR_OUT)/$(CHRONY_ARCHIVE): $(HAS_COMMAND_CURL)
+	@curl -o $(DIR_OUT)/$(CHRONY_ARCHIVE) $(CHRONY_URL)
 
 $(DIR_RELEASE_ASSETS)/boot.tar: $(HAS_COMMAND_FAKEROOT) $(DIR_BOOTLOADER)/boot/EFI/BOOT/BOOTX64.EFI
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/ $(DIR_BOOTLOADER)/boot/loader/entries/
@@ -250,10 +277,17 @@ $(DIR_RELEASE_ASSETS)/kernel-$(KERNEL_VERSION).tar: $(HAS_COMMAND_FAKEROOT) \
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/
 	@cd $(DIR_KERNEL) && fakeroot tar cf $(DIR_RELEASE_ASSETS)/kernel-$(KERNEL_VERSION).tar .
 
+$(DIR_PREINIT)/$(DIR_CB)/chrony.conf: chrony.conf
+	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
+	@install -m 0644 chrony.conf $(DIR_PREINIT)/$(DIR_CB)/chrony.conf
+
 $(DIR_RELEASE_ASSETS)/preinit.tar: \
 		$(HAS_COMMAND_FAKEROOT) \
 		$(DIR_PREINIT)/$(DIR_CB)/amazon.pem \
 		$(DIR_PREINIT)/$(DIR_CB)/blkid \
+		$(DIR_PREINIT)/$(DIR_CB)/chrony.conf \
+		$(DIR_PREINIT)/$(DIR_CB)/chronyd \
+		$(DIR_PREINIT)/$(DIR_CB)/chronyc \
 		$(DIR_PREINIT)/$(DIR_CB)/mke2fs \
 		$(DIR_PREINIT)/$(DIR_CB)/mkfs.btrfs \
 		$(DIR_PREINIT)/$(DIR_CB)/mkfs.ext2 \
