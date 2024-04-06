@@ -1,0 +1,5 @@
+#!/bin/sh
+
+set -e
+
+CFLAGS=-static LDFLAGS=-s ./configure --sysconfdir=${SYSCONFDIR} && make -j$(nproc)

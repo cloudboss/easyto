@@ -1,0 +1,12 @@
+#!/bin/sh
+
+set -e
+
+./configure \
+    --disable-documentation \
+    --disable-convert \
+    --disable-libudev \
+    --disable-python \
+    --disable-backtrace
+
+make -j$(nproc) mkfs.btrfs.static
