@@ -50,7 +50,7 @@ PACKER_PLUGIN_AMZ_URL := https://github.com/hashicorp/packer-plugin-amazon/relea
 
 SYSTEMD_BOOT_VERSION := 252.12-1~deb12u1
 SYSTEMD_BOOT_ARCHIVE := systemd-boot-efi_$(SYSTEMD_BOOT_VERSION)_amd64.deb
-SYSTEMD_BOOT_URL := https://ftp.debian.org/debian/pool/main/s/systemd/$(SYSTEMD_BOOT_ARCHIVE)
+SYSTEMD_BOOT_URL := https://snapshot.debian.org/archive/debian/20230712T091300Z/pool/main/s/systemd/$(SYSTEMD_BOOT_ARCHIVE)
 
 UTIL_LINUX_VERSION := 2.39
 UTIL_LINUX_SRC := util-linux-$(UTIL_LINUX_VERSION)
