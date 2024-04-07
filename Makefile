@@ -164,7 +164,7 @@ $(DIR_PREINIT)/$(DIR_CB)/mkfs.ext%: $(DIR_PREINIT)/$(DIR_CB)/mke2fs
 	@ln -f $(DIR_PREINIT)/$(DIR_CB)/mke2fs $(DIR_PREINIT)/$(DIR_CB)/mkfs.ext$*
 
 $(DIR_PREINIT)/$(DIR_CB)/preinit: $(HAS_IMAGE_LOCAL) \
-		$(shell find preinit -type f -path '*.go' ! -path '*_test.go')
+		$(shell find preinit -type f -path '*/go.[ms]*' -o -path '*.go' ! -path '*_test.go')
 	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
 	@docker run -it \
 		-v $(DIR_ROOT):/code \
@@ -262,7 +262,7 @@ $(DIR_RELEASE_ASSETS)/converter: $(DIR_OUT)/converter
 	@install -m 0755 $(DIR_OUT)/converter $(DIR_RELEASE_ASSETS)/converter
 
 $(DIR_OUT)/converter: $(HAS_IMAGE_LOCAL) \
-		$(shell find ctr2ami -type f -path '*.go' ! -path '*_test.go')
+		$(shell find ctr2ami -type f -path '*/go.[ms]*' -o -path '*.go' ! -path '*_test.go')
 	@docker run -it \
 		-v $(DIR_ROOT):/code \
 		-e DIR_OUT=/code/_output \
@@ -312,7 +312,7 @@ $(DIR_RELEASE_BIN)/unpack: $(DIR_OSARCH_BUILD)/unpack
 	@install -m 0755 $(DIR_OSARCH_BUILD)/unpack $(DIR_RELEASE_BIN)/unpack
 
 $(DIR_OSARCH_BUILD)/unpack: $(HAS_IMAGE_LOCAL) \
-		$(shell find unpack -type f -path '*.go' ! -path '*_test.go')
+		$(shell find unpack -type f -path '*/go.[ms]*' -o -path '*.go' ! -path '*_test.go')
 	@[ -d $(DIR_OSARCH_BUILD) ] || mkdir -p $(DIR_OSARCH_BUILD)
 	@docker run -it \
 		-v $(DIR_ROOT):/code \
