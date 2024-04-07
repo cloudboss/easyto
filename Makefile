@@ -198,9 +198,9 @@ $(DIR_OUT)/$(KERNEL_SRC): $(HAS_COMMAND_XZCAT) $(DIR_OUT)/$(KERNEL_ARCHIVE)
 $(DIR_OUT)/$(KERNEL_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -o $(DIR_OUT)/$(KERNEL_ARCHIVE) $(KERNEL_URL)
 
-$(DIR_PREINIT)/$(DIR_CB)/amazon.pem: amazon.pem
+$(DIR_PREINIT)/$(DIR_CB)/amazon.pem: assets/amazon.pem
 	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
-	@install -m 0644 amazon.pem $(DIR_PREINIT)/$(DIR_CB)/amazon.pem
+	@install -m 0644 assets/amazon.pem $(DIR_PREINIT)/$(DIR_CB)/amazon.pem
 
 $(DIR_PREINIT)/$(DIR_CB)/blkid: $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static
 	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
@@ -277,9 +277,9 @@ $(DIR_RELEASE_ASSETS)/kernel-$(KERNEL_VERSION).tar: $(HAS_COMMAND_FAKEROOT) \
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/
 	@cd $(DIR_KERNEL) && fakeroot tar cf $(DIR_RELEASE_ASSETS)/kernel-$(KERNEL_VERSION).tar .
 
-$(DIR_PREINIT)/$(DIR_CB)/chrony.conf: chrony.conf
+$(DIR_PREINIT)/$(DIR_CB)/chrony.conf: assets/chrony.conf
 	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
-	@install -m 0644 chrony.conf $(DIR_PREINIT)/$(DIR_CB)/chrony.conf
+	@install -m 0644 assets/chrony.conf $(DIR_PREINIT)/$(DIR_CB)/chrony.conf
 
 $(DIR_RELEASE_ASSETS)/preinit.tar: \
 		$(HAS_COMMAND_FAKEROOT) \
