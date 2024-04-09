@@ -17,9 +17,9 @@ DIR_RELEASE_PACKER := $(DIR_RELEASE)/packer
 DIR_RELEASE_PACKER_PLUGIN := $(DIR_RELEASE_PACKER)/plugins/github.com/hashicorp/amazon
 DIR_OSARCH_BUILD := $(DIR_OUT)/osarch/$(OS)/$(ARCH)
 
-COMMIT_ID_HEAD := $(shell git rev-parse HEAD)
+DOCKERFILE_SHA256 := $(shell sha256sum Dockerfile.build | awk '{print $$1}' | cut -c 1-40)
 CTR_IMAGE_GO := golang:1.21.0-alpine3.18
-CTR_IMAGE_LOCAL := $(PROJECT):$(COMMIT_ID_HEAD)
+CTR_IMAGE_LOCAL := $(PROJECT):$(DOCKERFILE_SHA256)
 
 KERNEL_ORG := https://cdn.kernel.org/pub/linux
 
@@ -68,7 +68,7 @@ HAS_COMMAND_DOCKER := $(DIR_OUT)/.command-docker
 HAS_COMMAND_FAKEROOT := $(DIR_OUT)/.command-fakeroot
 HAS_COMMAND_UNZIP := $(DIR_OUT)/.command-unzip
 HAS_COMMAND_XZCAT := $(DIR_OUT)/.command-xzcat
-HAS_IMAGE_LOCAL := $(DIR_OUT)/.image-local-$(COMMIT_ID_HEAD)
+HAS_IMAGE_LOCAL := $(DIR_OUT)/.image-local-$(DOCKERFILE_SHA256)
 
 default: release
 
