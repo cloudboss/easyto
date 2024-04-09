@@ -315,14 +315,11 @@ func debug() {
 		{
 			"/bin/ls",
 			"-l",
-			"/dev",
-		},
-		{
-			"/bin/ls",
 			dirRoot,
 		},
 		{
 			"/bin/ls",
+			"-l",
 			filepath.Join(dirRoot, "dev"),
 		},
 	}
@@ -842,9 +839,6 @@ func Run() error {
 	linkEBSDevicesErrC := make(chan error, 1)
 	go linkEBSDevices(linkEBSDevicesErrC)
 
-	debug()
-	fmt.Println("After debug()")
-
 	metadata, err := readMetadata(filepath.Join(dirCB, fileMetadata))
 	if err != nil {
 		return err
@@ -890,6 +884,9 @@ func Run() error {
 	if err != nil {
 		return err
 	}
+
+	debug()
+	fmt.Println("After debug()")
 
 	for i, volume := range vmSpec.Volumes {
 		if volume.EBS != nil {
