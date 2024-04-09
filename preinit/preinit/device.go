@@ -19,8 +19,9 @@ func linkEBSDevices(c chan error) {
 		return
 	}
 	for _, dir := range dirs {
-		devicePath := filepath.Join("/dev", dir.Name())
-		device, err := ebsnvme.ScanDevice(devicePath)
+		deviceName := dir.Name()
+		devicePath := filepath.Join("/dev", deviceName)
+		deviceInfo, err := ebsnvme.ScanDevice(devicePath)
 
 		if err != nil {
 			// Skip any block devices that are not EBS volumes. The
@@ -35,16 +36,16 @@ func linkEBSDevices(c chan error) {
 			return
 		}
 
-		ebsDeviceName := device.Name
-		if !strings.HasPrefix(ebsDeviceName, "/") {
-			ebsDeviceName = filepath.Join("/dev", ebsDeviceName)
+		deviceLinkPath := deviceInfo.Name
+		if !strings.HasPrefix(deviceLinkPath, "/") {
+			deviceLinkPath = filepath.Join("/dev", deviceLinkPath)
 		}
 
-		if _, err := os.Stat(ebsDeviceName); os.IsNotExist(err) {
-			err = os.Symlink(devicePath, device.Name)
+		if _, err := os.Stat(deviceLinkPath); os.IsNotExist(err) {
+			err = os.Symlink(deviceName, deviceLinkPath)
 			if err != nil {
 				c <- fmt.Errorf("unable to link device %s to %s: %w",
-					device.Name, devicePath, err)
+					devicePath, deviceLinkPath, err)
 				return
 			}
 		}
