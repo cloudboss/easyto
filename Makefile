@@ -61,6 +61,7 @@ CHRONY_VERSION := 4.5
 CHRONY_SRC := chrony-$(CHRONY_VERSION)
 CHRONY_ARCHIVE := $(CHRONY_SRC).tar.gz
 CHRONY_URL := https://chrony-project.org/releases/$(CHRONY_ARCHIVE)
+CHRONY_USER := cb-chrony
 
 HAS_COMMAND_AR := $(DIR_OUT)/.command-ar
 HAS_COMMAND_CURL := $(DIR_OUT)/.command-curl
@@ -170,6 +171,7 @@ $(DIR_PREINIT)/$(DIR_CB)/preinit: $(HAS_IMAGE_LOCAL) hack/compile-preinit-ctr \
 	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
 	@docker run -it \
 		-v $(DIR_ROOT):/code \
+		-e CHRONY_USER=$(CHRONY_USER) \
 		-e DIR_OUT=/code/_output/preinit/$(DIR_CB) \
 		-e GOPATH=/code/_output/go \
 		-e GOCACHE=/code/_output/gocache \
@@ -229,6 +231,7 @@ $(DIR_OUT)/$(CHRONY_SRC)/chronyd: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(CHRONY_SRC) \
 		hack/compile-chrony-ctr
 	@docker run -it \
 		-v $(DIR_ROOT)/_output/$(CHRONY_SRC):/code \
+		-e CHRONY_USER=$(CHRONY_USER) \
 		-e SYSCONFDIR=/$(DIR_CB) \
 		-w /code \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-chrony-ctr)"

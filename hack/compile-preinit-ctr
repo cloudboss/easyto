@@ -1,4 +1,6 @@
 #!/bin/sh
 
+var_chrony_user="github.com/cloudboss/easyto/preinit/service.ChronyUser=${CHRONY_USER}"
+ldflags_vars="-X ${var_chrony_user}"
 go build -o ${DIR_OUT}/preinit \
-    -ldflags "-linkmode external -extldflags -static -s -w" .
+    -ldflags "${ldflags_vars} -linkmode external -extldflags -static -s -w" .

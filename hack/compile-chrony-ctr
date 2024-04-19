@@ -2,4 +2,7 @@
 
 set -e
 
-CFLAGS=-static LDFLAGS=-s ./configure --sysconfdir=${SYSCONFDIR} && make -j$(nproc)
+export CFLAGS=-static
+export LDFLAGS=-s
+./configure --sysconfdir=${SYSCONFDIR} --with-user=${CHRONY_USER}
+make -j$(nproc)
