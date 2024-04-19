@@ -128,7 +128,8 @@ $(DIR_PREINIT)/$(DIR_CB)/mkfs.btrfs: $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.sta
 	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
 	@install -m 0755 $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static $(DIR_PREINIT)/$(DIR_CB)/mkfs.btrfs
 
-$(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(BTRFSPROGS_SRC)
+$(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(BTRFSPROGS_SRC) \
+		hack/compile-btrfsprogs-ctr
 	@docker run -it \
 		-v $(DIR_OUT)/$(BTRFSPROGS_SRC):/code \
 		-e LDFLAGS=-s \
@@ -142,7 +143,8 @@ $(DIR_OUT)/$(BTRFSPROGS_SRC): $(HAS_COMMAND_XZCAT) $(DIR_OUT)/$(BTRFSPROGS_ARCHI
 $(DIR_OUT)/$(BTRFSPROGS_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -o $(DIR_OUT)/$(BTRFSPROGS_ARCHIVE) $(BTRFSPROGS_URL)
 
-$(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(E2FSPROGS_SRC)
+$(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(E2FSPROGS_SRC) \
+		hack/compile-e2fsprogs-ctr
 	@docker run -it \
 		-v $(DIR_OUT)/$(E2FSPROGS_SRC):/code \
 		-e LDFLAGS="-s -static" \
@@ -163,7 +165,7 @@ $(DIR_PREINIT)/$(DIR_CB)/mkfs.ext%: $(DIR_PREINIT)/$(DIR_CB)/mke2fs
 	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
 	@ln -f $(DIR_PREINIT)/$(DIR_CB)/mke2fs $(DIR_PREINIT)/$(DIR_CB)/mkfs.ext$*
 
-$(DIR_PREINIT)/$(DIR_CB)/preinit: $(HAS_IMAGE_LOCAL) \
+$(DIR_PREINIT)/$(DIR_CB)/preinit: $(HAS_IMAGE_LOCAL) hack/compile-preinit-ctr \
 		$(shell find preinit -type f -path '*/go.[ms]*' -o -path '*.go' ! -path '*_test.go')
 	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
 	@docker run -it \
@@ -178,7 +180,8 @@ $(DIR_PREINIT)/$(DIR_CB)/preinit: $(HAS_IMAGE_LOCAL) \
 # Other files are created by the kernel build, but vmlinuz-$(KERNEL_VERSION) will
 # be used to indicate the target is created. It is the last file created by the build
 # via the $(DIR_ROOT)/kernel/installkernel script mounted in the build container.
-$(DIR_KERNEL)/boot/vmlinuz-$(KERNEL_VERSION): $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(KERNEL_SRC) kernel/config
+$(DIR_KERNEL)/boot/vmlinuz-$(KERNEL_VERSION): $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(KERNEL_SRC) kernel/config \
+		hack/compile-kernel-ctr
 	@$(MAKE) $(DIR_KERNEL)/boot/ $(DIR_KERNEL)/$(DIR_CB)/
 	@docker run -it \
 		-v $(DIR_OUT)/$(KERNEL_SRC):/code \
@@ -206,7 +209,8 @@ $(DIR_PREINIT)/$(DIR_CB)/blkid: $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static
 	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
 	@install -m 0755 $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static $(DIR_PREINIT)/$(DIR_CB)/blkid
 
-$(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(UTIL_LINUX_SRC)
+$(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(UTIL_LINUX_SRC) \
+		hack/compile-blkid-ctr
 	@docker run -it \
 		-v $(DIR_ROOT)/_output/$(UTIL_LINUX_SRC):/code \
 		-e CFLAGS=-s \
@@ -221,7 +225,8 @@ $(DIR_PREINIT)/$(DIR_CB)/chronyc: $(DIR_OUT)/$(CHRONY_SRC)/chronyd
 	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
 	@install -m 0755 $(DIR_OUT)/$(CHRONY_SRC)/chronyc $(DIR_PREINIT)/$(DIR_CB)/chronyc
 
-$(DIR_OUT)/$(CHRONY_SRC)/chronyd: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(CHRONY_SRC)
+$(DIR_OUT)/$(CHRONY_SRC)/chronyd: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(CHRONY_SRC) \
+		hack/compile-chrony-ctr
 	@docker run -it \
 		-v $(DIR_ROOT)/_output/$(CHRONY_SRC):/code \
 		-e SYSCONFDIR=/$(DIR_CB) \
@@ -261,7 +266,7 @@ $(DIR_RELEASE_ASSETS)/converter: $(DIR_OUT)/converter
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/
 	@install -m 0755 $(DIR_OUT)/converter $(DIR_RELEASE_ASSETS)/converter
 
-$(DIR_OUT)/converter: $(HAS_IMAGE_LOCAL) \
+$(DIR_OUT)/converter: $(HAS_IMAGE_LOCAL) hack/compile-converter-ctr \
 		$(shell find ctr2ami -type f -path '*/go.[ms]*' -o -path '*.go' ! -path '*_test.go')
 	@docker run -it \
 		-v $(DIR_ROOT):/code \
@@ -311,7 +316,7 @@ $(DIR_RELEASE_BIN)/unpack: $(DIR_OSARCH_BUILD)/unpack
 	@$(MAKE) $(DIR_RELEASE_BIN)/
 	@install -m 0755 $(DIR_OSARCH_BUILD)/unpack $(DIR_RELEASE_BIN)/unpack
 
-$(DIR_OSARCH_BUILD)/unpack: $(HAS_IMAGE_LOCAL) \
+$(DIR_OSARCH_BUILD)/unpack: $(HAS_IMAGE_LOCAL) hack/compile-unpack-ctr \
 		$(shell find unpack -type f -path '*/go.[ms]*' -o -path '*.go' ! -path '*_test.go')
 	@[ -d $(DIR_OSARCH_BUILD) ] || mkdir -p $(DIR_OSARCH_BUILD)
 	@docker run -it \
