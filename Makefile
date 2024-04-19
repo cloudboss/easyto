@@ -16,6 +16,7 @@ DIR_RELEASE_BIN := $(DIR_RELEASE)/bin
 DIR_RELEASE_PACKER := $(DIR_RELEASE)/packer
 DIR_RELEASE_PACKER_PLUGIN := $(DIR_RELEASE_PACKER)/plugins/github.com/hashicorp/amazon
 DIR_OSARCH_BUILD := $(DIR_OUT)/osarch/$(OS)/$(ARCH)
+DIR_OPENSSH_DEPS := openssh-deps
 
 DOCKERFILE_SHA256 := $(shell sha256sum Dockerfile.build | awk '{print $$1}' | cut -c 1-40)
 CTR_IMAGE_GO := golang:1.21.0-alpine3.18
@@ -62,6 +63,23 @@ CHRONY_SRC := chrony-$(CHRONY_VERSION)
 CHRONY_ARCHIVE := $(CHRONY_SRC).tar.gz
 CHRONY_URL := https://chrony-project.org/releases/$(CHRONY_ARCHIVE)
 CHRONY_USER := cb-chrony
+
+ZLIB_VERSION := 1.3.1
+ZLIB_SRC := zlib-$(ZLIB_VERSION)
+ZLIB_ARCHIVE := $(ZLIB_SRC).tar.gz
+ZLIB_URL := https://zlib.net/$(ZLIB_ARCHIVE)
+
+OPENSSL_VERSION := 3.2.1
+OPENSSL_SRC := openssl-$(OPENSSL_VERSION)
+OPENSSL_ARCHIVE := $(OPENSSL_SRC).tar.gz
+OPENSSL_URL := https://www.openssl.org/source/$(OPENSSL_ARCHIVE)
+
+OPENSSH_VERSION := V_9_7_P1
+OPENSSH_SRC := openssh-portable-$(OPENSSH_VERSION)
+OPENSSH_ARCHIVE := $(OPENSSH_VERSION).tar.gz
+OPENSSH_URL := https://github.com/openssh/openssh-portable/archive/refs/tags/$(OPENSSH_ARCHIVE)
+OPENSSH_PRIVSEP_USER := cb-sshd
+OPENSSH_PRIVSEP_DIR := /$(DIR_CB)/empty
 
 HAS_COMMAND_AR := $(DIR_OUT)/.command-ar
 HAS_COMMAND_CURL := $(DIR_OUT)/.command-curl
@@ -171,6 +189,8 @@ $(DIR_PREINIT)/$(DIR_CB)/preinit: $(HAS_IMAGE_LOCAL) hack/compile-preinit-ctr \
 	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
 	@docker run -it \
 		-v $(DIR_ROOT):/code \
+		-e OPENSSH_PRIVSEP_DIR=$(OPENSSH_PRIVSEP_DIR) \
+		-e OPENSSH_PRIVSEP_USER=$(OPENSSH_PRIVSEP_USER) \
 		-e CHRONY_USER=$(CHRONY_USER) \
 		-e DIR_OUT=/code/_output/preinit/$(DIR_CB) \
 		-e GOPATH=/code/_output/go \
@@ -237,6 +257,53 @@ $(DIR_OUT)/$(CHRONY_SRC)/chronyd: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(CHRONY_SRC) \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-chrony-ctr)"
 	@touch $(DIR_OUT)/$(CHRONY_SRC)/chronyd $(DIR_OUT)/$(CHRONY_SRC)/chronyc
 
+$(DIR_PREINIT)/$(DIR_CB)/sftp-server: $(DIR_OUT)/$(OPENSSH_SRC)/sshd
+	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/sftp-server $(DIR_PREINIT)/$(DIR_CB)/sftp-server
+
+$(DIR_PREINIT)/$(DIR_CB)/ssh-keygen: $(DIR_OUT)/$(OPENSSH_SRC)/sshd
+	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/ssh-keygen $(DIR_PREINIT)/$(DIR_CB)/ssh-keygen
+
+$(DIR_PREINIT)/$(DIR_CB)/sshd: $(DIR_OUT)/$(OPENSSH_SRC)/sshd
+	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/sshd $(DIR_PREINIT)/$(DIR_CB)/sshd
+
+$(DIR_PREINIT)/$(DIR_CB)/sshd_config: assets/sshd_config
+	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
+	@install -m 0644 assets/sshd_config $(DIR_PREINIT)/$(DIR_CB)/sshd_config
+
+$(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libz.a: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(ZLIB_SRC) \
+		hack/compile-zlib-ctr
+	@$(MAKE) $(DIR_OUT)/$(DIR_OPENSSH_DEPS)/
+	@docker run -it \
+		-v $(DIR_OUT)/$(ZLIB_SRC):/code \
+		-v $(DIR_OUT)/$(DIR_OPENSSH_DEPS):/$(DIR_OPENSSH_DEPS) \
+		-e DIR_OPENSSH_DEPS=/$(DIR_OPENSSH_DEPS) \
+		-w /code \
+		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-zlib-ctr)"
+
+$(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libcrypto.a: $(DIR_OUT)/$(OPENSSL_SRC) \
+		$(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libz.a hack/compile-openssl-ctr
+	@docker run -it \
+		-v $(DIR_OUT)/$(OPENSSL_SRC):/code \
+		-v $(DIR_OUT)/$(DIR_OPENSSH_DEPS):/$(DIR_OPENSSH_DEPS) \
+		-e DIR_OPENSSH_DEPS=/$(DIR_OPENSSH_DEPS) \
+		-w /code \
+		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-openssl-ctr)"
+
+$(DIR_OUT)/$(OPENSSH_SRC)/sshd: $(DIR_OUT)/$(OPENSSH_SRC) $(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libcrypto.a \
+		$(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libz.a hack/compile-openssh-ctr
+	@docker run -it \
+		-e OPENSSH_PRIVSEP_DIR=$(OPENSSH_PRIVSEP_DIR) \
+		-e OPENSSH_PRIVSEP_USER=$(OPENSSH_PRIVSEP_USER) \
+		-e DIR_OPENSSH_DEPS=/$(DIR_OPENSSH_DEPS) \
+		-v $(DIR_OUT)/$(OPENSSH_SRC):/code \
+		-v $(DIR_OUT)/$(DIR_OPENSSH_DEPS):/$(DIR_OPENSSH_DEPS) \
+		-w /code \
+		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-openssh-ctr)"
+	@touch $(DIR_OUT)/$(OPENSSH_SRC)/sshd
+
 # Container image build is done in an empty directory to speed it up.
 $(HAS_IMAGE_LOCAL): $(HAS_COMMAND_DOCKER)
 	@$(MAKE) $(DIR_OUT)/dockerbuild/
@@ -259,6 +326,24 @@ $(DIR_OUT)/$(CHRONY_SRC): $(DIR_OUT)/$(CHRONY_ARCHIVE)
 
 $(DIR_OUT)/$(CHRONY_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -o $(DIR_OUT)/$(CHRONY_ARCHIVE) $(CHRONY_URL)
+
+$(DIR_OUT)/$(ZLIB_SRC): $(DIR_OUT)/$(ZLIB_ARCHIVE)
+	@tar zxf $(DIR_OUT)/$(ZLIB_ARCHIVE) -C $(DIR_OUT)
+
+$(DIR_OUT)/$(ZLIB_ARCHIVE): $(HAS_COMMAND_CURL)
+	@curl -o $(DIR_OUT)/$(ZLIB_ARCHIVE) $(ZLIB_URL)
+
+$(DIR_OUT)/$(OPENSSL_SRC): $(DIR_OUT)/$(OPENSSL_ARCHIVE)
+	@tar zxf $(DIR_OUT)/$(OPENSSL_ARCHIVE) -C $(DIR_OUT)
+
+$(DIR_OUT)/$(OPENSSL_ARCHIVE): $(HAS_COMMAND_CURL)
+	@curl -o $(DIR_OUT)/$(OPENSSL_ARCHIVE) $(OPENSSL_URL)
+
+$(DIR_OUT)/$(OPENSSH_SRC): $(DIR_OUT)/$(OPENSSH_ARCHIVE)
+	@tar zxf $(DIR_OUT)/$(OPENSSH_ARCHIVE) -C $(DIR_OUT)
+
+$(DIR_OUT)/$(OPENSSH_ARCHIVE): $(HAS_COMMAND_CURL)
+	@curl -o $(DIR_OUT)/$(OPENSSH_ARCHIVE) $(OPENSSH_URL)
 
 $(DIR_RELEASE_ASSETS)/boot.tar: $(HAS_COMMAND_FAKEROOT) $(DIR_BOOTLOADER)/boot/EFI/BOOT/BOOTX64.EFI
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/ $(DIR_BOOTLOADER)/boot/loader/entries/
@@ -301,7 +386,11 @@ $(DIR_RELEASE_ASSETS)/preinit.tar: \
 		$(DIR_PREINIT)/$(DIR_CB)/mkfs.ext2 \
 		$(DIR_PREINIT)/$(DIR_CB)/mkfs.ext3 \
 		$(DIR_PREINIT)/$(DIR_CB)/mkfs.ext4 \
-		$(DIR_PREINIT)/$(DIR_CB)/preinit
+		$(DIR_PREINIT)/$(DIR_CB)/preinit \
+		$(DIR_PREINIT)/$(DIR_CB)/sftp-server \
+		$(DIR_PREINIT)/$(DIR_CB)/ssh-keygen \
+		$(DIR_PREINIT)/$(DIR_CB)/sshd \
+		$(DIR_PREINIT)/$(DIR_CB)/sshd_config
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/
 	@cd $(DIR_PREINIT) && fakeroot tar cf $(DIR_RELEASE_ASSETS)/preinit.tar .
 

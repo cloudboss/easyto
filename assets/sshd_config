@@ -1,0 +1,7 @@
+HostKey /__cb__/ssh_host_rsa_key
+HostKey /__cb__/ssh_host_ed25519_key
+PermitRootLogin no
+AuthorizedKeysFile .ssh/authorized_keys
+PasswordAuthentication no
+PidFile none
+Subsystem sftp /__cb__/sftp-server

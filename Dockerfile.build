@@ -7,6 +7,7 @@ ARG UID
 ARG GID
 
 RUN apk add \
+    autoconf \
     automake \
     bison \
     build-base \

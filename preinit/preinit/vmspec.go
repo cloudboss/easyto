@@ -42,6 +42,9 @@ func (v *VMSpec) merge(other *VMSpec) *VMSpec {
 	if other.Security.RunAsUserID != 0 {
 		newVMSpec.Security.RunAsUserID = other.Security.RunAsUserID
 	}
+	if other.Security.SSHD.Enable {
+		newVMSpec.Security.SSHD.Enable = other.Security.SSHD.Enable
+	}
 
 	if len(other.WorkingDir) != 0 {
 		newVMSpec.WorkingDir = other.WorkingDir
@@ -252,4 +255,9 @@ type SecurityContext struct {
 	ReadonlyRootFS bool `json:"readonly-root-fs,omitempty"`
 	RunAsGroupID   int  `json:"run-as-group-id,omitempty"`
 	RunAsUserID    int  `json:"run-as-user-id,omitempty"`
+	SSHD           SSHD `json:"sshd,omitempty"`
+}
+
+type SSHD struct {
+	Enable bool `json:"enable,omitempty"`
 }

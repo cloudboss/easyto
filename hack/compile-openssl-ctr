@@ -1,0 +1,10 @@
+#!/bin/sh
+
+set -e
+
+./config --prefix=${DIR_OPENSSH_DEPS} \
+    --libdir=${DIR_OPENSSH_DEPS}/lib \
+    no-shared \
+    no-pic
+make -j$(nproc)
+make -j$(nproc) install_sw

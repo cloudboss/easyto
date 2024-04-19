@@ -650,6 +650,9 @@ func doExec(vmspec *VMSpec, command []string, env NameValueSource) error {
 
 func doForkExec(vmspec *VMSpec, command []string, env NameValueSource) error {
 	services := []service.Service{service.NewChronyService()}
+	if vmspec.Security.SSHD.Enable {
+		services = append(services, service.NewSSHDService())
+	}
 
 	supervisor := &service.Supervisor{
 		Main: service.NewMainService(
