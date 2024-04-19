@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/cloudboss/easyto/preinit/aws"
+	"github.com/cloudboss/easyto/preinit/constants"
+	"github.com/cloudboss/easyto/preinit/service"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/spf13/afero"
 	"golang.org/x/sys/unix"
@@ -28,14 +30,8 @@ const (
 	fileMetadata   = "metadata.json"
 	fileMounts     = "/proc/mounts"
 	dirRoot        = "/"
-	dirRun         = "/run"
-	dirCB          = "/__cb__"
 	execBits       = 0111
 	pathEnvDefault = "/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
-
-	// Signal sent by the "ACPI tiny power button" kernel driver.
-	// It is assumed the kernel will be compiled to use it.
-	SIGPWRBTN = syscall.Signal(0x26)
 )
 
 type link struct {
@@ -116,11 +112,11 @@ func mounts() error {
 			options: []string{
 				"mode=0755",
 			},
-			target: dirRun,
+			target: constants.DirRun,
 		},
 		{
 			mode:   0777 | fs.ModeSticky,
-			target: filepath.Join(dirRun, "lock"),
+			target: filepath.Join(constants.DirRun, "lock"),
 		},
 		{
 			source: "tmpfs",
@@ -580,12 +576,12 @@ func handleVolumeEBS(volume *EBSVolumeSource, index int) error {
 	}
 	fmt.Printf("Changed ownership of mount point %s\n", volume.Mount.Directory)
 
-	hasFS, err := deviceHasFS(filepath.Join(dirCB, "blkid"), volume.Device)
+	hasFS, err := deviceHasFS(filepath.Join(constants.DirCB, "blkid"), volume.Device)
 	if err != nil {
 		return fmt.Errorf("unable to determine if %s has a filesystem: %w", volume.Device, err)
 	}
 	if !hasFS {
-		mkfsPath := filepath.Join(dirCB, "mkfs."+volume.FSType)
+		mkfsPath := filepath.Join(constants.DirCB, "mkfs."+volume.FSType)
 		if _, err := os.Stat(mkfsPath); os.IsNotExist(err) {
 			return fmt.Errorf("unsupported filesystem type %s for volume at index %d",
 				volume.FSType, index)
@@ -653,26 +649,17 @@ func doExec(vmspec *VMSpec, command []string, env NameValueSource) error {
 }
 
 func doForkExec(vmspec *VMSpec, command []string, env NameValueSource) error {
-	chronyRunPath := filepath.Join(dirRun, "chrony")
-	err := os.MkdirAll(chronyRunPath, 0755)
-	if err != nil {
-		return fmt.Errorf("unable to create %s: %w", chronyRunPath, err)
-	}
+	services := []service.Service{service.NewChronyService()}
 
-	serviceChrony := Service{
-		Args: []string{filepath.Join(dirCB, "chronyd"), "-n"},
-		Env:  []string{},
-	}
-	serviceMain := Service{
-		Args: command,
-		Dir:  vmspec.WorkingDir,
-		Env:  env.toStrings(),
-		GID:  uint32(vmspec.Security.RunAsGroupID),
-		UID:  uint32(vmspec.Security.RunAsUserID),
-	}
-
-	supervisor := &Supervisor{
-		Services: []Service{serviceChrony, serviceMain},
+	supervisor := &service.Supervisor{
+		Main: service.NewMainService(
+			command,
+			env.toStrings(),
+			vmspec.WorkingDir,
+			uint32(vmspec.Security.RunAsGroupID),
+			uint32(vmspec.Security.RunAsUserID),
+		),
+		Services: services,
 		Timeout:  10 * time.Second,
 	}
 	supervisor.Start()
@@ -681,7 +668,7 @@ func doForkExec(vmspec *VMSpec, command []string, env NameValueSource) error {
 	return nil
 }
 
-func waitForShutdown(vmSpec *VMSpec, supervisor *Supervisor) {
+func waitForShutdown(vmSpec *VMSpec, supervisor *service.Supervisor) {
 	supervisor.Wait()
 
 	mountPoints := vmSpec.Volumes.MountPoints()
@@ -822,7 +809,7 @@ func Run() error {
 
 	// Override Go's builtin known certificate directories, for
 	// making API calls to AWS.
-	os.Setenv("SSL_CERT_FILE", filepath.Join(dirCB, fileCACerts))
+	os.Setenv("SSL_CERT_FILE", filepath.Join(constants.DirCB, fileCACerts))
 
 	err := mounts()
 	if err != nil {
@@ -839,7 +826,7 @@ func Run() error {
 	linkEBSDevicesErrC := make(chan error, 1)
 	go linkEBSDevices(linkEBSDevicesErrC)
 
-	metadata, err := readMetadata(filepath.Join(dirCB, fileMetadata))
+	metadata, err := readMetadata(filepath.Join(constants.DirCB, fileMetadata))
 	if err != nil {
 		return err
 	}
