@@ -1,4 +1,4 @@
-package preinit
+package vmspec
 
 import (
 	"testing"
@@ -6,18 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_VMSpec_userDataOverride(t *testing.T) {
-	testCases := []struct {
-		orig     VMSpec
-		other    VMSpec
-		expected VMSpec
-	}{}
-	for _, tc := range testCases {
-		assert.Nil(t, tc)
-	}
-}
-
-func Test_NameValueSource_merge(t *testing.T) {
+func Test_NameValueSource_Merge(t *testing.T) {
 	testCases := []struct {
 		orig     NameValueSource
 		other    NameValueSource
@@ -138,7 +127,7 @@ func Test_NameValueSource_merge(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		newEnvVars := tc.orig.merge(tc.other)
+		newEnvVars := tc.orig.Merge(tc.other)
 		assert.ElementsMatch(t, tc.expected, newEnvVars)
 	}
 }

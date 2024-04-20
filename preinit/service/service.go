@@ -19,6 +19,7 @@ type Service interface {
 	Wait() error
 	Stop()
 	Kill()
+	Optional() bool
 }
 
 type InitFunc func() error
@@ -31,6 +32,7 @@ type svc struct {
 	UID      uint32
 	Init     InitFunc
 	C        chan error
+	optional bool
 	shutdown bool
 	cmd      exec.Cmd
 }
@@ -78,6 +80,10 @@ func (s *svc) Stop() {
 
 func (s *svc) Kill() {
 	s.signal(syscall.SIGKILL)
+}
+
+func (s *svc) Optional() bool {
+	return s.optional
 }
 
 func (s *svc) signal(signal os.Signal) {

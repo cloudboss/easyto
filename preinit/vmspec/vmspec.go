@@ -1,4 +1,4 @@
-package preinit
+package vmspec
 
 import (
 	"errors"
@@ -19,7 +19,7 @@ type VMSpec struct {
 	WorkingDir  string          `json:"working-dir,omitempty"`
 }
 
-func (v *VMSpec) merge(other *VMSpec) *VMSpec {
+func (v *VMSpec) Merge(other *VMSpec) *VMSpec {
 	newVMSpec := v
 
 	if other.Args != nil {
@@ -31,7 +31,7 @@ func (v *VMSpec) merge(other *VMSpec) *VMSpec {
 		newVMSpec.Args = other.Args
 	}
 
-	newVMSpec.Env = newVMSpec.Env.merge(other.Env)
+	newVMSpec.Env = newVMSpec.Env.Merge(other.Env)
 
 	if other.Security.ReadonlyRootFS {
 		newVMSpec.Security.ReadonlyRootFS = other.Security.ReadonlyRootFS
@@ -83,8 +83,8 @@ type NameValue struct {
 
 type NameValueSource []NameValue
 
-// find returns the value of the item at key with its index, or -1 if not found.
-func (n NameValueSource) find(key string) (string, int) {
+// Find returns the value of the item at key with its index, or -1 if not found.
+func (n NameValueSource) Find(key string) (string, int) {
 	for i, item := range n {
 		if item.Name == key {
 			return item.Value, i
@@ -93,16 +93,16 @@ func (n NameValueSource) find(key string) (string, int) {
 	return "", -1
 }
 
-// merge will merge NameValues from other with its own NameValues, returning a new
+// Merge will merge NameValues from other with its own NameValues, returning a new
 // copy. Overridden values will come first in the returned copy.
-func (n NameValueSource) merge(other NameValueSource) NameValueSource {
+func (n NameValueSource) Merge(other NameValueSource) NameValueSource {
 	if other == nil {
 		cp := n
 		return cp
 	}
 	newItems := NameValueSource{}
 	for _, item := range n {
-		if _, j := other.find(item.Name); j < 0 {
+		if _, j := other.Find(item.Name); j < 0 {
 			newItems = append(newItems, NameValue{
 				Name:  item.Name,
 				Value: item.Value,
@@ -112,7 +112,7 @@ func (n NameValueSource) merge(other NameValueSource) NameValueSource {
 	return append(newItems, other...)
 }
 
-func (n NameValueSource) toStrings() []string {
+func (n NameValueSource) ToStrings() []string {
 	stringItems := make([]string, len(n))
 	for i, item := range n {
 		stringItems[i] = item.Name + "=" + item.Value

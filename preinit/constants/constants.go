@@ -1,9 +1,10 @@
 package constants
 
 const (
-	DirCB  = "/__cb__"
-	DirRun = "/run"
-	DirVar = "/var"
+	DirCB   = "/__cb__"
+	DirHome = "/__cb__/home"
+	DirRun  = "/run"
+	DirVar  = "/var"
 
 	FileEtcPasswd  = "/etc/passwd"
 	FileEtcShadow  = "/etc/shadow"

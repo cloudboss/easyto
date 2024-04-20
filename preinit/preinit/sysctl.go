@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/cloudboss/easyto/preinit/vmspec"
 )
 
 func keyToPath(key string) string {
@@ -27,7 +29,7 @@ func sysctl(key, value string) error {
 	return nil
 }
 
-func SetSysctls(sysctls NameValueSource) error {
+func SetSysctls(sysctls vmspec.NameValueSource) error {
 	wg := sync.WaitGroup{}
 	lenSysctls := len(sysctls)
 	wg.Add(lenSysctls)
@@ -35,7 +37,7 @@ func SetSysctls(sysctls NameValueSource) error {
 	errC := make(chan error, lenSysctls)
 
 	for _, sc := range sysctls {
-		go func(sc NameValue) {
+		go func(sc vmspec.NameValue) {
 			defer wg.Done()
 			errC <- sysctl(sc.Name, sc.Value)
 		}(sc)

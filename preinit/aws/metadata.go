@@ -1,4 +1,4 @@
-package preinit
+package aws
 
 import (
 	"errors"
@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/cloudboss/easyto/preinit/vmspec"
 	yaml "github.com/goccy/go-yaml"
 )
 
@@ -22,14 +23,14 @@ const (
 	endpointMetadataDefault = "169.254.169.254"
 )
 
-type httpError struct {
+type HTTPError struct {
 	errorCode  int
 	statusCode int
 	url        string
 	wrapped    error
 }
 
-func (h *httpError) Error() string {
+func (h *HTTPError) Error() string {
 	switch h.errorCode {
 	case errorCodeInvalidMethod:
 		return "invalid HTTP method"
@@ -51,7 +52,7 @@ func (h *httpError) Error() string {
 func request(method string, requestURL string, header http.Header) (*http.Response, error) {
 	u, err := url.Parse(requestURL)
 	if err != nil {
-		return nil, &httpError{errorCode: errorCodeInvalidURL, url: requestURL}
+		return nil, &HTTPError{errorCode: errorCodeInvalidURL, url: requestURL}
 	}
 
 	req := &http.Request{
@@ -63,22 +64,22 @@ func request(method string, requestURL string, header http.Header) (*http.Respon
 	case "GET", "PUT":
 		req.Method = method
 	default:
-		return nil, &httpError{errorCode: errorCodeInvalidMethod}
+		return nil, &HTTPError{errorCode: errorCodeInvalidMethod}
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, &httpError{errorCode: errorCodeRequestError, wrapped: err}
+		return nil, &HTTPError{errorCode: errorCodeRequestError, wrapped: err}
 	}
 
 	if isErrorStatus(resp.StatusCode) {
 		resp.Body.Close()
-		return nil, &httpError{errorCode: errorCodeStatusError, statusCode: resp.StatusCode}
+		return nil, &HTTPError{errorCode: errorCodeStatusError, statusCode: resp.StatusCode}
 	}
 	return resp, nil
 }
 
-func requestForString(method string, requestURL string, header http.Header) (string, error) {
+func requestString(method string, requestURL string, header http.Header) (string, error) {
 	resp, err := request(method, requestURL, header)
 	if err != nil {
 		return "", err
@@ -86,22 +87,17 @@ func requestForString(method string, requestURL string, header http.Header) (str
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", &httpError{errorCode: errorCodeBodyUnreadable, wrapped: err}
+		return "", &HTTPError{errorCode: errorCodeBodyUnreadable, wrapped: err}
 	}
 	return string(body), nil
 }
 
-func getIMDSv2(path string, endpoint ...string) (*http.Response, error) {
-	endpoint0 := endpointMetadataDefault
-	if len(endpoint) > 0 {
-		endpoint0 = endpoint[0]
-	}
-
+func getIMDSv2(path string, endpoint string) (*http.Response, error) {
 	tokenURL := &url.URL{Scheme: "http",
-		Host: endpoint0,
+		Host: endpoint,
 		Path: "/latest/api/token",
 	}
-	token, err := requestForString("PUT", tokenURL.String(), http.Header{
+	token, err := requestString("PUT", tokenURL.String(), http.Header{
 		"X-aws-ec2-metadata-token-ttl-seconds": []string{"21600"},
 	})
 	if err != nil {
@@ -109,7 +105,7 @@ func getIMDSv2(path string, endpoint ...string) (*http.Response, error) {
 	}
 
 	pathURL := &url.URL{Scheme: "http",
-		Host: endpoint0,
+		Host: endpoint,
 		Path: path,
 	}
 	return request("GET", pathURL.String(), http.Header{
@@ -117,52 +113,64 @@ func getIMDSv2(path string, endpoint ...string) (*http.Response, error) {
 	})
 }
 
-func getUserData(endpoint ...string) (*VMSpec, error) {
+func getIMDSv2String(path string, endpoint string) (string, error) {
+	resp, err := getIMDSv2(path, endpoint)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", &HTTPError{errorCode: errorCodeBodyUnreadable, wrapped: err}
+	}
+	return string(body), nil
+}
+
+func GetUserData(endpoint ...string) (*vmspec.VMSpec, error) {
 	endpoint0 := endpointMetadataDefault
 	if len(endpoint) > 0 {
 		endpoint0 = endpoint[0]
 	}
 
-	vmspec := &VMSpec{}
+	spec := &vmspec.VMSpec{}
 
 	resp, err := getIMDSv2("/latest/user-data", endpoint0)
 	if err != nil {
 		// Return an empty VMSpec when no user data is defined.
-		hErr := &httpError{}
+		hErr := &HTTPError{}
 		if errors.As(err, &hErr) && hErr.statusCode == http.StatusNotFound {
 			fmt.Printf("Got http error %+v\n", hErr)
-			return vmspec, nil
+			return spec, nil
 		} else {
 			fmt.Printf("Got error %+v\n", err)
 			return nil, err
 		}
 	}
 
-	err = yaml.NewDecoder(resp.Body).Decode(vmspec)
+	err = yaml.NewDecoder(resp.Body).Decode(spec)
 	if err != nil {
 		return nil, err
 	}
 
-	return vmspec, nil
+	return spec, nil
 }
 
-func getRegion(endpoint ...string) (string, error) {
+func GetSSHPubKey(endpoint ...string) (string, error) {
 	endpoint0 := endpointMetadataDefault
 	if len(endpoint) > 0 {
 		endpoint0 = endpoint[0]
 	}
 
-	resp, err := getIMDSv2("/latest/meta-data/placement/region", endpoint0)
-	if err != nil {
-		return "", fmt.Errorf("unable to get region: %w", err)
+	return getIMDSv2String("/latest/meta-data/public-keys/0/openssh-key", endpoint0)
+}
+
+func GetRegion(endpoint ...string) (string, error) {
+	endpoint0 := endpointMetadataDefault
+	if len(endpoint) > 0 {
+		endpoint0 = endpoint[0]
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", &httpError{errorCode: errorCodeBodyUnreadable, wrapped: err}
-	}
-
-	return string(body), nil
+	return getIMDSv2String("/latest/meta-data/placement/region", endpoint0)
 }
 
 func isErrorStatus(status int) bool {

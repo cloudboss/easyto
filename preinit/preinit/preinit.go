@@ -18,6 +18,7 @@ import (
 	"github.com/cloudboss/easyto/preinit/aws"
 	"github.com/cloudboss/easyto/preinit/constants"
 	"github.com/cloudboss/easyto/preinit/service"
+	"github.com/cloudboss/easyto/preinit/vmspec"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/spf13/afero"
 	"golang.org/x/sys/unix"
@@ -383,14 +384,14 @@ func readMetadata(metadataPath string) (*v1.ConfigFile, error) {
 	return metadata, nil
 }
 
-func fullCommand(vmspec *VMSpec) ([]string, error) {
-	ex := append(vmspec.Command, vmspec.Args...)
+func fullCommand(spec *vmspec.VMSpec) ([]string, error) {
+	ex := append(spec.Command, spec.Args...)
 	if ex == nil {
 		ex = []string{"/bin/sh"}
 	}
 
 	pathEnv := pathEnvDefault
-	if pathVMSpec, i := vmspec.Env.find("PATH"); i >= 0 {
+	if pathVMSpec, i := spec.Env.Find("PATH"); i >= 0 {
 		pathEnv = pathVMSpec
 	}
 
@@ -405,8 +406,8 @@ func fullCommand(vmspec *VMSpec) ([]string, error) {
 }
 
 // envToEnv converts an array of "key=value" strings to a NameValueSource.
-func envToEnv(envVars []string) (NameValueSource, error) {
-	source := make(NameValueSource, len(envVars))
+func envToEnv(envVars []string) (vmspec.NameValueSource, error) {
+	source := make(vmspec.NameValueSource, len(envVars))
 	for i, envVar := range envVars {
 		fields := strings.Split(envVar, "=")
 		if len(fields) < 1 {
@@ -420,32 +421,32 @@ func envToEnv(envVars []string) (NameValueSource, error) {
 	return source, nil
 }
 
-func metadataToVMSpec(metadata *v1.ConfigFile) (*VMSpec, error) {
-	vmSpec := &VMSpec{
+func metadataToVMSpec(metadata *v1.ConfigFile) (*vmspec.VMSpec, error) {
+	spec := &vmspec.VMSpec{
 		Command:  metadata.Config.Entrypoint,
 		Args:     metadata.Config.Cmd,
-		Security: SecurityContext{},
+		Security: vmspec.SecurityContext{},
 	}
 
 	env, err := envToEnv(metadata.Config.Env)
 	if err != nil {
 		return nil, err
 	}
-	vmSpec.Env = env
+	spec.Env = env
 
-	vmSpec.WorkingDir = metadata.Config.WorkingDir
-	if len(vmSpec.WorkingDir) == 0 {
-		vmSpec.WorkingDir = dirRoot
+	spec.WorkingDir = metadata.Config.WorkingDir
+	if len(spec.WorkingDir) == 0 {
+		spec.WorkingDir = dirRoot
 	}
 
 	uid, gid, err := getUserGroup(metadata.Config.User)
 	if err != nil {
 		return nil, err
 	}
-	vmSpec.Security.RunAsUserID = uid
-	vmSpec.Security.RunAsGroupID = gid
+	spec.Security.RunAsUserID = uid
+	spec.Security.RunAsGroupID = gid
 
-	return vmSpec, nil
+	return spec, nil
 }
 
 // entryID parses entryFile in the format of /etc/passwd or /etc/group to get
@@ -541,7 +542,7 @@ func parseMode(mode string) (fs.FileMode, error) {
 	return fs.FileMode(n), nil
 }
 
-func handleVolumeEBS(volume *EBSVolumeSource, index int) error {
+func handleVolumeEBS(volume *vmspec.EBSVolumeSource, index int) error {
 	fmt.Printf("Handling volume: %+v\n", volume)
 
 	if len(volume.Device) == 0 {
@@ -603,7 +604,7 @@ func handleVolumeEBS(volume *EBSVolumeSource, index int) error {
 	return nil
 }
 
-func handleVolumeSSMParameter(volume *SSMParameterVolumeSource, conn aws.Connection) error {
+func handleVolumeSSMParameter(volume *vmspec.SSMParameterVolumeSource, conn aws.Connection) error {
 	parameters, err := conn.SSMClient().GetParameters(volume.Path)
 	if !(err == nil || volume.Optional) {
 		return err
@@ -615,7 +616,7 @@ func handleVolumeSSMParameter(volume *SSMParameterVolumeSource, conn aws.Connect
 	return nil
 }
 
-func handleVolumeS3(volume *S3VolumeSource, conn aws.Connection) error {
+func handleVolumeS3(volume *vmspec.S3VolumeSource, conn aws.Connection) error {
 	s3Client := conn.S3Client()
 	objects, err := s3Client.ListObjects(volume.Bucket, volume.KeyPrefix)
 	if !(err == nil || volume.Optional) {
@@ -628,53 +629,53 @@ func handleVolumeS3(volume *S3VolumeSource, conn aws.Connection) error {
 	return nil
 }
 
-func doExec(vmspec *VMSpec, command []string, env NameValueSource) error {
-	err := os.Chdir(vmspec.WorkingDir)
+func doExec(spec *vmspec.VMSpec, command []string, env vmspec.NameValueSource) error {
+	err := os.Chdir(spec.WorkingDir)
 	if err != nil {
 		return fmt.Errorf("unable to change working directory to %s: %w",
-			vmspec.WorkingDir, err)
+			spec.WorkingDir, err)
 	}
 
-	err = syscall.Setgid(vmspec.Security.RunAsGroupID)
+	err = syscall.Setgid(spec.Security.RunAsGroupID)
 	if err != nil {
 		return fmt.Errorf("unable to set GID: %w", err)
 	}
 
-	err = syscall.Setuid(vmspec.Security.RunAsUserID)
+	err = syscall.Setuid(spec.Security.RunAsUserID)
 	if err != nil {
 		return fmt.Errorf("unable to set UID: %w", err)
 	}
 
-	return syscall.Exec(command[0], command, env.toStrings())
+	return syscall.Exec(command[0], command, env.ToStrings())
 }
 
-func doForkExec(vmspec *VMSpec, command []string, env NameValueSource) error {
+func doForkExec(spec *vmspec.VMSpec, command []string, env vmspec.NameValueSource) error {
 	services := []service.Service{service.NewChronyService()}
-	if vmspec.Security.SSHD.Enable {
+	if spec.Security.SSHD.Enable {
 		services = append(services, service.NewSSHDService())
 	}
 
 	supervisor := &service.Supervisor{
 		Main: service.NewMainService(
 			command,
-			env.toStrings(),
-			vmspec.WorkingDir,
-			uint32(vmspec.Security.RunAsGroupID),
-			uint32(vmspec.Security.RunAsUserID),
+			env.ToStrings(),
+			spec.WorkingDir,
+			uint32(spec.Security.RunAsGroupID),
+			uint32(spec.Security.RunAsUserID),
 		),
 		Services: services,
 		Timeout:  10 * time.Second,
 	}
 	supervisor.Start()
 
-	waitForShutdown(vmspec, supervisor)
+	waitForShutdown(spec, supervisor)
 	return nil
 }
 
-func waitForShutdown(vmSpec *VMSpec, supervisor *service.Supervisor) {
+func waitForShutdown(spec *vmspec.VMSpec, supervisor *service.Supervisor) {
 	supervisor.Wait()
 
-	mountPoints := vmSpec.Volumes.MountPoints()
+	mountPoints := spec.Volumes.MountPoints()
 	osFS := afero.NewOsFs()
 
 	err := unmountAll(osFS, mountPoints)
@@ -767,10 +768,11 @@ func isMounted(fs afero.Fs, mountPoint, mtab string) (bool, error) {
 	return false, err
 }
 
-func resolveAllEnvs(conn aws.Connection, env NameValueSource, envFrom EnvFromSource) (NameValueSource, error) {
+func resolveAllEnvs(conn aws.Connection, env vmspec.NameValueSource,
+	envFrom vmspec.EnvFromSource) (vmspec.NameValueSource, error) {
 	var (
 		errs        error
-		resolvedEnv NameValueSource
+		resolvedEnv vmspec.NameValueSource
 	)
 
 	for _, e := range envFrom {
@@ -783,7 +785,7 @@ func resolveAllEnvs(conn aws.Connection, env NameValueSource, envFrom EnvFromSou
 				// Use ToMapString() to filter out any nested
 				// paths below e.SSMParameter.Path.
 				for k, v := range parameters.ToMapString() {
-					ev := NameValue{Name: k, Value: v}
+					ev := vmspec.NameValue{Name: k, Value: v}
 					resolvedEnv = append(resolvedEnv, ev)
 				}
 			}
@@ -794,7 +796,7 @@ func resolveAllEnvs(conn aws.Connection, env NameValueSource, envFrom EnvFromSou
 	}
 
 	lenEnv := len(env)
-	allEnv := make(NameValueSource, lenEnv+len(resolvedEnv))
+	allEnv := make(vmspec.NameValueSource, lenEnv+len(resolvedEnv))
 
 	for i, e := range env {
 		allEnv[i] = e
@@ -835,31 +837,31 @@ func Run() error {
 	}
 	fmt.Println("After readMetadata()")
 
-	vmSpec, err := metadataToVMSpec(metadata)
+	spec, err := metadataToVMSpec(metadata)
 	if err != nil {
 		return err
 	}
 	fmt.Println("After metadataToVMSpec()")
 
-	userData, err := getUserData()
+	userData, err := aws.GetUserData()
 	if err != nil {
 		return fmt.Errorf("unable to get user data: %w", err)
 	}
 	fmt.Println("After getUserData()")
-	vmSpec = vmSpec.merge(userData)
+	spec = spec.Merge(userData)
 	fmt.Println("After vmSpec.merge()")
 
-	err = vmSpec.Validate()
+	err = spec.Validate()
 	if err != nil {
 		return fmt.Errorf("user data failed to validate: %w", err)
 	}
 
-	err = SetSysctls(vmSpec.Sysctls)
+	err = SetSysctls(spec.Sysctls)
 	if err != nil {
 		return err
 	}
 
-	region, err := getRegion()
+	region, err := aws.GetRegion()
 	if err != nil {
 		return err
 	}
@@ -878,7 +880,7 @@ func Run() error {
 	debug()
 	fmt.Println("After debug()")
 
-	for i, volume := range vmSpec.Volumes {
+	for i, volume := range spec.Volumes {
 		if volume.EBS != nil {
 			err = handleVolumeEBS(volume.EBS, i)
 			if err != nil {
@@ -900,29 +902,29 @@ func Run() error {
 	}
 	fmt.Println("After handling volumes")
 
-	if vmSpec.Security.ReadonlyRootFS {
+	if spec.Security.ReadonlyRootFS {
 		err = unix.Mount("", dirRoot, "", syscall.MS_REMOUNT|syscall.MS_RDONLY, "")
 		if err != nil {
 			return fmt.Errorf("unable to remount root as readonly: %w", err)
 		}
 	}
 
-	command, err := fullCommand(vmSpec)
+	command, err := fullCommand(spec)
 	if err != nil {
 		return err
 	}
 
-	env, err := resolveAllEnvs(conn, vmSpec.Env, vmSpec.EnvFrom)
+	env, err := resolveAllEnvs(conn, spec.Env, spec.EnvFrom)
 	if err != nil {
 		return fmt.Errorf("unable to resolve all environment variables: %w", err)
 	}
 
 	fmt.Println("About to run entrypoint")
 
-	if vmSpec.ReplaceInit {
-		err = doExec(vmSpec, command, env)
+	if spec.ReplaceInit {
+		err = doExec(spec, command, env)
 	} else {
-		err = doForkExec(vmSpec, command, env)
+		err = doForkExec(spec, command, env)
 	}
 
 	return err

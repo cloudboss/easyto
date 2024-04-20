@@ -8,6 +8,7 @@ import (
 
 	"github.com/cloudboss/easyto/preinit/aws"
 	"github.com/cloudboss/easyto/preinit/maps"
+	"github.com/cloudboss/easyto/preinit/vmspec"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 )
@@ -125,27 +126,27 @@ func (s *mockSSMClient) GetParameters(ssmPath string) (maps.ParameterMap, error)
 
 func Test_resolveAllEnvs(t *testing.T) {
 	testCases := []struct {
-		env     NameValueSource
-		envFrom EnvFromSource
-		result  NameValueSource
+		env     vmspec.NameValueSource
+		envFrom vmspec.EnvFromSource
+		result  vmspec.NameValueSource
 		err     error
 		fail    bool
 	}{
 		{
-			env:     NameValueSource{},
-			envFrom: EnvFromSource{},
-			result:  NameValueSource{},
+			env:     vmspec.NameValueSource{},
+			envFrom: vmspec.EnvFromSource{},
+			result:  vmspec.NameValueSource{},
 			err:     nil,
 		},
 		{
-			env: NameValueSource{
+			env: vmspec.NameValueSource{
 				{
 					Name:  "ABC",
 					Value: "abc",
 				},
 			},
-			envFrom: EnvFromSource{},
-			result: NameValueSource{
+			envFrom: vmspec.EnvFromSource{},
+			result: vmspec.NameValueSource{
 				{
 					Name:  "ABC",
 					Value: "abc",
@@ -154,15 +155,15 @@ func Test_resolveAllEnvs(t *testing.T) {
 			err: nil,
 		},
 		{
-			env: NameValueSource{},
-			envFrom: EnvFromSource{
+			env: vmspec.NameValueSource{},
+			envFrom: vmspec.EnvFromSource{
 				{
-					SSMParameter: &SSMParameterEnvSource{
+					SSMParameter: &vmspec.SSMParameterEnvSource{
 						Path: "/aaaaa",
 					},
 				},
 			},
-			result: NameValueSource{
+			result: vmspec.NameValueSource{
 				{
 					Name:  "ABC",
 					Value: "abc-value",
@@ -175,20 +176,20 @@ func Test_resolveAllEnvs(t *testing.T) {
 			err: nil,
 		},
 		{
-			env: NameValueSource{
+			env: vmspec.NameValueSource{
 				{
 					Name:  "CDE",
 					Value: "cde",
 				},
 			},
-			envFrom: EnvFromSource{
+			envFrom: vmspec.EnvFromSource{
 				{
-					SSMParameter: &SSMParameterEnvSource{
+					SSMParameter: &vmspec.SSMParameterEnvSource{
 						Path: "/aaaaa",
 					},
 				},
 			},
-			result: NameValueSource{
+			result: vmspec.NameValueSource{
 				{
 					Name:  "CDE",
 					Value: "cde",
@@ -209,20 +210,20 @@ func Test_resolveAllEnvs(t *testing.T) {
 			// if they are defined in user data, but no check is done to ensure
 			// there are no duplicates in the user data itself. Let execve() be the
 			// decider on the behavior in this case.
-			env: NameValueSource{
+			env: vmspec.NameValueSource{
 				{
 					Name:  "ABC",
 					Value: "abc",
 				},
 			},
-			envFrom: EnvFromSource{
+			envFrom: vmspec.EnvFromSource{
 				{
-					SSMParameter: &SSMParameterEnvSource{
+					SSMParameter: &vmspec.SSMParameterEnvSource{
 						Path: "/aaaaa",
 					},
 				},
 			},
-			result: NameValueSource{
+			result: vmspec.NameValueSource{
 				{
 					Name:  "ABC",
 					Value: "abc",
@@ -239,35 +240,35 @@ func Test_resolveAllEnvs(t *testing.T) {
 			err: nil,
 		},
 		{
-			env: NameValueSource{},
-			envFrom: EnvFromSource{
+			env: vmspec.NameValueSource{},
+			envFrom: vmspec.EnvFromSource{
 				{
-					SSMParameter: &SSMParameterEnvSource{
+					SSMParameter: &vmspec.SSMParameterEnvSource{
 						Path:     "/aaaaa",
 						Optional: true,
 					},
 				},
 			},
-			result: NameValueSource{},
+			result: vmspec.NameValueSource{},
 			err:    nil,
 			fail:   true,
 		},
 		{
-			env: NameValueSource{
+			env: vmspec.NameValueSource{
 				{
 					Name:  "ABC",
 					Value: "abc",
 				},
 			},
-			envFrom: EnvFromSource{
+			envFrom: vmspec.EnvFromSource{
 				{
-					SSMParameter: &SSMParameterEnvSource{
+					SSMParameter: &vmspec.SSMParameterEnvSource{
 						Path:     "/aaaaa",
 						Optional: true,
 					},
 				},
 			},
-			result: NameValueSource{
+			result: vmspec.NameValueSource{
 				{
 					Name:  "ABC",
 					Value: "abc",
@@ -277,10 +278,10 @@ func Test_resolveAllEnvs(t *testing.T) {
 			fail: true,
 		},
 		{
-			env: NameValueSource{},
-			envFrom: EnvFromSource{
+			env: vmspec.NameValueSource{},
+			envFrom: vmspec.EnvFromSource{
 				{
-					SSMParameter: &SSMParameterEnvSource{
+					SSMParameter: &vmspec.SSMParameterEnvSource{
 						Path:     "/aaaaa",
 						Optional: false,
 					},

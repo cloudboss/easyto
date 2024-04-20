@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -427,13 +428,45 @@ func addFileEntryExisting(fs afero.Fs, path, line string, mode os.FileMode) erro
 	return nil
 }
 
+func createHomeDir(fs afero.Fs, homeDir string, uid, gid uint16) error {
+	oldmask := syscall.Umask(0)
+	defer syscall.Umask(oldmask)
+
+	parent := filepath.Dir(homeDir)
+	sshDir := filepath.Join(homeDir, ".ssh")
+
+	if err := fs.MkdirAll(parent, 0755); err != nil {
+		return fmt.Errorf("unable to create %s: %w", parent, err)
+	}
+
+	if err := fs.MkdirAll(sshDir, 0700); err != nil {
+		return fmt.Errorf("unable to create %s: %w", sshDir, err)
+	}
+
+	if err := fs.Chown(homeDir, int(uid), int(gid)); err != nil {
+		return fmt.Errorf("unable to change ownership of %s: %w", homeDir, err)
+	}
+
+	if err := fs.Chown(sshDir, int(uid), int(gid)); err != nil {
+		return fmt.Errorf("unable to change ownership of %s: %w", sshDir, err)
+	}
+
+	return nil
+}
+
 // AddSystemUser adds a system user with no password or valid shell.
 func AddSystemUser(fs afero.Fs, username, groupname, homeDir string) (uint16, uint16, error) {
-	return AddUser(fs, username, groupname, homeDir, "/bin/false", true)
+	return AddUser(fs, username, groupname, homeDir, "/bin/false", false, true)
+}
+
+// AddLoginUser adds a user that can log in with a valid shell and home directory.
+func AddLoginUser(fs afero.Fs, username, groupname, homeDir string) (uint16, uint16, error) {
+	return AddUser(fs, username, groupname, homeDir, "/bin/sh", true, false)
 }
 
 // AddUser adds a user to the system.
-func AddUser(fs afero.Fs, username, groupname, homeDir, shell string, locked bool) (uint16, uint16, error) {
+func AddUser(fs afero.Fs, username, groupname, homeDir, shell string,
+	createHome, locked bool) (uint16, uint16, error) {
 	var (
 		addToPasswd         = true
 		addToShadow         = true
@@ -534,7 +567,8 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell string, locked boo
 			HomeDir:  homeDir,
 			Shell:    shell,
 		}
-		if err := addFileEntry(fs, constants.FileEtcPasswd, passwdEntry.String(), constants.ModeEtcPasswd); err != nil {
+		err := addFileEntry(fs, constants.FileEtcPasswd, passwdEntry.String(), constants.ModeEtcPasswd)
+		if err != nil {
 			return 0, 0, err
 		}
 	}
@@ -546,7 +580,8 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell string, locked boo
 			GID:       gid,
 			Users:     []string{username},
 		}
-		if err := addFileEntry(fs, constants.FileEtcGroup, groupEntry.String(), constants.ModeEtcGroup); err != nil {
+		err := addFileEntry(fs, constants.FileEtcGroup, groupEntry.String(), constants.ModeEtcGroup)
+		if err != nil {
 			return 0, 0, err
 		}
 	}
@@ -565,7 +600,8 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell string, locked boo
 		if locked {
 			shadowEntry.Password = "!!"
 		}
-		if err := addFileEntry(fs, constants.FileEtcShadow, shadowEntry.String(), constants.ModeEtcShadow); err != nil {
+		err := addFileEntry(fs, constants.FileEtcShadow, shadowEntry.String(), constants.ModeEtcShadow)
+		if err != nil {
 			return 0, 0, err
 		}
 	}
@@ -577,9 +613,18 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell string, locked boo
 			Admins:    []string{},
 			Users:     []string{username},
 		}
-		if err := addFileEntry(fs, constants.FileEtcGShadow, gShadowEntry.String(), constants.ModeEtcGShadow); err != nil {
+		err := addFileEntry(fs, constants.FileEtcGShadow, gShadowEntry.String(), constants.ModeEtcGShadow)
+		if err != nil {
 			return 0, 0, err
 		}
 	}
+
+	if createHome {
+		err := createHomeDir(fs, homeDir, uid, gid)
+		if err != nil {
+			return 0, 0, err
+		}
+	}
+
 	return uid, gid, nil
 }

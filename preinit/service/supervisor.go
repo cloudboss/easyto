@@ -23,7 +23,7 @@ type Supervisor struct {
 func (s *Supervisor) Start() error {
 	for _, service := range s.Services {
 		err := service.Start()
-		if err != nil {
+		if !(err == nil || service.Optional()) {
 			return err
 		}
 	}
