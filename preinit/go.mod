@@ -7,6 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.27.11
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.53.1
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.49.5
+	github.com/cloudboss/easyto/lib v0.0.0-00010101000000-000000000000
 	github.com/goccy/go-yaml v1.11.3
 	github.com/google/go-containerregistry v0.19.1
 	github.com/mvisonneau/go-ebsnvme v0.2.1
@@ -43,3 +44,5 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/cloudboss/easyto/lib => ../lib

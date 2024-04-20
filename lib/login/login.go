@@ -11,7 +11,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/cloudboss/easyto/preinit/constants"
+	"github.com/cloudboss/easyto/lib/constants"
 	"github.com/spf13/afero"
 )
 

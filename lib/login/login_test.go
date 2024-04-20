@@ -3,7 +3,7 @@ package login
 import (
 	"testing"
 
-	"github.com/cloudboss/easyto/preinit/constants"
+	"github.com/cloudboss/easyto/lib/constants"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 )

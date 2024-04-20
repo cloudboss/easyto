@@ -15,8 +15,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/cloudboss/easyto/lib/constants"
 	"github.com/cloudboss/easyto/preinit/aws"
-	"github.com/cloudboss/easyto/preinit/constants"
 	"github.com/cloudboss/easyto/preinit/service"
 	"github.com/cloudboss/easyto/preinit/vmspec"
 	v1 "github.com/google/go-containerregistry/pkg/v1"

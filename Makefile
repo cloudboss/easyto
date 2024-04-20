@@ -185,7 +185,8 @@ $(DIR_PREINIT)/$(DIR_CB)/mkfs.ext%: $(DIR_PREINIT)/$(DIR_CB)/mke2fs
 	@ln -f $(DIR_PREINIT)/$(DIR_CB)/mke2fs $(DIR_PREINIT)/$(DIR_CB)/mkfs.ext$*
 
 $(DIR_PREINIT)/$(DIR_CB)/preinit: $(HAS_IMAGE_LOCAL) hack/compile-preinit-ctr \
-		$(shell find preinit -type f -path '*/go.[ms]*' -o -path '*.go' ! -path '*_test.go')
+		$(shell find preinit -type f -path '*/go.[ms]*' -o -path '*.go' ! -path '*_test.go') \
+		$(shell find lib -type f -path '*/go.[ms]*' -o -path '*.go' ! -path '*_test.go')
 	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
 	@docker run -it \
 		-v $(DIR_ROOT):/code \
@@ -355,7 +356,8 @@ $(DIR_RELEASE_ASSETS)/converter: $(DIR_OUT)/converter
 	@install -m 0755 $(DIR_OUT)/converter $(DIR_RELEASE_ASSETS)/converter
 
 $(DIR_OUT)/converter: $(HAS_IMAGE_LOCAL) hack/compile-converter-ctr \
-		$(shell find ctr2ami -type f -path '*/go.[ms]*' -o -path '*.go' ! -path '*_test.go')
+		$(shell find ctr2ami -type f -path '*/go.[ms]*' -o -path '*.go' ! -path '*_test.go') \
+		$(shell find lib -type f -path '*/go.[ms]*' -o -path '*.go' ! -path '*_test.go')
 	@docker run -it \
 		-v $(DIR_ROOT):/code \
 		-e DIR_OUT=/code/_output \

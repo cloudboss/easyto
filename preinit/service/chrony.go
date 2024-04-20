@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/cloudboss/easyto/preinit/constants"
-	"github.com/cloudboss/easyto/preinit/login"
+	"github.com/cloudboss/easyto/lib/constants"
+	"github.com/cloudboss/easyto/lib/login"
 )
 
 type ChronyService struct {

@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/cloudboss/easyto/lib/constants"
+	"github.com/cloudboss/easyto/lib/login"
 	"github.com/cloudboss/easyto/preinit/aws"
-	"github.com/cloudboss/easyto/preinit/constants"
-	"github.com/cloudboss/easyto/preinit/login"
 	"github.com/spf13/afero"
 )
 
