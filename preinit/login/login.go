@@ -456,24 +456,24 @@ func createHomeDir(fs afero.Fs, homeDir string, uid, gid uint16) error {
 
 // AddSystemUser adds a system user with no password or valid shell.
 func AddSystemUser(fs afero.Fs, username, groupname, homeDir string) (uint16, uint16, error) {
-	return AddUser(fs, username, groupname, homeDir, "/bin/false", false, true)
+	return AddUser(fs, username, groupname, homeDir, "/bin/false", 100, false, true)
 }
 
 // AddLoginUser adds a user that can log in with a valid shell and home directory.
 func AddLoginUser(fs afero.Fs, username, groupname, homeDir string) (uint16, uint16, error) {
-	return AddUser(fs, username, groupname, homeDir, "/bin/sh", true, false)
+	return AddUser(fs, username, groupname, homeDir, "/bin/sh", 1000, true, false)
 }
 
 // AddUser adds a user to the system.
 func AddUser(fs afero.Fs, username, groupname, homeDir, shell string,
-	createHome, locked bool) (uint16, uint16, error) {
+	idStart uint16, createHome, locked bool) (uint16, uint16, error) {
 	var (
 		addToPasswd         = true
 		addToShadow         = true
 		addToGroup          = true
 		addToGShadow        = true
-		uid          uint16 = 1000
-		gid          uint16 = 1000
+		uid          uint16 = idStart
+		gid          uint16 = idStart
 	)
 
 	if len(username) == 0 {

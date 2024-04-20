@@ -79,11 +79,11 @@ func TestAddSystemUser(t *testing.T) {
 		{
 			description:   "No files exist",
 			passwd:        nil,
-			passwdResult:  p("xyz:x:1000:1000:xyz:/nonexistent:/bin/false\n"),
+			passwdResult:  p("xyz:x:100:100:xyz:/nonexistent:/bin/false\n"),
 			shadow:        nil,
 			shadowResult:  p("xyz:!!:0:0:99999:7:::\n"),
 			group:         nil,
-			groupResult:   p("xyz:x:1000:xyz\n"),
+			groupResult:   p("xyz:x:100:xyz\n"),
 			gshadow:       nil,
 			gshadowResult: p("xyz:!!::xyz\n"),
 			username:      "xyz",
@@ -92,14 +92,14 @@ func TestAddSystemUser(t *testing.T) {
 		},
 		{
 			description: "Passwd and group files exist",
-			passwd:      p("abc:x:1000:1000:abc:/nonexistent:/bin/false\n"),
-			passwdResult: p(`abc:x:1000:1000:abc:/nonexistent:/bin/false
-xyz:x:1001:1001:xyz:/nonexistent:/bin/false
+			passwd:      p("abc:x:100:100:abc:/nonexistent:/bin/false\n"),
+			passwdResult: p(`abc:x:100:100:abc:/nonexistent:/bin/false
+xyz:x:101:101:xyz:/nonexistent:/bin/false
 `),
 			shadow:        nil,
 			shadowResult:  nil,
-			group:         p("abc:x:1000:\n"),
-			groupResult:   p("abc:x:1000:\nxyz:x:1001:xyz\n"),
+			group:         p("abc:x:100:\n"),
+			groupResult:   p("abc:x:100:\nxyz:x:101:xyz\n"),
 			gshadow:       nil,
 			gshadowResult: nil,
 			username:      "xyz",
@@ -108,16 +108,16 @@ xyz:x:1001:1001:xyz:/nonexistent:/bin/false
 		},
 		{
 			description: "Passwd, group, and shadow files exist",
-			passwd:      p("abc:x:1000:1000:abc:/nonexistent:/bin/false\n"),
-			passwdResult: p(`abc:x:1000:1000:abc:/nonexistent:/bin/false
-xyz:x:1001:1001:xyz:/nonexistent:/bin/false
+			passwd:      p("abc:x:100:100:abc:/nonexistent:/bin/false\n"),
+			passwdResult: p(`abc:x:100:100:abc:/nonexistent:/bin/false
+xyz:x:101:101:xyz:/nonexistent:/bin/false
 `),
 			shadow: p("abc:!!:0:0:99999:7:::\n"),
 			shadowResult: p(`abc:!!:0:0:99999:7:::
 xyz:!!:0:0:99999:7:::
 `),
-			group:         p("abc:x:1000:\n"),
-			groupResult:   p("abc:x:1000:\nxyz:x:1001:xyz\n"),
+			group:         p("abc:x:100:\n"),
+			groupResult:   p("abc:x:100:\nxyz:x:101:xyz\n"),
 			gshadow:       nil,
 			gshadowResult: nil,
 			username:      "xyz",
@@ -126,14 +126,14 @@ xyz:!!:0:0:99999:7:::
 		},
 		{
 			description: "Passwd, group, and gshadow files exist",
-			passwd:      p("abc:x:1000:1000:abc:/nonexistent:/bin/false\n"),
-			passwdResult: p(`abc:x:1000:1000:abc:/nonexistent:/bin/false
-xyz:x:1001:1001:xyz:/nonexistent:/bin/false
+			passwd:      p("abc:x:100:100:abc:/nonexistent:/bin/false\n"),
+			passwdResult: p(`abc:x:100:100:abc:/nonexistent:/bin/false
+xyz:x:101:101:xyz:/nonexistent:/bin/false
 `),
 			shadow:        nil,
 			shadowResult:  nil,
-			group:         p("abc:x:1000:\n"),
-			groupResult:   p("abc:x:1000:\nxyz:x:1001:xyz\n"),
+			group:         p("abc:x:100:\n"),
+			groupResult:   p("abc:x:100:\nxyz:x:101:xyz\n"),
 			gshadow:       p("abc:!!::\n"),
 			gshadowResult: p("abc:!!::\nxyz:!!::xyz\n"),
 			username:      "xyz",
@@ -144,14 +144,14 @@ xyz:x:1001:1001:xyz:/nonexistent:/bin/false
 			description: "All files exist",
 			passwd:      p("rpc:x:32:32:Rpcbind Daemon:/var/lib/rpcbind:/sbin/nologin\n"),
 			passwdResult: p(`rpc:x:32:32:Rpcbind Daemon:/var/lib/rpcbind:/sbin/nologin
-xyz:x:1000:1000:xyz:/nonexistent:/bin/false
+xyz:x:100:100:xyz:/nonexistent:/bin/false
 `),
 			shadow: p("rpc:!!:19460:0:99999:7:::\n"),
 			shadowResult: p(`rpc:!!:19460:0:99999:7:::
 xyz:!!:0:0:99999:7:::
 `),
 			group:         p("rpc:x:32:\n"),
-			groupResult:   p("rpc:x:32:\nxyz:x:1000:xyz\n"),
+			groupResult:   p("rpc:x:32:\nxyz:x:100:xyz\n"),
 			gshadow:       p("abc:!!::\n"),
 			gshadowResult: p("abc:!!::\nxyz:!!::xyz\n"),
 			username:      "xyz",
