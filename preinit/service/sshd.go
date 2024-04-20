@@ -48,7 +48,7 @@ func sshdInit() error {
 
 	fmt.Println("Adding login user")
 	loginHome := filepath.Join(constants.DirHome, loginUser)
-	uid, gid, err := login.AddLoginUser(fs, loginUser, loginUser, loginHome)
+	uid, gid, err := login.AddLoginUser(fs, loginUser, loginUser, loginHome, "")
 	if err != nil {
 		return fmt.Errorf("unable to add login user %s: %w\n", loginUser, err)
 	}
@@ -61,7 +61,7 @@ func sshdInit() error {
 	}
 
 	fmt.Println("Adding sshd privsep user")
-	_, _, err = login.AddSystemUser(fs, SSHUser, SSHUser, SSHDir)
+	_, _, err = login.AddSystemUser(fs, SSHUser, SSHUser, SSHDir, "")
 	if err != nil {
 		return fmt.Errorf("unable to add sshd privsep user %s: %w\n", SSHUser, err)
 	}

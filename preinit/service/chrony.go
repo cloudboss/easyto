@@ -34,7 +34,7 @@ func chronyInit() error {
 	fmt.Println("Initializing chrony")
 
 	fmt.Println("Adding chrony user")
-	uid, gid, err := login.AddSystemUser(fs, ChronyUser, ChronyUser, "/nonexistent")
+	uid, gid, err := login.AddSystemUser(fs, ChronyUser, ChronyUser, "/nonexistent", "")
 	if err != nil {
 		fmt.Printf("Error adding chrony user: %s\n", err)
 		return err

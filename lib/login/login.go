@@ -455,17 +455,17 @@ func createHomeDir(fs afero.Fs, homeDir string, uid, gid uint16) error {
 }
 
 // AddSystemUser adds a system user with no password or valid shell.
-func AddSystemUser(fs afero.Fs, username, groupname, homeDir string) (uint16, uint16, error) {
-	return AddUser(fs, username, groupname, homeDir, "/bin/false", 100, false, true)
+func AddSystemUser(fs afero.Fs, username, groupname, homeDir, baseDir string) (uint16, uint16, error) {
+	return AddUser(fs, username, groupname, homeDir, "/bin/false", baseDir, 100, false, true)
 }
 
 // AddLoginUser adds a user that can log in with a valid shell and home directory.
-func AddLoginUser(fs afero.Fs, username, groupname, homeDir string) (uint16, uint16, error) {
-	return AddUser(fs, username, groupname, homeDir, "/bin/sh", 1000, true, false)
+func AddLoginUser(fs afero.Fs, username, groupname, homeDir, baseDir string) (uint16, uint16, error) {
+	return AddUser(fs, username, groupname, homeDir, "/bin/sh", baseDir, 1000, true, false)
 }
 
 // AddUser adds a user to the system.
-func AddUser(fs afero.Fs, username, groupname, homeDir, shell string,
+func AddUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir string,
 	idStart uint16, createHome, locked bool) (uint16, uint16, error) {
 	var (
 		addToPasswd         = true
@@ -484,25 +484,30 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell string,
 		return 0, 0, ErrGroupnameLength
 	}
 
-	passwdFileExists, err := fileExists(fs, constants.FileEtcPasswd)
+	fileEtcPasswd := filepath.Join(baseDir, constants.FileEtcPasswd)
+	fileEtcGroup := filepath.Join(baseDir, constants.FileEtcGroup)
+	fileEtcShadow := filepath.Join(baseDir, constants.FileEtcShadow)
+	fileEtcGShadow := filepath.Join(baseDir, constants.FileEtcGShadow)
+
+	passwdFileExists, err := fileExists(fs, fileEtcPasswd)
 	if err != nil {
 		return 0, 0, err
 	}
-	groupFileExists, err := fileExists(fs, constants.FileEtcGroup)
+	groupFileExists, err := fileExists(fs, fileEtcGroup)
 	if err != nil {
 		return 0, 0, err
 	}
-	shadowFileExists, err := fileExists(fs, constants.FileEtcShadow)
+	shadowFileExists, err := fileExists(fs, fileEtcShadow)
 	if err != nil {
 		return 0, 0, err
 	}
-	gShadowFileExists, err := fileExists(fs, constants.FileEtcGShadow)
+	gShadowFileExists, err := fileExists(fs, fileEtcGShadow)
 	if err != nil {
 		return 0, 0, err
 	}
 
 	if passwdFileExists {
-		passwdByUID, passwdByName, err := ParsePasswd(fs, constants.FileEtcPasswd)
+		passwdByUID, passwdByName, err := ParsePasswd(fs, fileEtcPasswd)
 		if err != nil {
 			return 0, 0, err
 		}
@@ -519,7 +524,7 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell string,
 		if !shadowFileExists {
 			addToShadow = false
 		} else {
-			shadowByName, err := ParseShadow(fs, constants.FileEtcShadow)
+			shadowByName, err := ParseShadow(fs, fileEtcShadow)
 			if err != nil {
 				return 0, 0, err
 			}
@@ -530,7 +535,7 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell string,
 	}
 
 	if groupFileExists {
-		groupByGID, groupByName, err := ParseGroup(fs, constants.FileEtcGroup)
+		groupByGID, groupByName, err := ParseGroup(fs, fileEtcGroup)
 		if err != nil {
 			return 0, 0, err
 		}
@@ -547,7 +552,7 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell string,
 		if !gShadowFileExists {
 			addToGShadow = false
 		} else {
-			gShadowByName, err := ParseGShadow(fs, constants.FileEtcGShadow)
+			gShadowByName, err := ParseGShadow(fs, fileEtcGShadow)
 			if err != nil {
 				return 0, 0, err
 			}
@@ -567,7 +572,7 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell string,
 			HomeDir:  homeDir,
 			Shell:    shell,
 		}
-		err := addFileEntry(fs, constants.FileEtcPasswd, passwdEntry.String(), constants.ModeEtcPasswd)
+		err := addFileEntry(fs, fileEtcPasswd, passwdEntry.String(), constants.ModeEtcPasswd)
 		if err != nil {
 			return 0, 0, err
 		}
@@ -580,7 +585,7 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell string,
 			GID:       gid,
 			Users:     []string{username},
 		}
-		err := addFileEntry(fs, constants.FileEtcGroup, groupEntry.String(), constants.ModeEtcGroup)
+		err := addFileEntry(fs, fileEtcGroup, groupEntry.String(), constants.ModeEtcGroup)
 		if err != nil {
 			return 0, 0, err
 		}
@@ -600,7 +605,7 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell string,
 		if locked {
 			shadowEntry.Password = "!!"
 		}
-		err := addFileEntry(fs, constants.FileEtcShadow, shadowEntry.String(), constants.ModeEtcShadow)
+		err := addFileEntry(fs, fileEtcShadow, shadowEntry.String(), constants.ModeEtcShadow)
 		if err != nil {
 			return 0, 0, err
 		}
@@ -613,14 +618,14 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell string,
 			Admins:    []string{},
 			Users:     []string{username},
 		}
-		err := addFileEntry(fs, constants.FileEtcGShadow, gShadowEntry.String(), constants.ModeEtcGShadow)
+		err := addFileEntry(fs, fileEtcGShadow, gShadowEntry.String(), constants.ModeEtcGShadow)
 		if err != nil {
 			return 0, 0, err
 		}
 	}
 
 	if createHome {
-		err := createHomeDir(fs, homeDir, uid, gid)
+		err := createHomeDir(fs, filepath.Join(baseDir, homeDir), uid, gid)
 		if err != nil {
 			return 0, 0, err
 		}
