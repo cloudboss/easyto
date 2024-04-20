@@ -1,6 +1,6 @@
 module github.com/cloudboss/easyto/preinit
 
-go 1.21.0
+go 1.21
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.26.1
@@ -12,7 +12,7 @@ require (
 	github.com/google/go-containerregistry v0.19.1
 	github.com/mvisonneau/go-ebsnvme v0.2.1
 	github.com/spf13/afero v1.11.0
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	golang.org/x/sys v0.19.0
 )
 

@@ -1,11 +1,11 @@
 module github.com/cloudboss/easyto/ctr2ami
 
-go 1.21.0
+go 1.21
 
 require (
 	github.com/google/go-containerregistry v0.19.1
 	github.com/spf13/cobra v1.8.0
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	golang.org/x/sys v0.19.0
 )
 
@@ -31,4 +31,3 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace libguestfs.org/guestfs v1.48.6 => ../libguestfs.org/guestfs
