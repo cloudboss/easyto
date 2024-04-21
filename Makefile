@@ -7,9 +7,10 @@ DIR_ROOT := $(shell echo ${PWD})
 DIR_OUT := $(DIR_ROOT)/_output
 DIR_CB := __cb__
 DIR_OUT_CB := $(DIR_ROOT)/_output/$(DIR_CB)
-DIR_BOOTLOADER := $(DIR_OUT)/bootloader
-DIR_PREINIT := $(DIR_OUT)/preinit
-DIR_KERNEL := $(DIR_OUT)/kernel
+DIR_BOOTLOADER_TMP := $(DIR_OUT)/bootloader-tmp
+DIR_BOOTLOADER_STG := $(DIR_OUT)/staging/bootloader
+DIR_PREINIT_STG := $(DIR_OUT)/staging/preinit
+DIR_KERNEL_STG := $(DIR_OUT)/staging/kernel
 DIR_RELEASE := $(DIR_OUT)/release/$(OS)/$(ARCH)
 DIR_RELEASE_ASSETS := $(DIR_RELEASE)/assets
 DIR_RELEASE_BIN := $(DIR_RELEASE)/bin
@@ -91,20 +92,20 @@ HAS_IMAGE_LOCAL := $(DIR_OUT)/.image-local-$(DOCKERFILE_SHA256)
 
 default: release
 
-bootloader: $(DIR_BOOTLOADER)/boot/EFI/BOOT/BOOTX64.EFI
+bootloader: $(DIR_BOOTLOADER_STG)/boot/EFI/BOOT/BOOTX64.EFI
 
-blkid: $(DIR_PREINIT)/$(DIR_CB)/blkid
+blkid: $(DIR_PREINIT_STG)/$(DIR_CB)/blkid
 
-btrfsprogs: $(DIR_PREINIT)/$(DIR_CB)/mkfs.btrfs
+btrfsprogs: $(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.btrfs
 
 converter: $(DIR_OUT)/converter
 
-e2fsprogs: $(DIR_PREINIT)/$(DIR_CB)/mke2fs $(DIR_PREINIT)/$(DIR_CB)/mkfs.ext2 \
-	$(DIR_PREINIT)/$(DIR_CB)/mkfs.ext3 $(DIR_PREINIT)/$(DIR_CB)/mkfs.ext4
+e2fsprogs: $(DIR_PREINIT_STG)/$(DIR_CB)/mke2fs $(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext2 \
+	$(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext3 $(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext4
 
-kernel: $(DIR_KERNEL)/boot/vmlinuz-$(KERNEL_VERSION)
+kernel: $(DIR_KERNEL_STG)/boot/vmlinuz-$(KERNEL_VERSION)
 
-preinit: $(DIR_PREINIT)/$(DIR_CB)/preinit
+preinit: $(DIR_PREINIT_STG)/$(DIR_CB)/preinit
 
 packer: $(DIR_RELEASE_PACKER)/build.pkr.hcl \
 		$(DIR_RELEASE_PACKER)/packer \
@@ -131,21 +132,24 @@ release:
 		done; \
 	done
 
-$(DIR_BOOTLOADER)/boot/EFI/BOOT/BOOTX64.EFI: $(HAS_COMMAND_AR) $(HAS_COMMAND_XZCAT) \
+$(DIR_BOOTLOADER_TMP)/data.tar.xz: $(HAS_COMMAND_AR) $(HAS_COMMAND_XZCAT) \
 		$(DIR_OUT)/$(SYSTEMD_BOOT_ARCHIVE)
-	@$(MAKE) $(DIR_BOOTLOADER)/tmp/ $(DIR_BOOTLOADER)/boot/EFI/BOOT/
-	@ar --output $(DIR_BOOTLOADER)/tmp xf $(DIR_OUT)/$(SYSTEMD_BOOT_ARCHIVE) data.tar.xz
-	@xzcat $(DIR_BOOTLOADER)/tmp/data.tar.xz | \
+	@$(MAKE) $(DIR_BOOTLOADER_TMP)/
+	@ar --output $(DIR_BOOTLOADER_TMP) xf $(DIR_OUT)/$(SYSTEMD_BOOT_ARCHIVE) data.tar.xz
+
+$(DIR_BOOTLOADER_STG)/boot/EFI/BOOT/BOOTX64.EFI: $(DIR_BOOTLOADER_TMP)/data.tar.xz
+	@$(MAKE) $(DIR_BOOTLOADER_STG)/boot/EFI/BOOT/
+	@xzcat $(DIR_BOOTLOADER_TMP)/data.tar.xz | \
 		tar -mxf - \
-		--xform "s|.*/systemd-bootx64.efi|_output/bootloader/boot/EFI/BOOT/BOOTX64.EFI|" \
+		--xform "s|.*/systemd-bootx64.efi|_output/staging/bootloader/boot/EFI/BOOT/BOOTX64.EFI|" \
 		./usr/lib/systemd/boot/efi/systemd-bootx64.efi
 
 $(DIR_OUT)/$(SYSTEMD_BOOT_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -o $(DIR_OUT)/$(SYSTEMD_BOOT_ARCHIVE) $(SYSTEMD_BOOT_URL)
 
-$(DIR_PREINIT)/$(DIR_CB)/mkfs.btrfs: $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static
-	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static $(DIR_PREINIT)/$(DIR_CB)/mkfs.btrfs
+$(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.btrfs: $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static
+	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static $(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.btrfs
 
 $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(BTRFSPROGS_SRC) \
 		hack/compile-btrfsprogs-ctr
@@ -176,24 +180,25 @@ $(DIR_OUT)/$(E2FSPROGS_SRC): $(DIR_OUT)/$(E2FSPROGS_ARCHIVE)
 $(DIR_OUT)/$(E2FSPROGS_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -o $(DIR_OUT)/$(E2FSPROGS_ARCHIVE) $(E2FSPROGS_URL)
 
-$(DIR_PREINIT)/$(DIR_CB)/mke2fs: $(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs
-	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs $(DIR_PREINIT)/$(DIR_CB)/mke2fs
+$(DIR_PREINIT_STG)/$(DIR_CB)/mke2fs: $(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs
+	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs $(DIR_PREINIT_STG)/$(DIR_CB)/mke2fs
 
-$(DIR_PREINIT)/$(DIR_CB)/mkfs.ext%: $(DIR_PREINIT)/$(DIR_CB)/mke2fs
-	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
-	@ln -f $(DIR_PREINIT)/$(DIR_CB)/mke2fs $(DIR_PREINIT)/$(DIR_CB)/mkfs.ext$*
+$(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext%: $(DIR_PREINIT_STG)/$(DIR_CB)/mke2fs
+	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
+	@ln -f $(DIR_PREINIT_STG)/$(DIR_CB)/mke2fs $(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext$*
 
-$(DIR_PREINIT)/$(DIR_CB)/preinit: $(HAS_IMAGE_LOCAL) hack/compile-preinit-ctr \
+$(DIR_PREINIT_STG)/$(DIR_CB)/preinit: $(HAS_IMAGE_LOCAL) hack/compile-preinit-ctr \
 		$(shell find preinit -type f -path '*/go.[ms]*' -o -path '*.go' ! -path '*_test.go') \
 		$(shell find lib -type f -path '*/go.[ms]*' -o -path '*.go' ! -path '*_test.go')
-	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
+	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
 	@docker run -it \
 		-v $(DIR_ROOT):/code \
+		-v $(DIR_PREINIT_STG):/install \
 		-e OPENSSH_PRIVSEP_DIR=$(OPENSSH_PRIVSEP_DIR) \
 		-e OPENSSH_PRIVSEP_USER=$(OPENSSH_PRIVSEP_USER) \
 		-e CHRONY_USER=$(CHRONY_USER) \
-		-e DIR_OUT=/code/_output/preinit/$(DIR_CB) \
+		-e DIR_OUT=/install/$(DIR_CB) \
 		-e GOPATH=/code/_output/go \
 		-e GOCACHE=/code/_output/gocache \
 		-e CGO_ENABLED=1 \
@@ -203,20 +208,20 @@ $(DIR_PREINIT)/$(DIR_CB)/preinit: $(HAS_IMAGE_LOCAL) hack/compile-preinit-ctr \
 # Other files are created by the kernel build, but vmlinuz-$(KERNEL_VERSION) will
 # be used to indicate the target is created. It is the last file created by the build
 # via the $(DIR_ROOT)/kernel/installkernel script mounted in the build container.
-$(DIR_KERNEL)/boot/vmlinuz-$(KERNEL_VERSION): $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(KERNEL_SRC) kernel/config \
+$(DIR_KERNEL_STG)/boot/vmlinuz-$(KERNEL_VERSION): $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(KERNEL_SRC) kernel/config \
 		hack/compile-kernel-ctr
-	@$(MAKE) $(DIR_KERNEL)/boot/ $(DIR_KERNEL)/$(DIR_CB)/
+	@$(MAKE) $(DIR_KERNEL_STG)/boot/ $(DIR_KERNEL_STG)/$(DIR_CB)/
 	@docker run -it \
 		-v $(DIR_OUT)/$(KERNEL_SRC):/code \
-		-v $(DIR_KERNEL):/install \
+		-v $(DIR_KERNEL_STG):/install \
 		-v $(DIR_ROOT)/kernel/config:/config \
 		-v $(DIR_ROOT)/kernel/installkernel:/sbin/installkernel \
 		-e INSTALL_PATH=/install/boot \
 		-e INSTALL_MOD_PATH=/install/$(DIR_CB) \
 		-w /code \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-kernel-ctr)"
-	@rm -f $(DIR_KERNEL)/$(DIR_CB)/lib/modules/$(KERNEL_VERSION)/build
-	@rm -f $(DIR_KERNEL)/$(DIR_CB)/lib/modules/$(KERNEL_VERSION)/source
+	@rm -f $(DIR_KERNEL_STG)/$(DIR_CB)/lib/modules/$(KERNEL_VERSION)/build
+	@rm -f $(DIR_KERNEL_STG)/$(DIR_CB)/lib/modules/$(KERNEL_VERSION)/source
 
 $(DIR_OUT)/$(KERNEL_SRC): $(HAS_COMMAND_XZCAT) $(DIR_OUT)/$(KERNEL_ARCHIVE)
 	@xzcat $(DIR_OUT)/$(KERNEL_ARCHIVE) | tar xf - -C $(DIR_OUT)
@@ -224,13 +229,13 @@ $(DIR_OUT)/$(KERNEL_SRC): $(HAS_COMMAND_XZCAT) $(DIR_OUT)/$(KERNEL_ARCHIVE)
 $(DIR_OUT)/$(KERNEL_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -o $(DIR_OUT)/$(KERNEL_ARCHIVE) $(KERNEL_URL)
 
-$(DIR_PREINIT)/$(DIR_CB)/amazon.pem: assets/amazon.pem
-	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
-	@install -m 0644 assets/amazon.pem $(DIR_PREINIT)/$(DIR_CB)/amazon.pem
+$(DIR_PREINIT_STG)/$(DIR_CB)/amazon.pem: assets/amazon.pem
+	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
+	@install -m 0644 assets/amazon.pem $(DIR_PREINIT_STG)/$(DIR_CB)/amazon.pem
 
-$(DIR_PREINIT)/$(DIR_CB)/blkid: $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static
-	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static $(DIR_PREINIT)/$(DIR_CB)/blkid
+$(DIR_PREINIT_STG)/$(DIR_CB)/blkid: $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static
+	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static $(DIR_PREINIT_STG)/$(DIR_CB)/blkid
 
 $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(UTIL_LINUX_SRC) \
 		hack/compile-blkid-ctr
@@ -240,13 +245,13 @@ $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(UTIL_
 		-w /code \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-blkid-ctr)"
 
-$(DIR_PREINIT)/$(DIR_CB)/chronyd: $(DIR_OUT)/$(CHRONY_SRC)/chronyd
-	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(CHRONY_SRC)/chronyd $(DIR_PREINIT)/$(DIR_CB)/chronyd
+$(DIR_PREINIT_STG)/$(DIR_CB)/chronyd: $(DIR_OUT)/$(CHRONY_SRC)/chronyd
+	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(CHRONY_SRC)/chronyd $(DIR_PREINIT_STG)/$(DIR_CB)/chronyd
 
-$(DIR_PREINIT)/$(DIR_CB)/chronyc: $(DIR_OUT)/$(CHRONY_SRC)/chronyd
-	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(CHRONY_SRC)/chronyc $(DIR_PREINIT)/$(DIR_CB)/chronyc
+$(DIR_PREINIT_STG)/$(DIR_CB)/chronyc: $(DIR_OUT)/$(CHRONY_SRC)/chronyd
+	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(CHRONY_SRC)/chronyc $(DIR_PREINIT_STG)/$(DIR_CB)/chronyc
 
 $(DIR_OUT)/$(CHRONY_SRC)/chronyd: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(CHRONY_SRC) \
 		hack/compile-chrony-ctr
@@ -258,21 +263,21 @@ $(DIR_OUT)/$(CHRONY_SRC)/chronyd: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(CHRONY_SRC) \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-chrony-ctr)"
 	@touch $(DIR_OUT)/$(CHRONY_SRC)/chronyd $(DIR_OUT)/$(CHRONY_SRC)/chronyc
 
-$(DIR_PREINIT)/$(DIR_CB)/sftp-server: $(DIR_OUT)/$(OPENSSH_SRC)/sshd
-	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/sftp-server $(DIR_PREINIT)/$(DIR_CB)/sftp-server
+$(DIR_PREINIT_STG)/$(DIR_CB)/sftp-server: $(DIR_OUT)/$(OPENSSH_SRC)/sshd
+	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/sftp-server $(DIR_PREINIT_STG)/$(DIR_CB)/sftp-server
 
-$(DIR_PREINIT)/$(DIR_CB)/ssh-keygen: $(DIR_OUT)/$(OPENSSH_SRC)/sshd
-	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/ssh-keygen $(DIR_PREINIT)/$(DIR_CB)/ssh-keygen
+$(DIR_PREINIT_STG)/$(DIR_CB)/ssh-keygen: $(DIR_OUT)/$(OPENSSH_SRC)/sshd
+	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/ssh-keygen $(DIR_PREINIT_STG)/$(DIR_CB)/ssh-keygen
 
-$(DIR_PREINIT)/$(DIR_CB)/sshd: $(DIR_OUT)/$(OPENSSH_SRC)/sshd
-	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/sshd $(DIR_PREINIT)/$(DIR_CB)/sshd
+$(DIR_PREINIT_STG)/$(DIR_CB)/sshd: $(DIR_OUT)/$(OPENSSH_SRC)/sshd
+	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/sshd $(DIR_PREINIT_STG)/$(DIR_CB)/sshd
 
-$(DIR_PREINIT)/$(DIR_CB)/sshd_config: assets/sshd_config
-	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
-	@install -m 0644 assets/sshd_config $(DIR_PREINIT)/$(DIR_CB)/sshd_config
+$(DIR_PREINIT_STG)/$(DIR_CB)/sshd_config: assets/sshd_config
+	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
+	@install -m 0644 assets/sshd_config $(DIR_PREINIT_STG)/$(DIR_CB)/sshd_config
 
 $(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libz.a: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(ZLIB_SRC) \
 		hack/compile-zlib-ctr
@@ -346,10 +351,10 @@ $(DIR_OUT)/$(OPENSSH_SRC): $(DIR_OUT)/$(OPENSSH_ARCHIVE)
 $(DIR_OUT)/$(OPENSSH_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -o $(DIR_OUT)/$(OPENSSH_ARCHIVE) $(OPENSSH_URL)
 
-$(DIR_RELEASE_ASSETS)/boot.tar: $(HAS_COMMAND_FAKEROOT) $(DIR_BOOTLOADER)/boot/EFI/BOOT/BOOTX64.EFI
-	@$(MAKE) $(DIR_RELEASE_ASSETS)/ $(DIR_BOOTLOADER)/boot/loader/entries/
-	@chmod -R 0755 $(DIR_BOOTLOADER)
-	@cd $(DIR_BOOTLOADER) && fakeroot tar cf $(DIR_RELEASE_ASSETS)/boot.tar boot
+$(DIR_RELEASE_ASSETS)/boot.tar: $(HAS_COMMAND_FAKEROOT) $(DIR_BOOTLOADER_STG)/boot/EFI/BOOT/BOOTX64.EFI
+	@$(MAKE) $(DIR_RELEASE_ASSETS)/ $(DIR_BOOTLOADER_STG)/boot/loader/entries/
+	@chmod -R 0755 $(DIR_BOOTLOADER_STG)
+	@cd $(DIR_BOOTLOADER_STG) && fakeroot tar cf $(DIR_RELEASE_ASSETS)/boot.tar boot
 
 $(DIR_RELEASE_ASSETS)/converter: $(DIR_OUT)/converter
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/
@@ -368,33 +373,33 @@ $(DIR_OUT)/converter: $(HAS_IMAGE_LOCAL) hack/compile-converter-ctr \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-converter-ctr)"
 
 $(DIR_RELEASE_ASSETS)/kernel-$(KERNEL_VERSION).tar: $(HAS_COMMAND_FAKEROOT) \
-		$(DIR_KERNEL)/boot/vmlinuz-$(KERNEL_VERSION)
+		$(DIR_KERNEL_STG)/boot/vmlinuz-$(KERNEL_VERSION)
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/
-	@cd $(DIR_KERNEL) && fakeroot tar cf $(DIR_RELEASE_ASSETS)/kernel-$(KERNEL_VERSION).tar .
+	@cd $(DIR_KERNEL_STG) && fakeroot tar cf $(DIR_RELEASE_ASSETS)/kernel-$(KERNEL_VERSION).tar .
 
-$(DIR_PREINIT)/$(DIR_CB)/chrony.conf: assets/chrony.conf
-	@$(MAKE) $(DIR_PREINIT)/$(DIR_CB)/
-	@install -m 0644 assets/chrony.conf $(DIR_PREINIT)/$(DIR_CB)/chrony.conf
+$(DIR_PREINIT_STG)/$(DIR_CB)/chrony.conf: assets/chrony.conf
+	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
+	@install -m 0644 assets/chrony.conf $(DIR_PREINIT_STG)/$(DIR_CB)/chrony.conf
 
 $(DIR_RELEASE_ASSETS)/preinit.tar: \
 		$(HAS_COMMAND_FAKEROOT) \
-		$(DIR_PREINIT)/$(DIR_CB)/amazon.pem \
-		$(DIR_PREINIT)/$(DIR_CB)/blkid \
-		$(DIR_PREINIT)/$(DIR_CB)/chrony.conf \
-		$(DIR_PREINIT)/$(DIR_CB)/chronyd \
-		$(DIR_PREINIT)/$(DIR_CB)/chronyc \
-		$(DIR_PREINIT)/$(DIR_CB)/mke2fs \
-		$(DIR_PREINIT)/$(DIR_CB)/mkfs.btrfs \
-		$(DIR_PREINIT)/$(DIR_CB)/mkfs.ext2 \
-		$(DIR_PREINIT)/$(DIR_CB)/mkfs.ext3 \
-		$(DIR_PREINIT)/$(DIR_CB)/mkfs.ext4 \
-		$(DIR_PREINIT)/$(DIR_CB)/preinit \
-		$(DIR_PREINIT)/$(DIR_CB)/sftp-server \
-		$(DIR_PREINIT)/$(DIR_CB)/ssh-keygen \
-		$(DIR_PREINIT)/$(DIR_CB)/sshd \
-		$(DIR_PREINIT)/$(DIR_CB)/sshd_config
+		$(DIR_PREINIT_STG)/$(DIR_CB)/amazon.pem \
+		$(DIR_PREINIT_STG)/$(DIR_CB)/blkid \
+		$(DIR_PREINIT_STG)/$(DIR_CB)/chrony.conf \
+		$(DIR_PREINIT_STG)/$(DIR_CB)/chronyd \
+		$(DIR_PREINIT_STG)/$(DIR_CB)/chronyc \
+		$(DIR_PREINIT_STG)/$(DIR_CB)/mke2fs \
+		$(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.btrfs \
+		$(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext2 \
+		$(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext3 \
+		$(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext4 \
+		$(DIR_PREINIT_STG)/$(DIR_CB)/preinit \
+		$(DIR_PREINIT_STG)/$(DIR_CB)/sftp-server \
+		$(DIR_PREINIT_STG)/$(DIR_CB)/ssh-keygen \
+		$(DIR_PREINIT_STG)/$(DIR_CB)/sshd \
+		$(DIR_PREINIT_STG)/$(DIR_CB)/sshd_config
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/
-	@cd $(DIR_PREINIT) && fakeroot tar cf $(DIR_RELEASE_ASSETS)/preinit.tar .
+	@cd $(DIR_PREINIT_STG) && fakeroot tar cf $(DIR_RELEASE_ASSETS)/preinit.tar .
 
 $(DIR_RELEASE)/unpack-$(VERSION)-$(OS)-$(ARCH).tar.gz: $(HAS_COMMAND_FAKEROOT) packer \
 		$(DIR_RELEASE_ASSETS)/boot.tar \
@@ -467,25 +472,25 @@ clean-converter:
 
 clean-blkid:
 	@rm -f $(DIR_OUT)/$(UTIL_LINUX_ARCHIVE)
-	@rm -f $(DIR_PREINIT)/$(DIR_CB)/blkid
+	@rm -f $(DIR_PREINIT_STG)/$(DIR_CB)/blkid
 	@rm -rf $(DIR_OUT)/$(UTIL_LINUX_SRC)
 
-	@rm -f $(DIR_PREINIT)/$(DIR_CB)/blkid
+	@rm -f $(DIR_PREINIT_STG)/$(DIR_CB)/blkid
 	@rm -f $(DIR_OUT)/$(UTIL_LINUX_ARCHIVE)
 	@rm -rf $(DIR_OUT)/$(UTIL_LINUX_SRC)
 
 clean-e2fsprogs:
 	@rm -f $(DIR_OUT)/$(E2FSPROGS_ARCHIVE)
-	@rm -f $(DIR_PREINIT)/$(DIR_CB)/mke2fs $(DIR_PREINIT)/$(DIR_CB)/mkfs.ext*
+	@rm -f $(DIR_PREINIT_STG)/$(DIR_CB)/mke2fs $(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext*
 	@rm -rf $(DIR_OUT)/$(E2FSPROGS_SRC)
 
 clean-kernel:
 	@rm -f $(DIR_OUT)/$(KERNEL_ARCHIVE)
 	@rm -rf $(DIR_OUT)/$(KERNEL_SRC)
-	@rm -rf $(DIR_OUT)/kernel
+	@rm -rf $(DIR_KERNEL_STG)
 
 clean-preinit:
-	@rm -f $(DIR_PREINIT)/$(DIR_CB)/preinit
+	@rm -f $(DIR_PREINIT_STG)/$(DIR_CB)/preinit
 
 clean:
 	@chmod -R +w $(DIR_OUT)/go
