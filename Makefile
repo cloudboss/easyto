@@ -4,7 +4,7 @@ ARCH := $(shell arch=$$(uname -m); [ "$${arch}" = "x86_64" ] && echo "amd64" || 
 VERSION :=
 
 DIR_ROOT := $(shell echo ${PWD})
-DIR_OUT := $(DIR_ROOT)/_output
+DIR_OUT := _output
 DIR_CB := __cb__
 DIR_OUT_CB := $(DIR_ROOT)/_output/$(DIR_CB)
 DIR_BOOTLOADER_TMP := $(DIR_OUT)/bootloader-tmp
@@ -141,7 +141,7 @@ $(DIR_BOOTLOADER_STG)/boot/EFI/BOOT/BOOTX64.EFI: $(DIR_BOOTLOADER_TMP)/data.tar.
 	@$(MAKE) $(DIR_BOOTLOADER_STG)/boot/EFI/BOOT/
 	@xzcat $(DIR_BOOTLOADER_TMP)/data.tar.xz | \
 		tar -mxf - \
-		--xform "s|.*/systemd-bootx64.efi|_output/staging/bootloader/boot/EFI/BOOT/BOOTX64.EFI|" \
+		--xform "s|.*/systemd-bootx64.efi|$(DIR_BOOTLOADER_STG)/boot/EFI/BOOT/BOOTX64.EFI|" \
 		./usr/lib/systemd/boot/efi/systemd-bootx64.efi
 
 $(DIR_OUT)/$(SYSTEMD_BOOT_ARCHIVE): $(HAS_COMMAND_CURL)
@@ -154,10 +154,10 @@ $(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.btrfs: $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs
 $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(BTRFSPROGS_SRC) \
 		hack/compile-btrfsprogs-ctr
 	@docker run -it \
-		-v $(DIR_OUT)/$(BTRFSPROGS_SRC):/code \
+		-v $(DIR_ROOT)/$(DIR_OUT)/$(BTRFSPROGS_SRC):/code \
 		-e LDFLAGS=-s \
 		-w /code \
-		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-btrfsprogs-ctr)"
+		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-btrfsprogs-ctr)"
 	@touch $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static
 
 $(DIR_OUT)/$(BTRFSPROGS_SRC): $(HAS_COMMAND_XZCAT) $(DIR_OUT)/$(BTRFSPROGS_ARCHIVE)
@@ -169,10 +169,10 @@ $(DIR_OUT)/$(BTRFSPROGS_ARCHIVE): $(HAS_COMMAND_CURL)
 $(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(E2FSPROGS_SRC) \
 		hack/compile-e2fsprogs-ctr
 	@docker run -it \
-		-v $(DIR_OUT)/$(E2FSPROGS_SRC):/code \
+		-v $(DIR_ROOT)/$(DIR_OUT)/$(E2FSPROGS_SRC):/code \
 		-e LDFLAGS="-s -static" \
 		-w /code \
-		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-e2fsprogs-ctr)"
+		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-e2fsprogs-ctr)"
 
 $(DIR_OUT)/$(E2FSPROGS_SRC): $(DIR_OUT)/$(E2FSPROGS_ARCHIVE)
 	@tar zxf $(DIR_OUT)/$(E2FSPROGS_ARCHIVE) -C $(DIR_OUT)
@@ -194,16 +194,16 @@ $(DIR_PREINIT_STG)/$(DIR_CB)/preinit: $(HAS_IMAGE_LOCAL) hack/compile-preinit-ct
 	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
 	@docker run -it \
 		-v $(DIR_ROOT):/code \
-		-v $(DIR_PREINIT_STG):/install \
+		-v $(DIR_ROOT)/$(DIR_PREINIT_STG):/install \
 		-e OPENSSH_PRIVSEP_DIR=$(OPENSSH_PRIVSEP_DIR) \
 		-e OPENSSH_PRIVSEP_USER=$(OPENSSH_PRIVSEP_USER) \
 		-e CHRONY_USER=$(CHRONY_USER) \
 		-e DIR_OUT=/install/$(DIR_CB) \
-		-e GOPATH=/code/_output/go \
-		-e GOCACHE=/code/_output/gocache \
+		-e GOPATH=/code/$(DIR_OUT)/go \
+		-e GOCACHE=/code/$(DIR_OUT)/gocache \
 		-e CGO_ENABLED=1 \
 		-w /code/preinit \
-		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-preinit-ctr)"
+		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-preinit-ctr)"
 
 # Other files are created by the kernel build, but vmlinuz-$(KERNEL_VERSION) will
 # be used to indicate the target is created. It is the last file created by the build
@@ -212,14 +212,14 @@ $(DIR_KERNEL_STG)/boot/vmlinuz-$(KERNEL_VERSION): $(HAS_IMAGE_LOCAL) $(DIR_OUT)/
 		hack/compile-kernel-ctr
 	@$(MAKE) $(DIR_KERNEL_STG)/boot/ $(DIR_KERNEL_STG)/$(DIR_CB)/
 	@docker run -it \
-		-v $(DIR_OUT)/$(KERNEL_SRC):/code \
-		-v $(DIR_KERNEL_STG):/install \
+		-v $(DIR_ROOT)/$(DIR_OUT)/$(KERNEL_SRC):/code \
+		-v $(DIR_ROOT)/$(DIR_KERNEL_STG):/install \
 		-v $(DIR_ROOT)/kernel/config:/config \
 		-v $(DIR_ROOT)/kernel/installkernel:/sbin/installkernel \
 		-e INSTALL_PATH=/install/boot \
 		-e INSTALL_MOD_PATH=/install/$(DIR_CB) \
 		-w /code \
-		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-kernel-ctr)"
+		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-kernel-ctr)"
 	@rm -f $(DIR_KERNEL_STG)/$(DIR_CB)/lib/modules/$(KERNEL_VERSION)/build
 	@rm -f $(DIR_KERNEL_STG)/$(DIR_CB)/lib/modules/$(KERNEL_VERSION)/source
 
@@ -240,10 +240,10 @@ $(DIR_PREINIT_STG)/$(DIR_CB)/blkid: $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static
 $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(UTIL_LINUX_SRC) \
 		hack/compile-blkid-ctr
 	@docker run -it \
-		-v $(DIR_ROOT)/_output/$(UTIL_LINUX_SRC):/code \
+		-v $(DIR_ROOT)/$(DIR_OUT)/$(UTIL_LINUX_SRC):/code \
 		-e CFLAGS=-s \
 		-w /code \
-		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-blkid-ctr)"
+		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-blkid-ctr)"
 
 $(DIR_PREINIT_STG)/$(DIR_CB)/chronyd: $(DIR_OUT)/$(CHRONY_SRC)/chronyd
 	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
@@ -256,11 +256,11 @@ $(DIR_PREINIT_STG)/$(DIR_CB)/chronyc: $(DIR_OUT)/$(CHRONY_SRC)/chronyd
 $(DIR_OUT)/$(CHRONY_SRC)/chronyd: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(CHRONY_SRC) \
 		hack/compile-chrony-ctr
 	@docker run -it \
-		-v $(DIR_ROOT)/_output/$(CHRONY_SRC):/code \
+		-v $(DIR_ROOT)/$(DIR_OUT)/$(CHRONY_SRC):/code \
 		-e CHRONY_USER=$(CHRONY_USER) \
 		-e SYSCONFDIR=/$(DIR_CB) \
 		-w /code \
-		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-chrony-ctr)"
+		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-chrony-ctr)"
 	@touch $(DIR_OUT)/$(CHRONY_SRC)/chronyd $(DIR_OUT)/$(CHRONY_SRC)/chronyc
 
 $(DIR_PREINIT_STG)/$(DIR_CB)/sftp-server: $(DIR_OUT)/$(OPENSSH_SRC)/sshd
@@ -283,31 +283,31 @@ $(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libz.a: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(ZLIB_
 		hack/compile-zlib-ctr
 	@$(MAKE) $(DIR_OUT)/$(DIR_OPENSSH_DEPS)/
 	@docker run -it \
-		-v $(DIR_OUT)/$(ZLIB_SRC):/code \
-		-v $(DIR_OUT)/$(DIR_OPENSSH_DEPS):/$(DIR_OPENSSH_DEPS) \
+		-v $(DIR_ROOT)/$(DIR_OUT)/$(ZLIB_SRC):/code \
+		-v $(DIR_ROOT)/$(DIR_OUT)/$(DIR_OPENSSH_DEPS):/$(DIR_OPENSSH_DEPS) \
 		-e DIR_OPENSSH_DEPS=/$(DIR_OPENSSH_DEPS) \
 		-w /code \
-		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-zlib-ctr)"
+		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-zlib-ctr)"
 
 $(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libcrypto.a: $(DIR_OUT)/$(OPENSSL_SRC) \
 		$(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libz.a hack/compile-openssl-ctr
 	@docker run -it \
-		-v $(DIR_OUT)/$(OPENSSL_SRC):/code \
-		-v $(DIR_OUT)/$(DIR_OPENSSH_DEPS):/$(DIR_OPENSSH_DEPS) \
+		-v $(DIR_ROOT)/$(DIR_OUT)/$(OPENSSL_SRC):/code \
+		-v $(DIR_ROOT)/$(DIR_OUT)/$(DIR_OPENSSH_DEPS):/$(DIR_OPENSSH_DEPS) \
 		-e DIR_OPENSSH_DEPS=/$(DIR_OPENSSH_DEPS) \
 		-w /code \
-		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-openssl-ctr)"
+		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-openssl-ctr)"
 
 $(DIR_OUT)/$(OPENSSH_SRC)/sshd: $(DIR_OUT)/$(OPENSSH_SRC) $(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libcrypto.a \
 		$(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libz.a hack/compile-openssh-ctr
 	@docker run -it \
+		-v $(DIR_ROOT)/$(DIR_OUT)/$(OPENSSH_SRC):/code \
+		-v $(DIR_ROOT)/$(DIR_OUT)/$(DIR_OPENSSH_DEPS):/$(DIR_OPENSSH_DEPS) \
 		-e OPENSSH_PRIVSEP_DIR=$(OPENSSH_PRIVSEP_DIR) \
 		-e OPENSSH_PRIVSEP_USER=$(OPENSSH_PRIVSEP_USER) \
 		-e DIR_OPENSSH_DEPS=/$(DIR_OPENSSH_DEPS) \
-		-v $(DIR_OUT)/$(OPENSSH_SRC):/code \
-		-v $(DIR_OUT)/$(DIR_OPENSSH_DEPS):/$(DIR_OPENSSH_DEPS) \
 		-w /code \
-		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-openssh-ctr)"
+		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-openssh-ctr)"
 	@touch $(DIR_OUT)/$(OPENSSH_SRC)/sshd
 
 # Container image build is done in an empty directory to speed it up.
@@ -354,7 +354,7 @@ $(DIR_OUT)/$(OPENSSH_ARCHIVE): $(HAS_COMMAND_CURL)
 $(DIR_RELEASE_ASSETS)/boot.tar: $(HAS_COMMAND_FAKEROOT) $(DIR_BOOTLOADER_STG)/boot/EFI/BOOT/BOOTX64.EFI
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/ $(DIR_BOOTLOADER_STG)/boot/loader/entries/
 	@chmod -R 0755 $(DIR_BOOTLOADER_STG)
-	@cd $(DIR_BOOTLOADER_STG) && fakeroot tar cf $(DIR_RELEASE_ASSETS)/boot.tar boot
+	@cd $(DIR_BOOTLOADER_STG) && fakeroot tar cf $(DIR_ROOT)/$(DIR_RELEASE_ASSETS)/boot.tar boot
 
 $(DIR_RELEASE_ASSETS)/converter: $(DIR_OUT)/converter
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/
@@ -365,17 +365,17 @@ $(DIR_OUT)/converter: $(HAS_IMAGE_LOCAL) hack/compile-converter-ctr \
 		$(shell find lib -type f -path '*/go.[ms]*' -o -path '*.go' ! -path '*_test.go')
 	@docker run -it \
 		-v $(DIR_ROOT):/code \
-		-e DIR_OUT=/code/_output \
-		-e GOPATH=/code/_output/go \
-		-e GOCACHE=/code/_output/gocache \
+		-e DIR_OUT=/code/$(DIR_OUT) \
+		-e GOPATH=/code/$(DIR_OUT)/go \
+		-e GOCACHE=/code/$(DIR_OUT)/gocache \
 		-e CGO_ENABLED=0 \
 		-w /code/ctr2ami \
-		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-converter-ctr)"
+		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-converter-ctr)"
 
 $(DIR_RELEASE_ASSETS)/kernel-$(KERNEL_VERSION).tar: $(HAS_COMMAND_FAKEROOT) \
 		$(DIR_KERNEL_STG)/boot/vmlinuz-$(KERNEL_VERSION)
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/
-	@cd $(DIR_KERNEL_STG) && fakeroot tar cf $(DIR_RELEASE_ASSETS)/kernel-$(KERNEL_VERSION).tar .
+	@cd $(DIR_KERNEL_STG) && fakeroot tar cf $(DIR_ROOT)/$(DIR_RELEASE_ASSETS)/kernel-$(KERNEL_VERSION).tar .
 
 $(DIR_PREINIT_STG)/$(DIR_CB)/chrony.conf: assets/chrony.conf
 	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
@@ -399,7 +399,7 @@ $(DIR_RELEASE_ASSETS)/preinit.tar: \
 		$(DIR_PREINIT_STG)/$(DIR_CB)/sshd \
 		$(DIR_PREINIT_STG)/$(DIR_CB)/sshd_config
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/
-	@cd $(DIR_PREINIT_STG) && fakeroot tar cf $(DIR_RELEASE_ASSETS)/preinit.tar .
+	@cd $(DIR_PREINIT_STG) && fakeroot tar cf $(DIR_ROOT)/$(DIR_RELEASE_ASSETS)/preinit.tar .
 
 $(DIR_RELEASE)/unpack-$(VERSION)-$(OS)-$(ARCH).tar.gz: $(HAS_COMMAND_FAKEROOT) packer \
 		$(DIR_RELEASE_ASSETS)/boot.tar \
@@ -409,7 +409,7 @@ $(DIR_RELEASE)/unpack-$(VERSION)-$(OS)-$(ARCH).tar.gz: $(HAS_COMMAND_FAKEROOT) p
 		$(DIR_RELEASE_BIN)/unpack
 	@[ -n "$(VERSION)" ] || (echo "VERSION is required"; exit 1)
 	@cd $(DIR_RELEASE) && \
-		fakeroot tar czf $(DIR_RELEASE)/unpack-$(VERSION)-$(OS)-$(ARCH).tar.gz assets bin packer
+		fakeroot tar czf $(DIR_ROOT)/$(DIR_RELEASE)/unpack-$(VERSION)-$(OS)-$(ARCH).tar.gz assets bin packer
 
 $(DIR_RELEASE_BIN)/unpack: $(DIR_OSARCH_BUILD)/unpack
 	@$(MAKE) $(DIR_RELEASE_BIN)/
@@ -420,9 +420,9 @@ $(DIR_OSARCH_BUILD)/unpack: $(HAS_IMAGE_LOCAL) hack/compile-unpack-ctr \
 	@[ -d $(DIR_OSARCH_BUILD) ] || mkdir -p $(DIR_OSARCH_BUILD)
 	@docker run -it \
 		-v $(DIR_ROOT):/code \
-		-e DIR_OUT=/code/_output/osarch/$(OS)/$(ARCH) \
-		-e GOPATH=/code/_output/go \
-		-e GOCACHE=/code/_output/gocache \
+		-e DIR_OUT=/code/$(DIR_OUT)/osarch/$(OS)/$(ARCH) \
+		-e GOPATH=/code/$(DIR_OUT)/go \
+		-e GOCACHE=/code/$(DIR_OUT)/gocache \
 		-e CGO_ENABLED=0 \
 		-e GOARCH=$(ARCH) \
 		-e GOOS=$(OS) \
@@ -458,7 +458,7 @@ $(DIR_RELEASE_PACKER_PLUGIN)/$(PACKER_PLUGIN_AMZ_FILE): $(HAS_COMMAND_UNZIP) \
 $(DIR_OUT)/$(PACKER_PLUGIN_AMZ_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -L -o $(DIR_OUT)/$(PACKER_PLUGIN_AMZ_ARCHIVE) $(PACKER_PLUGIN_AMZ_URL)
 
-# Create empty file `_output/.command-abc` if command `abc` is found.
+# Create empty file `$(DIR_OUT)/.command-abc` if command `abc` is found.
 $(DIR_OUT)/.command-%:
 	@[ -d $(DIR_OUT) ] || mkdir -p $(DIR_OUT)
 	@which $* 2>&1 >/dev/null && touch $(DIR_OUT)/.command-$* || (echo "$* is required"; exit 1)
