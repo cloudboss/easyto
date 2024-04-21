@@ -6,7 +6,6 @@ VERSION :=
 DIR_ROOT := $(shell echo ${PWD})
 DIR_OUT := _output
 DIR_CB := __cb__
-DIR_OUT_CB := $(DIR_ROOT)/_output/$(DIR_CB)
 DIR_BOOTLOADER_TMP := $(DIR_OUT)/bootloader-tmp
 DIR_BOOTLOADER_STG := $(DIR_OUT)/staging/bootloader
 DIR_PREINIT_STG := $(DIR_OUT)/staging/preinit
@@ -313,7 +312,8 @@ $(DIR_OUT)/$(OPENSSH_SRC)/sshd: $(DIR_OUT)/$(OPENSSH_SRC) $(DIR_OUT)/$(DIR_OPENS
 # Container image build is done in an empty directory to speed it up.
 $(HAS_IMAGE_LOCAL): $(HAS_COMMAND_DOCKER)
 	@$(MAKE) $(DIR_OUT)/dockerbuild/
-	@docker build --build-arg FROM=$(CTR_IMAGE_GO) \
+	@docker build \
+		--build-arg FROM=$(CTR_IMAGE_GO) \
 		--build-arg GID=$$(id -g) \
 		--build-arg UID=$$(id -u) \
 		-f $(DIR_ROOT)/Dockerfile.build \
