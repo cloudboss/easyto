@@ -366,9 +366,7 @@ func (b *Builder) setupKernel() error {
 
 func (b *Builder) setupResolver() error {
 	oldMask := syscall.Umask(0)
-	defer func() {
-		syscall.Umask(oldMask)
-	}()
+	defer syscall.Umask(oldMask)
 
 	etcPath := filepath.Join(b.VMImageMount, "etc")
 	if _, err := os.Stat(etcPath); os.IsNotExist(err) {
@@ -432,9 +430,7 @@ type ts struct {
 
 func untarReader(reader io.Reader, destDir string, verbose bool) error {
 	oldMask := syscall.Umask(0)
-	defer func() {
-		syscall.Umask(oldMask)
-	}()
+	defer syscall.Umask(oldMask)
 
 	timestamps := map[string]ts{}
 
