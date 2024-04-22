@@ -16,7 +16,7 @@ func NewMainService(command, env []string, workingDir string, uid, gid uint32) S
 			Env:  env,
 			GID:  gid,
 			UID:  uid,
-			C:    make(chan error),
+			C:    make(chan error, 1),
 		},
 	}
 }

@@ -25,7 +25,7 @@ func NewChronyService() Service {
 			Dir:  "/",
 			Env:  []string{},
 			Init: chronyInit,
-			C:    make(chan error),
+			C:    make(chan error, 1),
 		},
 	}
 }
