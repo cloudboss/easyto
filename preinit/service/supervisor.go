@@ -88,7 +88,7 @@ func (s *Supervisor) Wait() {
 		select {
 		case <-poweroffC:
 			fmt.Println("Got poweroff signal")
-			shutdownAll()
+			go shutdownAll()
 		case <-doneC:
 			fmt.Println("All processes have exited")
 			stopped = true

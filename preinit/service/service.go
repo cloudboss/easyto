@@ -91,6 +91,8 @@ func (s *svc) signal(signal os.Signal) {
 		fmt.Printf("Sending signal %s to %+v\n", signal, s)
 		s.shutdown = true
 		s.cmd.Process.Signal(signal)
+	} else {
+		s.C <- nil
 	}
 }
 
