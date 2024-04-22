@@ -23,33 +23,14 @@ import (
 )
 
 const (
-	FSTypeExt4 = "ext4"
-	FSTypeXFS  = "xfs"
-	FSTypeVFAT = "vfat"
-)
-
-const (
-	blkidNoInfo      = 2
-	execBits         = 0111
-	fmtRaw           = "raw"
+	devicePartRoot   = "/dev/sda2"
 	fileMetadata     = "metadata.json"
 	modeDirStd       = 0755
-	partTypePrimary  = "primary"
 	tarCodeTimestamp = 'Z'
-	tenGigs          = 10737418240
 
-	deviceDisk     = "/dev/sda"
-	devicePartEFI  = "/dev/sda1"
-	devicePartRoot = "/dev/sda2"
-
-	dirCB         = "/__cb__"
-	dirEFI        = "/boot"
 	dirLibModules = "/lib/modules"
 	dirMnt        = "/mnt"
-	dirRoot       = "/"
 
-	labelEFI  = "EFI"
-	labelRoot = "ROOT"
 
 	pathProcNetPNP = "/proc/net/pnp"
 )
