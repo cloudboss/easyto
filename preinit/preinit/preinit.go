@@ -686,9 +686,6 @@ func waitForShutdown(spec *vmspec.VMSpec, supervisor *service.Supervisor) {
 	// Best-effort wait, even if there were unmount errors. This can be improved
 	// so it doesn't wait unnecessarily if no calls to unmount succeeded.
 	waitForUnmounts(osFS, fileMounts, mountPoints, 10*time.Second)
-
-	// Time to power down no matter what.
-	syscall.Reboot(syscall.LINUX_REBOOT_CMD_POWER_OFF)
 }
 
 // unmountAll remounts / as readonly and lazily unmounts all the volumes in the list of mount points.
