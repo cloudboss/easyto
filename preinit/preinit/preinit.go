@@ -660,7 +660,10 @@ func doForkExec(spec *vmspec.VMSpec, command []string, env vmspec.NameValueSourc
 		),
 		Timeout: 10 * time.Second,
 	}
-	supervisor.Start()
+	err := supervisor.Start()
+	if err != nil {
+		return fmt.Errorf("unable to start supervisor: %w", err)
+	}
 
 	waitForShutdown(spec, supervisor)
 	return nil
