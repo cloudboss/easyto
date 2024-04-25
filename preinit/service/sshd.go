@@ -48,7 +48,7 @@ func sshdInit() error {
 
 	_, userByName, err := login.ParsePasswd(fs, constants.FileEtcPasswd)
 	if err != nil {
-		return fmt.Errorf("unable to add login user %s: %w\n", loginUser, err)
+		return fmt.Errorf("unable to parse %s: %s\n", constants.FileEtcPasswd, err)
 	}
 	user, ok := userByName["cloudboss"]
 	if !ok {
@@ -66,7 +66,7 @@ func sshdInit() error {
 	rsaKeyPath := filepath.Join(constants.DirCB, "ssh_host_rsa_key")
 	if _, err := fs.Stat(rsaKeyPath); os.IsNotExist(err) {
 		if err := sshKeygen("rsa", rsaKeyPath); err != nil {
-			return fmt.Errorf("unable to create RSA host key: %+v\n", err)
+			return fmt.Errorf("unable to create RSA host key: %w", err)
 		}
 	}
 
@@ -74,7 +74,7 @@ func sshdInit() error {
 	ed25519KeyPath := filepath.Join(constants.DirCB, "ssh_host_ed25519_key")
 	if _, err := fs.Stat(ed25519KeyPath); os.IsNotExist(err) {
 		if err := sshKeygen("ed25519", ed25519KeyPath); err != nil {
-			return fmt.Errorf("unable to create ED25519 host key: %+v\n", err)
+			return fmt.Errorf("unable to create ED25519 host key: %w", err)
 		}
 	}
 
