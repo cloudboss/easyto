@@ -650,11 +650,6 @@ func doExec(spec *vmspec.VMSpec, command []string, env vmspec.NameValueSource) e
 }
 
 func doForkExec(spec *vmspec.VMSpec, command []string, env vmspec.NameValueSource) error {
-	services := []service.Service{service.NewChronyService()}
-	if spec.Security.SSHD.Enable {
-		services = append(services, service.NewSSHDService())
-	}
-
 	supervisor := &service.Supervisor{
 		Main: service.NewMainService(
 			command,
@@ -663,8 +658,7 @@ func doForkExec(spec *vmspec.VMSpec, command []string, env vmspec.NameValueSourc
 			uint32(spec.Security.RunAsGroupID),
 			uint32(spec.Security.RunAsUserID),
 		),
-		Services: services,
-		Timeout:  10 * time.Second,
+		Timeout: 10 * time.Second,
 	}
 	supervisor.Start()
 

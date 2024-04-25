@@ -460,8 +460,8 @@ func AddSystemUser(fs afero.Fs, username, groupname, homeDir, baseDir string) (u
 }
 
 // AddLoginUser adds a user that can log in with a valid shell and home directory.
-func AddLoginUser(fs afero.Fs, username, groupname, homeDir, baseDir string) (uint16, uint16, error) {
-	return AddUser(fs, username, groupname, homeDir, "/bin/sh", baseDir, 1000, true, false)
+func AddLoginUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir string) (uint16, uint16, error) {
+	return AddUser(fs, username, groupname, homeDir, shell, baseDir, 1000, true, false)
 }
 
 // AddUser adds a user to the system.

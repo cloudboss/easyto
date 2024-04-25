@@ -10,15 +10,17 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/cloudboss/easyto/lib/constants"
+	"github.com/cloudboss/easyto/lib/login"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/spf13/afero"
 	"golang.org/x/sys/unix"
 )
 
@@ -31,12 +33,18 @@ const (
 	dirLibModules = "/lib/modules"
 	dirMnt        = "/mnt"
 
+	pathPrefixKernel = "./boot/vmlinuz-"
+	pathProcNetPNP   = "/proc/net/pnp"
 
-	pathProcNetPNP = "/proc/net/pnp"
+	archiveBootloader = "boot.tar"
+	archiveChrony     = "chrony.tar"
+	archiveKernel     = "kernel.tar"
+	archivePreinit    = "preinit.tar"
+	archiveSSH        = "ssh.tar"
 )
 
 var (
-	kernelArchiveRe = regexp.MustCompile(`^kernel-(.*)\.tar`)
+	fs = afero.NewOsFs()
 )
 
 type errExtract struct {
@@ -106,46 +114,33 @@ func newErrExtract(code rune, wrap error) error {
 }
 
 type Builder struct {
-	BootloaderPath string
-	CTRImageName   string
-	FSType         string
-	KernelPath     string
-	PreinitPath    string
-	VMImageDevice  string
-	VMImageMount   string
-	WorkingDir     string
+	AssetDir      string
+	CTRImageName  string
+	VMImageDevice string
+	VMImageMount  string
+	Services      []string
+	LoginUser     string
+	LoginShell    string
+
 	kernelVersion  string
+	pathBootloader string
+	pathChrony     string
+	pathKernel     string
+	pathPreinit    string
+	pathSSH        string
 }
 
 type BuilderOpt func(*Builder)
 
-func WithBootloaderPath(bootloaderPath string) BuilderOpt {
+func WithAssetDir(assetDir string) BuilderOpt {
 	return func(b *Builder) {
-		b.BootloaderPath = bootloaderPath
+		b.AssetDir = assetDir
 	}
 }
 
 func WithCTRImageName(ctrImageName string) BuilderOpt {
 	return func(b *Builder) {
 		b.CTRImageName = ctrImageName
-	}
-}
-
-func WithFSType(fstype string) BuilderOpt {
-	return func(b *Builder) {
-		b.FSType = fstype
-	}
-}
-
-func WithKernelPath(kernelPath string) BuilderOpt {
-	return func(b *Builder) {
-		b.KernelPath = kernelPath
-	}
-}
-
-func WithPreinitPath(preinitPath string) BuilderOpt {
-	return func(b *Builder) {
-		b.PreinitPath = preinitPath
 	}
 }
 
@@ -161,9 +156,21 @@ func WithVMImageMount(vmImageMount string) BuilderOpt {
 	}
 }
 
-func WithWorkingDir(workingDir string) BuilderOpt {
+func WithServices(services []string) BuilderOpt {
 	return func(b *Builder) {
-		b.WorkingDir = workingDir
+		b.Services = services
+	}
+}
+
+func WithLoginUser(user string) BuilderOpt {
+	return func(b *Builder) {
+		b.LoginUser = user
+	}
+}
+
+func WithLoginShell(shell string) BuilderOpt {
+	return func(b *Builder) {
+		b.LoginShell = shell
 	}
 }
 
@@ -173,17 +180,19 @@ func NewBuilder(opts ...BuilderOpt) (*Builder, error) {
 		opt(builder)
 	}
 
-	if len(builder.BootloaderPath) == 0 {
-		return nil, errors.New("bootloader path must be defined")
+	if len(builder.AssetDir) == 0 {
+		return nil, errors.New("asset directory must be defined")
 	}
 
-	if len(builder.KernelPath) == 0 {
-		return nil, errors.New("kernel path must be defined")
-	}
+	builder.pathBootloader = filepath.Join(builder.AssetDir, archiveBootloader)
+	builder.pathChrony = filepath.Join(builder.AssetDir, archiveChrony)
+	builder.pathKernel = filepath.Join(builder.AssetDir, archiveKernel)
+	builder.pathPreinit = filepath.Join(builder.AssetDir, archivePreinit)
+	builder.pathSSH = filepath.Join(builder.AssetDir, archiveSSH)
 
-	kernelVersion, err := kernelVersionFromArchive(builder.KernelPath)
+	kernelVersion, err := kernelVersionFromArchive(builder.pathKernel)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to determine kernel version from archive: %w", err)
 	}
 	builder.kernelVersion = kernelVersion
 
@@ -230,7 +239,12 @@ func (b *Builder) MakeVMImage() (err error) {
 		return err
 	}
 
-	err = b.setupMetadata(ctrImage, filepath.Join(b.VMImageMount, dirCB, fileMetadata))
+	err = b.setupServices()
+	if err != nil {
+		return err
+	}
+
+	err = b.setupMetadata(ctrImage, filepath.Join(b.VMImageMount, constants.DirCB, fileMetadata))
 	if err != nil {
 		return err
 	}
@@ -238,24 +252,15 @@ func (b *Builder) MakeVMImage() (err error) {
 	return nil
 }
 
-func kernelVersionFromArchive(kernelArchivePath string) (string, error) {
-	kernelArchiveFile := filepath.Base(kernelArchivePath)
-	result := kernelArchiveRe.FindStringSubmatch(kernelArchiveFile)
-	if len(result) != 2 {
-		return "", fmt.Errorf("unexpected format of kernel archive file: %s", kernelArchiveFile)
-	}
-	return result[1], nil
-}
-
 func (b *Builder) formatBootEntry(partUUID string) string {
 	contentFmt := `linux /vmlinuz-%s
 options rw root=PARTUUID=%s console=tty0 console=ttyS0,115200 earlyprintk=ttyS0,115200 consoleblank=0 ip=dhcp init=%s/preinit
 `
-	return fmt.Sprintf(contentFmt, b.kernelVersion, partUUID, dirCB)
+	return fmt.Sprintf(contentFmt, b.kernelVersion, partUUID, constants.DirCB)
 }
 
 func (b *Builder) setupBootloader() error {
-	err := untarFile(b.BootloaderPath, b.VMImageMount, true)
+	err := untarFile(b.pathBootloader, b.VMImageMount, true)
 	if err != nil {
 		return err
 	}
@@ -291,17 +296,17 @@ func (b *Builder) setupBootloader() error {
 }
 
 func (b *Builder) setupPreinit() error {
-	return untarFile(b.PreinitPath, b.VMImageMount, false)
+	return untarFile(b.pathPreinit, b.VMImageMount, false)
 }
 
 func (b *Builder) setupInit() error {
-	src, err := os.Open(b.PreinitPath)
+	src, err := os.Open(b.pathPreinit)
 	if err != nil {
-		return fmt.Errorf("unable to open %s: %w", b.PreinitPath, err)
+		return fmt.Errorf("unable to open %s: %w", b.pathPreinit, err)
 	}
 	defer src.Close()
 
-	destPath := filepath.Join(b.VMImageMount, dirCB, "init")
+	destPath := filepath.Join(b.VMImageMount, constants.DirCB, "init")
 	dest, err := os.Create(destPath)
 	if err != nil {
 		return fmt.Errorf("unable to create %s: %w", destPath, err)
@@ -310,7 +315,7 @@ func (b *Builder) setupInit() error {
 
 	_, err = io.Copy(dest, src)
 	if err != nil {
-		return fmt.Errorf("unable to copy %s to %s: %w", b.PreinitPath, destPath, err)
+		return fmt.Errorf("unable to copy %s to %s: %w", b.pathPreinit, destPath, err)
 	}
 
 	err = os.Chmod(destPath, 0755)
@@ -322,7 +327,7 @@ func (b *Builder) setupInit() error {
 }
 
 func (b *Builder) setupKernel() error {
-	err := untarFile(b.KernelPath, b.VMImageMount, false)
+	err := untarFile(b.pathKernel, b.VMImageMount, false)
 	if err != nil {
 		return err
 	}
@@ -335,8 +340,8 @@ func (b *Builder) setupKernel() error {
 		}
 	}
 
-	linkPath := filepath.Join(dirLibModules, b.kernelVersion)
-	linkTargetPath := filepath.Join(dirCB, dirLibModules, b.kernelVersion)
+	linkPath := filepath.Join(b.VMImageMount, dirLibModules, b.kernelVersion)
+	linkTargetPath := filepath.Join(constants.DirCB, dirLibModules, b.kernelVersion)
 	err = os.Symlink(linkTargetPath, linkPath)
 	if err != nil {
 		return fmt.Errorf("unable to link %s to %s: %w", linkPath, linkTargetPath, err)
@@ -377,6 +382,26 @@ func (b *Builder) setupResolver() error {
 	return nil
 }
 
+func (b *Builder) setupServices() error {
+	for _, svc := range b.Services {
+		switch svc {
+		case "chrony":
+			err := b.setupChrony()
+			if err != nil {
+				return fmt.Errorf("unable to setup chrony: %w", err)
+			}
+		case "ssh":
+			err := b.setupSSH()
+			if err != nil {
+				return fmt.Errorf("unable to setup ssh: %w", err)
+			}
+		default:
+			return fmt.Errorf("unknown service: %s", b.Services)
+		}
+	}
+	return nil
+}
+
 func (b *Builder) setupMetadata(ctrImage v1.Image, metadataPath string) (err error) {
 	var metadata *v1.ConfigFile
 
@@ -407,6 +432,81 @@ func (b *Builder) setupMetadata(ctrImage v1.Image, metadataPath string) (err err
 type ts struct {
 	atime time.Time
 	mtime time.Time
+}
+
+func (b *Builder) setupChrony() error {
+	err := untarFile(b.pathChrony, b.VMImageMount, false)
+	if err != nil {
+		return err
+	}
+
+	_, _, err = login.AddSystemUser(fs, constants.ChronyUser, constants.ChronyUser,
+		"/nonexistent", b.VMImageMount)
+	if err != nil {
+		return fmt.Errorf("unable to add chrony user: %w", err)
+	}
+
+	return nil
+}
+
+func (b *Builder) setupSSH() error {
+	oldMask := syscall.Umask(0)
+	defer syscall.Umask(oldMask)
+
+	err := untarFile(b.pathSSH, b.VMImageMount, false)
+	if err != nil {
+		return err
+	}
+
+	_, _, err = login.AddSystemUser(fs, constants.SSHPrivsepUser, constants.SSHPrivsepUser,
+		"/nonexistent", b.VMImageMount)
+	if err != nil {
+		return fmt.Errorf("unable to add ssh privsep user: %w", err)
+	}
+
+	dirSSHPrivsep := filepath.Join(b.VMImageMount, constants.SSHPrivsepDir)
+	if err := fs.Mkdir(dirSSHPrivsep, 0711); err != nil && !os.IsExist(err) {
+		return fmt.Errorf("unable to create %s: %w", dirSSHPrivsep, err)
+	}
+
+	homeDir := filepath.Join(constants.DirHome, b.LoginUser)
+	_, _, err = login.AddLoginUser(fs, b.LoginUser, b.LoginUser, homeDir, b.LoginShell, b.VMImageMount)
+	if err != nil {
+		return fmt.Errorf("unable to add login user: %w", err)
+	}
+
+	return nil
+}
+
+func kernelVersionFromArchive(pathKernelArchive string) (string, error) {
+	f, err := os.Open(pathKernelArchive)
+	if err != nil {
+		return "", fmt.Errorf("unable to open %s: %w", pathKernelArchive, err)
+	}
+	defer f.Close()
+
+	pathKernelTarEntry := ""
+	treader := tar.NewReader(f)
+
+	for {
+		hdr, err := treader.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
+			return "", fmt.Errorf("unable to read %s file entry: %w", pathKernelArchive, err)
+		}
+		if strings.HasPrefix(hdr.Name, pathPrefixKernel) {
+			pathKernelTarEntry = hdr.Name
+			break
+		}
+	}
+
+	fields := strings.Split(pathKernelTarEntry, pathPrefixKernel)
+	if len(fields) != 2 {
+		return "", fmt.Errorf("unable to find kernel in %s", pathKernelArchive)
+	}
+
+	return fields[1], nil
 }
 
 func untarReader(reader io.Reader, destDir string, verbose bool) error {

@@ -10,6 +10,8 @@ DIR_BOOTLOADER_TMP := $(DIR_OUT)/bootloader-tmp
 DIR_BOOTLOADER_STG := $(DIR_OUT)/staging/bootloader
 DIR_PREINIT_STG := $(DIR_OUT)/staging/preinit
 DIR_KERNEL_STG := $(DIR_OUT)/staging/kernel
+DIR_CHRONY_STG := $(DIR_OUT)/staging/chrony
+DIR_SSH_STG := $(DIR_OUT)/staging/ssh
 DIR_RELEASE := $(DIR_OUT)/release/$(OS)/$(ARCH)
 DIR_RELEASE_ASSETS := $(DIR_RELEASE)/assets
 DIR_RELEASE_BIN := $(DIR_RELEASE)/bin
@@ -78,7 +80,7 @@ OPENSSH_VERSION := V_9_7_P1
 OPENSSH_SRC := openssh-portable-$(OPENSSH_VERSION)
 OPENSSH_ARCHIVE := $(OPENSSH_VERSION).tar.gz
 OPENSSH_URL := https://github.com/openssh/openssh-portable/archive/refs/tags/$(OPENSSH_ARCHIVE)
-OPENSSH_PRIVSEP_USER := cb-sshd
+OPENSSH_PRIVSEP_USER := cb-ssh
 OPENSSH_PRIVSEP_DIR := /$(DIR_CB)/empty
 
 HAS_COMMAND_AR := $(DIR_OUT)/.command-ar
@@ -119,7 +121,7 @@ assets-converter: $(DIR_RELEASE_ASSETS)/converter
 
 assets-preinit: $(DIR_RELEASE_ASSETS)/preinit.tar
 
-assets-kernel: $(DIR_RELEASE_ASSETS)/kernel-$(KERNEL_VERSION).tar
+assets-kernel: $(DIR_RELEASE_ASSETS)/kernel.tar
 
 release-one: $(DIR_RELEASE)/unpack-$(VERSION)-$(OS)-$(ARCH).tar.gz
 
@@ -244,13 +246,13 @@ $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(UTIL_
 		-w /code \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-blkid-ctr)"
 
-$(DIR_PREINIT_STG)/$(DIR_CB)/chronyd: $(DIR_OUT)/$(CHRONY_SRC)/chronyd
-	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(CHRONY_SRC)/chronyd $(DIR_PREINIT_STG)/$(DIR_CB)/chronyd
+$(DIR_CHRONY_STG)/$(DIR_CB)/chronyd: $(DIR_OUT)/$(CHRONY_SRC)/chronyd
+	@$(MAKE) $(DIR_CHRONY_STG)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(CHRONY_SRC)/chronyd $(DIR_CHRONY_STG)/$(DIR_CB)/chronyd
 
-$(DIR_PREINIT_STG)/$(DIR_CB)/chronyc: $(DIR_OUT)/$(CHRONY_SRC)/chronyd
-	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(CHRONY_SRC)/chronyc $(DIR_PREINIT_STG)/$(DIR_CB)/chronyc
+$(DIR_CHRONY_STG)/$(DIR_CB)/chronyc: $(DIR_OUT)/$(CHRONY_SRC)/chronyd
+	@$(MAKE) $(DIR_CHRONY_STG)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(CHRONY_SRC)/chronyc $(DIR_CHRONY_STG)/$(DIR_CB)/chronyc
 
 $(DIR_OUT)/$(CHRONY_SRC)/chronyd: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(CHRONY_SRC) \
 		hack/compile-chrony-ctr
@@ -262,21 +264,33 @@ $(DIR_OUT)/$(CHRONY_SRC)/chronyd: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(CHRONY_SRC) \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-chrony-ctr)"
 	@touch $(DIR_OUT)/$(CHRONY_SRC)/chronyd $(DIR_OUT)/$(CHRONY_SRC)/chronyc
 
-$(DIR_PREINIT_STG)/$(DIR_CB)/sftp-server: $(DIR_OUT)/$(OPENSSH_SRC)/sshd
-	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/sftp-server $(DIR_PREINIT_STG)/$(DIR_CB)/sftp-server
+$(DIR_CHRONY_STG)/$(DIR_CB)/chrony.conf: assets/chrony.conf
+	@$(MAKE) $(DIR_CHRONY_STG)/$(DIR_CB)/
+	@install -m 0644 assets/chrony.conf $(DIR_CHRONY_STG)/$(DIR_CB)/chrony.conf
 
-$(DIR_PREINIT_STG)/$(DIR_CB)/ssh-keygen: $(DIR_OUT)/$(OPENSSH_SRC)/sshd
-	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/ssh-keygen $(DIR_PREINIT_STG)/$(DIR_CB)/ssh-keygen
+$(DIR_CHRONY_STG)/$(DIR_CB)/services/chrony:
+	@$(MAKE) $(DIR_CHRONY_STG)/$(DIR_CB)/services/
+	@touch $(DIR_CHRONY_STG)/$(DIR_CB)/services/chrony
 
-$(DIR_PREINIT_STG)/$(DIR_CB)/sshd: $(DIR_OUT)/$(OPENSSH_SRC)/sshd
-	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/sshd $(DIR_PREINIT_STG)/$(DIR_CB)/sshd
+$(DIR_SSH_STG)/$(DIR_CB)/sftp-server: $(DIR_OUT)/$(OPENSSH_SRC)/sshd
+	@$(MAKE) $(DIR_SSH_STG)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/sftp-server $(DIR_SSH_STG)/$(DIR_CB)/sftp-server
 
-$(DIR_PREINIT_STG)/$(DIR_CB)/sshd_config: assets/sshd_config
-	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
-	@install -m 0644 assets/sshd_config $(DIR_PREINIT_STG)/$(DIR_CB)/sshd_config
+$(DIR_SSH_STG)/$(DIR_CB)/ssh-keygen: $(DIR_OUT)/$(OPENSSH_SRC)/sshd
+	@$(MAKE) $(DIR_SSH_STG)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/ssh-keygen $(DIR_SSH_STG)/$(DIR_CB)/ssh-keygen
+
+$(DIR_SSH_STG)/$(DIR_CB)/sshd: $(DIR_OUT)/$(OPENSSH_SRC)/sshd
+	@$(MAKE) $(DIR_SSH_STG)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/sshd $(DIR_SSH_STG)/$(DIR_CB)/sshd
+
+$(DIR_SSH_STG)/$(DIR_CB)/sshd_config: assets/sshd_config
+	@$(MAKE) $(DIR_SSH_STG)/$(DIR_CB)/
+	@install -m 0644 assets/sshd_config $(DIR_SSH_STG)/$(DIR_CB)/sshd_config
+
+$(DIR_SSH_STG)/$(DIR_CB)/services/ssh:
+	@$(MAKE) $(DIR_SSH_STG)/$(DIR_CB)/services/
+	@touch $(DIR_SSH_STG)/$(DIR_CB)/services/ssh
 
 $(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libz.a: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(ZLIB_SRC) \
 		hack/compile-zlib-ctr
@@ -365,6 +379,9 @@ $(DIR_OUT)/converter: $(HAS_IMAGE_LOCAL) hack/compile-converter-ctr \
 		$(shell find lib -type f -path '*/go.[ms]*' -o -path '*.go' ! -path '*_test.go')
 	@docker run -it \
 		-v $(DIR_ROOT):/code \
+		-e OPENSSH_PRIVSEP_DIR=$(OPENSSH_PRIVSEP_DIR) \
+		-e OPENSSH_PRIVSEP_USER=$(OPENSSH_PRIVSEP_USER) \
+		-e CHRONY_USER=$(CHRONY_USER) \
 		-e DIR_OUT=/code/$(DIR_OUT) \
 		-e GOPATH=/code/$(DIR_OUT)/go \
 		-e GOCACHE=/code/$(DIR_OUT)/gocache \
@@ -372,40 +389,50 @@ $(DIR_OUT)/converter: $(HAS_IMAGE_LOCAL) hack/compile-converter-ctr \
 		-w /code/ctr2ami \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-converter-ctr)"
 
-$(DIR_RELEASE_ASSETS)/kernel-$(KERNEL_VERSION).tar: $(HAS_COMMAND_FAKEROOT) \
+$(DIR_RELEASE_ASSETS)/kernel.tar: $(HAS_COMMAND_FAKEROOT) \
 		$(DIR_KERNEL_STG)/boot/vmlinuz-$(KERNEL_VERSION)
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/
-	@cd $(DIR_KERNEL_STG) && fakeroot tar cf $(DIR_ROOT)/$(DIR_RELEASE_ASSETS)/kernel-$(KERNEL_VERSION).tar .
-
-$(DIR_PREINIT_STG)/$(DIR_CB)/chrony.conf: assets/chrony.conf
-	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
-	@install -m 0644 assets/chrony.conf $(DIR_PREINIT_STG)/$(DIR_CB)/chrony.conf
+	@cd $(DIR_KERNEL_STG) && fakeroot tar cf $(DIR_ROOT)/$(DIR_RELEASE_ASSETS)/kernel.tar .
 
 $(DIR_RELEASE_ASSETS)/preinit.tar: \
 		$(HAS_COMMAND_FAKEROOT) \
 		$(DIR_PREINIT_STG)/$(DIR_CB)/amazon.pem \
 		$(DIR_PREINIT_STG)/$(DIR_CB)/blkid \
-		$(DIR_PREINIT_STG)/$(DIR_CB)/chrony.conf \
-		$(DIR_PREINIT_STG)/$(DIR_CB)/chronyd \
-		$(DIR_PREINIT_STG)/$(DIR_CB)/chronyc \
 		$(DIR_PREINIT_STG)/$(DIR_CB)/mke2fs \
 		$(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.btrfs \
 		$(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext2 \
 		$(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext3 \
 		$(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext4 \
-		$(DIR_PREINIT_STG)/$(DIR_CB)/preinit \
-		$(DIR_PREINIT_STG)/$(DIR_CB)/sftp-server \
-		$(DIR_PREINIT_STG)/$(DIR_CB)/ssh-keygen \
-		$(DIR_PREINIT_STG)/$(DIR_CB)/sshd \
-		$(DIR_PREINIT_STG)/$(DIR_CB)/sshd_config
+		$(DIR_PREINIT_STG)/$(DIR_CB)/preinit
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/
 	@cd $(DIR_PREINIT_STG) && fakeroot tar cf $(DIR_ROOT)/$(DIR_RELEASE_ASSETS)/preinit.tar .
+
+$(DIR_RELEASE_ASSETS)/chrony.tar: \
+		$(HAS_COMMAND_FAKEROOT) \
+		$(DIR_CHRONY_STG)/$(DIR_CB)/chrony.conf \
+		$(DIR_CHRONY_STG)/$(DIR_CB)/chronyd \
+		$(DIR_CHRONY_STG)/$(DIR_CB)/chronyc \
+		$(DIR_CHRONY_STG)/$(DIR_CB)/services/chrony
+	@$(MAKE) $(DIR_RELEASE_ASSETS)/
+	@cd $(DIR_CHRONY_STG) && fakeroot tar cf $(DIR_ROOT)/$(DIR_RELEASE_ASSETS)/chrony.tar .
+
+$(DIR_RELEASE_ASSETS)/ssh.tar: \
+		$(HAS_COMMAND_FAKEROOT) \
+		$(DIR_SSH_STG)/$(DIR_CB)/sftp-server \
+		$(DIR_SSH_STG)/$(DIR_CB)/ssh-keygen \
+		$(DIR_SSH_STG)/$(DIR_CB)/sshd \
+		$(DIR_SSH_STG)/$(DIR_CB)/sshd_config \
+		$(DIR_SSH_STG)/$(DIR_CB)/services/ssh
+	@$(MAKE) $(DIR_RELEASE_ASSETS)/
+	@cd $(DIR_SSH_STG) && fakeroot tar cf $(DIR_ROOT)/$(DIR_RELEASE_ASSETS)/ssh.tar .
 
 $(DIR_RELEASE)/unpack-$(VERSION)-$(OS)-$(ARCH).tar.gz: $(HAS_COMMAND_FAKEROOT) packer \
 		$(DIR_RELEASE_ASSETS)/boot.tar \
 		$(DIR_RELEASE_ASSETS)/converter \
 		$(DIR_RELEASE_ASSETS)/preinit.tar \
-		$(DIR_RELEASE_ASSETS)/kernel-$(KERNEL_VERSION).tar \
+		$(DIR_RELEASE_ASSETS)/chrony.tar \
+		$(DIR_RELEASE_ASSETS)/ssh.tar \
+		$(DIR_RELEASE_ASSETS)/kernel.tar \
 		$(DIR_RELEASE_BIN)/unpack
 	@[ -n "$(VERSION)" ] || (echo "VERSION is required"; exit 1)
 	@cd $(DIR_RELEASE) && \
@@ -426,7 +453,6 @@ $(DIR_OSARCH_BUILD)/unpack: $(HAS_IMAGE_LOCAL) hack/compile-unpack-ctr \
 		-e CGO_ENABLED=0 \
 		-e GOARCH=$(ARCH) \
 		-e GOOS=$(OS) \
-		-e KERNEL_VERSION=$(KERNEL_VERSION) \
 		-w /code/unpack \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-unpack-ctr)"
 

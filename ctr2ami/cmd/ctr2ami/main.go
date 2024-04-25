@@ -3,9 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/user"
-	"path/filepath"
-	"strings"
 
 	"github.com/cloudboss/easyto/ctr2ami/ctr2ami"
 	"github.com/spf13/cobra"
@@ -20,12 +17,13 @@ var (
 			cmd.SilenceUsage = true
 
 			builder, err := ctr2ami.NewBuilder(
-				ctr2ami.WithBootloaderPath(cfg.bootloaderPath),
+				ctr2ami.WithAssetDir(cfg.assetDir),
 				ctr2ami.WithCTRImageName(cfg.image),
-				ctr2ami.WithKernelPath(cfg.kernelPath),
-				ctr2ami.WithPreinitPath(cfg.preinitPath),
 				ctr2ami.WithVMImageDevice(cfg.vmImageDevice),
 				ctr2ami.WithVMImageMount(cfg.vmImageMount),
+				ctr2ami.WithServices(cfg.services),
+				ctr2ami.WithLoginUser(cfg.loginUser),
+				ctr2ami.WithLoginShell(cfg.loginShell),
 			)
 			if err != nil {
 				return fmt.Errorf("failed to create VM image builder: %w", err)
@@ -42,46 +40,38 @@ var (
 )
 
 type config struct {
-	bootloaderPath string
-	image          string
-	kernelPath     string
-	preinitPath    string
-	vmImageDevice  string
-	vmImageMount   string
+	assetDir      string
+	image         string
+	vmImageDevice string
+	vmImageMount  string
+	services      []string
+	loginUser     string
+	loginShell    string
 }
 
 func init() {
-	cmd.Flags().StringVarP(&cfg.bootloaderPath, "bootloader-path", "b", "",
-		"Path to a tar file containing bootloader files.")
-	cmd.MarkFlagRequired("bootloader-path")
+	cmd.Flags().StringVarP(&cfg.assetDir, "asset-dir", "a", "",
+		"Path to a directory containing asset files.")
+	cmd.MarkFlagRequired("asset-dir")
+
 	cmd.Flags().StringVarP(&cfg.image, "container-image", "i", "", "Container image to convert.")
 	cmd.MarkFlagRequired("container-image")
-	cmd.Flags().StringVarP(&cfg.kernelPath, "kernel-path", "k", "",
-		"Path to a tar file containing kernel and modules.")
-	cmd.MarkFlagRequired("kernel-path")
-	cmd.Flags().StringVarP(&cfg.preinitPath, "preinit-path", "p", "",
-		"Path to a tar file containing preinit and dependencies.")
-	cmd.MarkFlagRequired("preinit-path")
+
 	cmd.Flags().StringVarP(&cfg.vmImageDevice, "vm-image-device", "d", "",
 		"Device on which VM image will be created.")
 	cmd.MarkFlagRequired("vm-image-device")
+
 	cmd.Flags().StringVarP(&cfg.vmImageMount, "vm-image-mount", "m", "/mnt",
 		"Remote directory on which VM image device will be mounted.")
-}
 
-func expandPath(pth string) (string, error) {
-	if strings.HasPrefix(pth, "~") {
-		me, err := user.Current()
-		if err != nil {
-			return "", err
-		}
-		fields := strings.Split(pth, string(filepath.Separator))
-		newFields := []string{me.HomeDir}
-		newFields = append(newFields, fields[1:]...)
-		return filepath.Join(newFields...), nil
-	}
+	cmd.Flags().StringSliceVarP(&cfg.services, "services", "s", []string{"chrony"},
+		"Comma separated list of services to enable [chrony,ssh].")
 
-	return pth, nil
+	cmd.Flags().StringVar(&cfg.loginUser, "login-user", "cloudboss",
+		"Login user to create in the VM image if ssh service is enabled.")
+
+	cmd.Flags().StringVar(&cfg.loginShell, "login-shell", "/bin/sh",
+		"Login shell to use for the login user if ssh service is enabled.")
 }
 
 func main() {

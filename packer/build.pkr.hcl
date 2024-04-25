@@ -16,16 +16,21 @@ variable "architecture" {
   default = "x86_64"
 }
 
-variable "archive_bootloader" {
+variable "asset_dir" {
   type    = string
 }
 
-variable "archive_kernel" {
-  type    = string
-}
+variable "asset_files" {
+  type    = list(string)
 
-variable "archive_preinit" {
-  type    = string
+  default = [
+    "boot.tar",
+    "chrony.tar",
+    "converter",
+    "kernel.tar",
+    "preinit.tar",
+    "ssh.tar",
+  ]
 }
 
 variable "builder_ami_owner" {
@@ -47,13 +52,19 @@ variable "container_image" {
   type    = string
 }
 
-variable "exec_converter" {
-  type    = string
-}
-
 variable "is_public" {
   type    = bool
   default = false
+}
+
+variable "login_user" {
+  type    = string
+  default = "cloudboss"
+}
+
+variable "login_shell" {
+  type    = string
+  default = "/bin/sh"
 }
 
 variable "root_vol" {
@@ -64,6 +75,10 @@ variable "root_vol" {
 variable "root_vol_size" {
   type    = number
   default = 2
+}
+
+variable "services" {
+  type    = list(string)
 }
 
 variable "ssh_interface" {
@@ -81,10 +96,7 @@ variable "subnet_id" {
 }
 
 locals {
-  remote_archive_bootloader   = "/tmp/${basename(var.archive_bootloader)}"
-  remote_archive_kernel       = "/tmp/${basename(var.archive_kernel)}"
-  remote_archive_preinit      = "/tmp/${basename(var.archive_preinit)}"
-  remote_exec_converter       = "/tmp/${basename(var.exec_converter)}"
+  remote_asset_dir = "/tmp/assets"
 }
 
 data "amazon-ami" "builder_ami" {
@@ -145,31 +157,21 @@ build {
   sources                     = ["source.amazon-ebssurrogate.builder_ami"]
 
   provisioner "file" {
-    destination               = local.remote_archive_bootloader
-    source                    = var.archive_bootloader
-  }
-  provisioner "file" {
-    destination               = local.remote_archive_kernel
-    source                    = var.archive_kernel
-  }
-  provisioner "file" {
-    destination               = local.remote_archive_preinit
-    source                    = var.archive_preinit
-  }
-  provisioner "file" {
-    destination               = local.remote_exec_converter
-    source                    = var.exec_converter
+    destination               = "/tmp"
+    source                    = var.asset_dir
   }
   provisioner "shell" {
     env                       = {
-      ARCHIVE_BOOTLOADER      = local.remote_archive_bootloader
-      ARCHIVE_KERNEL          = local.remote_archive_kernel
-      ARCHIVE_PREINIT         = local.remote_archive_preinit
-      EXEC_CONVERTER          = local.remote_exec_converter
+      ASSET_DIR               = "/tmp/assets"
+      ASSET_FILES             = join(" ", var.asset_files)
       CONTAINER_IMAGE         = var.container_image
+      EXEC_CONVERTER          = "/tmp/assets/converter"
       ROOT_VOL                = "/dev/${var.root_vol}"
+      SERVICES                = join(",", var.services)
+      LOGIN_USER              = var.login_user
+      LOGIN_SHELL             = var.login_shell
     }
-    execute_command           = "sudo sh -c '{{ .Vars }} {{ .Path }}'"
+    execute_command           = "sudo env {{ .Vars }} {{ .Path }}"
     script                    = "provision"
   }
 }

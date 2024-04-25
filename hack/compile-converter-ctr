@@ -1,3 +1,7 @@
 #!/bin/sh
 
-go build -o ${DIR_OUT}/converter -ldflags "-s -w" ./cmd/...
+var_chrony_user="github.com/cloudboss/easyto/lib/constants.ChronyUser=${CHRONY_USER}"
+var_ssh_dir="github.com/cloudboss/easyto/lib/constants.SSHPrivsepDir=${OPENSSH_PRIVSEP_DIR}"
+var_ssh_user="github.com/cloudboss/easyto/lib/constants.SSHPrivsepUser=${OPENSSH_PRIVSEP_USER}"
+ldflags_vars="-X ${var_chrony_user} -X ${var_ssh_dir} -X ${var_ssh_user}"
+go build -o ${DIR_OUT}/converter -ldflags "${ldflags_vars} -s -w" ./cmd/...

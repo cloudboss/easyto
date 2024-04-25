@@ -6,6 +6,9 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/cloudboss/easyto/lib/constants"
+	"github.com/spf13/afero"
 )
 
 const (
@@ -21,12 +24,34 @@ type Supervisor struct {
 }
 
 func (s *Supervisor) Start() error {
+	dirs, err := afero.ReadDir(fs, constants.DirServices)
+	if err != nil {
+		return fmt.Errorf("unable to read directory %s: %w", constants.DirServices, err)
+	}
+
+	for _, dir := range dirs {
+		svc := dir.Name()
+		switch svc {
+		case "chrony":
+			s.Services = append(s.Services, NewChronyService())
+		case "ssh":
+			s.Services = append(s.Services, NewSSHDService())
+		default:
+			fmt.Printf("Unknown service %s\n", svc)
+		}
+	}
+
 	for _, service := range s.Services {
 		err := service.Start()
-		if !(err == nil || service.Optional()) {
+		if err != nil {
+			if service.Optional() {
+				fmt.Printf("Optional service %s failed to start: %s\n", service, err)
+				continue
+			}
 			return err
 		}
 	}
+
 	return s.Main.Start()
 }
 

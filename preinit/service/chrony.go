@@ -19,8 +19,6 @@ func NewChronyService() Service {
 			Args: []string{
 				filepath.Join(constants.DirCB, "chronyd"),
 				"-d",
-				"-u",
-				ChronyUser,
 			},
 			Dir:  "/",
 			Env:  []string{},
@@ -33,11 +31,13 @@ func NewChronyService() Service {
 func chronyInit() error {
 	fmt.Println("Initializing chrony")
 
-	fmt.Println("Adding chrony user")
-	uid, gid, err := login.AddSystemUser(fs, ChronyUser, ChronyUser, "/nonexistent", "")
+	_, usersByName, err := login.ParsePasswd(fs, constants.FileEtcPasswd)
 	if err != nil {
-		fmt.Printf("Error adding chrony user: %s\n", err)
-		return err
+		return fmt.Errorf("unable to parse %s: %s", constants.FileEtcPasswd, err)
+	}
+	user, ok := usersByName[constants.ChronyUser]
+	if !ok {
+		return fmt.Errorf("user %s not found", constants.ChronyUser)
 	}
 
 	chronyRunPath := filepath.Join(constants.DirRun, "chrony")
@@ -46,7 +46,7 @@ func chronyInit() error {
 		return fmt.Errorf("unable to create %s: %w", chronyRunPath, err)
 	}
 
-	err = os.Chown(chronyRunPath, int(uid), int(gid))
+	err = os.Chown(chronyRunPath, int(user.UID), int(user.GID))
 	if err != nil {
 		return fmt.Errorf("unable to change ownership of %s: %w", chronyRunPath, err)
 	}

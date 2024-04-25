@@ -46,29 +46,20 @@ func sshdInit() error {
 	oldmask := syscall.Umask(0)
 	defer syscall.Umask(oldmask)
 
-	fmt.Println("Adding login user")
-	loginHome := filepath.Join(constants.DirHome, loginUser)
-	uid, gid, err := login.AddLoginUser(fs, loginUser, loginUser, loginHome, "")
+	_, userByName, err := login.ParsePasswd(fs, constants.FileEtcPasswd)
 	if err != nil {
 		return fmt.Errorf("unable to add login user %s: %w\n", loginUser, err)
 	}
+	user, ok := userByName["cloudboss"]
+	if !ok {
+		return fmt.Errorf("login user not found")
+	}
 
 	fmt.Println("Writing ssh public key for login user")
-	sshDir := filepath.Join(loginHome, ".ssh")
-	err = sshWritePubKey(fs, sshDir, uint16(uid), uint16(gid))
+	sshDir := filepath.Join(user.HomeDir, ".ssh")
+	err = sshWritePubKey(fs, sshDir, user.UID, user.GID)
 	if err != nil {
 		return fmt.Errorf("unable to write SSH public key: %w", err)
-	}
-
-	fmt.Println("Adding sshd privsep user")
-	_, _, err = login.AddSystemUser(fs, SSHUser, SSHUser, SSHDir, "")
-	if err != nil {
-		return fmt.Errorf("unable to add sshd privsep user %s: %w\n", SSHUser, err)
-	}
-
-	fmt.Println("Creating sshd privilege separation directory")
-	if err := fs.Mkdir(SSHDir, 0711); err != nil && !os.IsExist(err) {
-		return fmt.Errorf("unable to create %s: %w", SSHDir, err)
 	}
 
 	fmt.Println("Creating RSA host key")

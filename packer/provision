@@ -6,12 +6,11 @@ fail()
     exit 1
 }
 
-files_required="${ARCHIVE_BOOTLOADER} ${ARCHIVE_KERNEL} ${ARCHIVE_PREINIT} ${EXEC_CONVERTER}"
 files_missing=
-for f in ${files_required}; do
-    [ -f ${f} ] || files_missing="${files_missing} ${f}"
+for f in ${ASSET_FILES}; do
+    [ -f ${ASSET_DIR}/${f} ] || files_missing="${files_missing} ${f}"
 done
-[ -z "${files_missing}" ] || fail "Files missing: ${files_missing}"
+[ -z "${files_missing}" ] || fail "Files missing in ${ASSET_DIR}: ${files_missing}"
 
 chmod 0755 ${EXEC_CONVERTER}
 
@@ -46,11 +45,12 @@ mountpoint -q /mnt/boot || mount ${ROOT_VOL}p1 /mnt/boot
 mkdir -p -m 0755 /mnt/__cb__
 
 ${EXEC_CONVERTER} \
-    -b ${ARCHIVE_BOOTLOADER} \
-    -d ${ROOT_VOL} \
-    -i ${CONTAINER_IMAGE} \
-    -k ${ARCHIVE_KERNEL} \
-    -p ${ARCHIVE_PREINIT}
+    --asset-dir ${ASSET_DIR} \
+    --container-image ${CONTAINER_IMAGE} \
+    --login-user ${LOGIN_USER} \
+    --login-shell ${LOGIN_SHELL} \
+    --services ${SERVICES} \
+    --vm-image-device ${ROOT_VOL}
 
 ls -l /mnt
 ls -l /mnt/__cb__

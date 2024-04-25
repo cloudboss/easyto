@@ -3,7 +3,9 @@ module github.com/cloudboss/easyto/ctr2ami
 go 1.21
 
 require (
+	github.com/cloudboss/easyto/lib v0.0.0-00010101000000-000000000000
 	github.com/google/go-containerregistry v0.19.1
+	github.com/spf13/afero v1.11.0
 	github.com/spf13/cobra v1.8.0
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/sys v0.19.0
@@ -28,6 +30,8 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/vbatts/tar-split v0.11.5 // indirect
 	golang.org/x/sync v0.7.0 // indirect
+	golang.org/x/text v0.14.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
+replace github.com/cloudboss/easyto/lib => ../lib

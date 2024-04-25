@@ -1,6 +1,3 @@
 #!/bin/sh
 
-go build \
-    -o ${DIR_OUT}/unpack \
-    -ldflags="-X main.kernelVersion=${KERNEL_VERSION}" \
-    main.go
+go build -o ${DIR_OUT}/unpack main.go

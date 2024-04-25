@@ -1,10 +1,11 @@
 package constants
 
 const (
-	DirCB   = "/__cb__"
-	DirHome = "/__cb__/home"
-	DirRun  = "/run"
-	DirVar  = "/var"
+	DirCB       = "/__cb__"
+	DirHome     = "/__cb__/home"
+	DirRun      = "/run"
+	DirServices = "/__cb__/services"
+	DirVar      = "/var"
 
 	FileEtcPasswd  = "/etc/passwd"
 	FileEtcShadow  = "/etc/shadow"
@@ -15,4 +16,11 @@ const (
 	ModeEtcShadow  = 0
 	ModeEtcGroup   = 0644
 	ModeEtcGShadow = 0
+)
+
+// "Constants" that are defined with ldflags during compile.
+var (
+	ChronyUser     string
+	SSHPrivsepDir  string
+	SSHPrivsepUser string
 )
