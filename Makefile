@@ -189,9 +189,11 @@ $(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext%: $(DIR_PREINIT_STG)/$(DIR_CB)/mke2fs
 	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
 	@ln -f $(DIR_PREINIT_STG)/$(DIR_CB)/mke2fs $(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext$*
 
-$(DIR_PREINIT_STG)/$(DIR_CB)/preinit: $(HAS_IMAGE_LOCAL) hack/compile-preinit-ctr \
-		$(shell find preinit -type f -path '*/go.[ms]*' -o -path '*.go' ! -path '*_test.go') \
-		$(shell find lib -type f -path '*/go.[ms]*' -o -path '*.go' ! -path '*_test.go')
+$(DIR_PREINIT_STG)/$(DIR_CB)/preinit: $(HAS_IMAGE_LOCAL) \
+		hack/compile-preinit-ctr \
+		go.mod \
+		$(shell find cmd/preinit -type f -path '*.go' ! -path '*_test.go') \
+		$(shell find pkg -type f -path '*.go' ! -path '*_test.go')
 	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
 	@docker run -it \
 		-v $(DIR_ROOT):/code \
@@ -203,7 +205,7 @@ $(DIR_PREINIT_STG)/$(DIR_CB)/preinit: $(HAS_IMAGE_LOCAL) hack/compile-preinit-ct
 		-e GOPATH=/code/$(DIR_OUT)/go \
 		-e GOCACHE=/code/$(DIR_OUT)/gocache \
 		-e CGO_ENABLED=1 \
-		-w /code/preinit \
+		-w /code \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-preinit-ctr)"
 
 # Other files are created by the kernel build, but vmlinuz-$(KERNEL_VERSION) will
@@ -374,9 +376,11 @@ $(DIR_RELEASE_ASSETS)/converter: $(DIR_OUT)/converter
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/
 	@install -m 0755 $(DIR_OUT)/converter $(DIR_RELEASE_ASSETS)/converter
 
-$(DIR_OUT)/converter: $(HAS_IMAGE_LOCAL) hack/compile-converter-ctr \
-		$(shell find ctr2ami -type f -path '*/go.[ms]*' -o -path '*.go' ! -path '*_test.go') \
-		$(shell find lib -type f -path '*/go.[ms]*' -o -path '*.go' ! -path '*_test.go')
+$(DIR_OUT)/converter: $(HAS_IMAGE_LOCAL) \
+		hack/compile-converter-ctr \
+		go.mod \
+		$(shell find cmd/ctr2ami -type f -path '*.go' ! -path '*_test.go') \
+		$(shell find pkg -type f -path '*.go' ! -path '*_test.go')
 	@docker run -it \
 		-v $(DIR_ROOT):/code \
 		-e OPENSSH_PRIVSEP_DIR=$(OPENSSH_PRIVSEP_DIR) \
@@ -386,7 +390,7 @@ $(DIR_OUT)/converter: $(HAS_IMAGE_LOCAL) hack/compile-converter-ctr \
 		-e GOPATH=/code/$(DIR_OUT)/go \
 		-e GOCACHE=/code/$(DIR_OUT)/gocache \
 		-e CGO_ENABLED=0 \
-		-w /code/ctr2ami \
+		-w /code \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-converter-ctr)"
 
 $(DIR_RELEASE_ASSETS)/kernel.tar: $(HAS_COMMAND_FAKEROOT) \
@@ -442,8 +446,10 @@ $(DIR_RELEASE_BIN)/unpack: $(DIR_OSARCH_BUILD)/unpack
 	@$(MAKE) $(DIR_RELEASE_BIN)/
 	@install -m 0755 $(DIR_OSARCH_BUILD)/unpack $(DIR_RELEASE_BIN)/unpack
 
-$(DIR_OSARCH_BUILD)/unpack: $(HAS_IMAGE_LOCAL) hack/compile-unpack-ctr \
-		$(shell find unpack -type f -path '*/go.[ms]*' -o -path '*.go' ! -path '*_test.go')
+$(DIR_OSARCH_BUILD)/unpack: $(HAS_IMAGE_LOCAL) \
+		hack/compile-unpack-ctr \
+		go.mod \
+		$(shell find cmd/unpack -type f -path '*.go' ! -path '*_test.go')
 	@[ -d $(DIR_OSARCH_BUILD) ] || mkdir -p $(DIR_OSARCH_BUILD)
 	@docker run -it \
 		-v $(DIR_ROOT):/code \
@@ -453,7 +459,7 @@ $(DIR_OSARCH_BUILD)/unpack: $(HAS_IMAGE_LOCAL) hack/compile-unpack-ctr \
 		-e CGO_ENABLED=0 \
 		-e GOARCH=$(ARCH) \
 		-e GOOS=$(OS) \
-		-w /code/unpack \
+		-w /code \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-unpack-ctr)"
 
 $(DIR_RELEASE_PACKER)/packer: $(HAS_COMMAND_UNZIP) $(DIR_OUT)/$(PACKER_ARCHIVE)

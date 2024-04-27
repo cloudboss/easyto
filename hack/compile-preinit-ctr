@@ -1,8 +1,8 @@
 #!/bin/sh
 
-var_chrony_user="github.com/cloudboss/easyto/lib/constants.ChronyUser=${CHRONY_USER}"
-var_ssh_dir="github.com/cloudboss/easyto/lib/constants.SSHPrivsepDir=${OPENSSH_PRIVSEP_DIR}"
-var_ssh_user="github.com/cloudboss/easyto/lib/constants.SSHPrivsepUser=${OPENSSH_PRIVSEP_USER}"
+var_chrony_user="github.com/cloudboss/easyto/pkg/constants.ChronyUser=${CHRONY_USER}"
+var_ssh_dir="github.com/cloudboss/easyto/pkg/constants.SSHPrivsepDir=${OPENSSH_PRIVSEP_DIR}"
+var_ssh_user="github.com/cloudboss/easyto/pkg/constants.SSHPrivsepUser=${OPENSSH_PRIVSEP_USER}"
 ldflags_vars="-X ${var_chrony_user} -X ${var_ssh_dir} -X ${var_ssh_user}"
 go build -o ${DIR_OUT}/preinit \
-    -ldflags "${ldflags_vars} -linkmode external -extldflags -static -s -w" .
+    -ldflags "${ldflags_vars} -linkmode external -extldflags -static -s -w" ./cmd/preinit
