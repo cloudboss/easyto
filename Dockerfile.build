@@ -28,6 +28,7 @@ RUN apk add \
     pahole \
     perl \
     python3 \
+    tar \
     util-linux-dev \
     zlib-static \
     zstd-static
