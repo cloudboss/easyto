@@ -816,7 +816,9 @@ func Run() error {
 	fmt.Println("After links()")
 
 	linkEBSDevicesErrC := make(chan error, 1)
-	go linkEBSDevices(linkEBSDevicesErrC)
+	go func() {
+		linkEBSDevicesErrC <- linkEBSDevices()
+	}()
 
 	metadata, err := readMetadata(filepath.Join(constants.DirCB, fileMetadata))
 	if err != nil {

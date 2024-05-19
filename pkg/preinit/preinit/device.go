@@ -13,11 +13,10 @@ import (
 
 // linkEBSDevices creates symlinks for user-defined EBS device names such as /dev/sdf
 // to the real underlying device if it differs. This is needed for NVME devices.
-func linkEBSDevices(c chan error) {
+func linkEBSDevices() error {
 	dirs, err := os.ReadDir("/sys/block")
 	if err != nil {
-		c <- fmt.Errorf("unable to get entries in /sys/block: %w", err)
-		return
+		return fmt.Errorf("unable to get entries in /sys/block: %w", err)
 	}
 	for _, dir := range dirs {
 		deviceName := dir.Name()
@@ -33,8 +32,7 @@ func linkEBSDevices(c chan error) {
 			if strings.Contains(err.Error(), "AWS EBS") {
 				continue
 			}
-			c <- fmt.Errorf("unable to scan device %s: %w", devicePath, err)
-			return
+			return fmt.Errorf("unable to scan device %s: %w", devicePath, err)
 		}
 
 		deviceLinkPath := deviceInfo.Name
@@ -44,15 +42,13 @@ func linkEBSDevices(c chan error) {
 
 		err = os.Symlink(deviceName, deviceLinkPath)
 		if !(err == nil || os.IsExist(err)) {
-			c <- fmt.Errorf("unable to create link %s: %w", deviceLinkPath, err)
-			return
+			return fmt.Errorf("unable to create link %s: %w", deviceLinkPath, err)
 		}
 
 		// Link partitions too if they exist.
 		partitions, err := diskPartitions(deviceName)
 		if err != nil {
-			c <- fmt.Errorf("unable to get partitions for device %s: %w", deviceName, err)
-			return
+			return fmt.Errorf("unable to get partitions for device %s: %w", deviceName, err)
 		}
 		for _, partition := range partitions {
 			partitionSuffix := partition.partition
@@ -62,12 +58,11 @@ func linkEBSDevices(c chan error) {
 			partitionLinkPath := deviceLinkPath + partitionSuffix
 			err = os.Symlink(partition.device, partitionLinkPath)
 			if !(err == nil || os.IsExist(err)) {
-				c <- fmt.Errorf("unable to create link %s: %w", partitionLinkPath, err)
-				return
+				return fmt.Errorf("unable to create link %s: %w", partitionLinkPath, err)
 			}
 		}
 	}
-	c <- nil
+	return nil
 }
 
 type partitionInfo struct {
