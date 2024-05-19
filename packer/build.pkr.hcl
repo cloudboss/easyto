@@ -67,9 +67,8 @@ variable "login_shell" {
   default = "/bin/sh"
 }
 
-variable "root_vol" {
+variable "root_device_name" {
   type    = string
-  default = "xvdf"
 }
 
 variable "root_vol_size" {
@@ -96,7 +95,8 @@ variable "subnet_id" {
 }
 
 locals {
-  remote_asset_dir = "/tmp/assets"
+  remote_asset_dir        = "/tmp/assets"
+  source_root_device_name = "/dev/xvdf"
 }
 
 data "amazon-ami" "builder_ami" {
@@ -140,14 +140,14 @@ source "amazon-ebssurrogate" "builder_ami" {
 
   ami_root_device {
     delete_on_termination     = true
-    device_name               = "/dev/xvda"
-    source_device_name        = "/dev/${var.root_vol}"
+    device_name               = var.root_device_name
+    source_device_name        = local.source_root_device_name
     volume_size               = var.root_vol_size
     volume_type               = "gp2"
   }
   launch_block_device_mappings {
     delete_on_termination     = true
-    device_name               = "/dev/${var.root_vol}"
+    device_name               = local.source_root_device_name
     volume_size               = var.root_vol_size
     volume_type               = "gp2"
   }
@@ -166,7 +166,7 @@ build {
       ASSET_FILES             = join(" ", var.asset_files)
       CONTAINER_IMAGE         = var.container_image
       EXEC_CONVERTER          = "/tmp/assets/converter"
-      ROOT_VOL                = "/dev/${var.root_vol}"
+      ROOT_DEVICE             = local.source_root_device_name
       SERVICES                = join(",", var.services)
       LOGIN_USER              = var.login_user
       LOGIN_SHELL             = var.login_shell

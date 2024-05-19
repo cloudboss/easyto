@@ -19,28 +19,28 @@ apt-get install -y --no-install-recommends \
     dosfstools \
     parted
 
-ROOT_VOL=$(readlink -f ${ROOT_VOL})
+ROOT_DEVICE=$(readlink -f ${ROOT_DEVICE})
 
-[ -n "$(blkid -s PTTYPE -o value ${ROOT_VOL})" ] || \
-    parted ${ROOT_VOL} mklabel gpt
+[ -n "$(blkid -s PTTYPE -o value ${ROOT_DEVICE})" ] || \
+    parted ${ROOT_DEVICE} mklabel gpt
 
-[ -n "$(blkid -s PARTUUID -o value ${ROOT_VOL}p1)" ] || \
-    parted ${ROOT_VOL} mkpart efi fat16 1MiB 257MiB set 1 esp on
+[ -n "$(blkid -s PARTUUID -o value ${ROOT_DEVICE}p1)" ] || \
+    parted ${ROOT_DEVICE} mkpart efi fat16 1MiB 257MiB set 1 esp on
 
-[ -n "$(blkid -s PARTUUID -o value ${ROOT_VOL}p2)" ] || \
-    parted ${ROOT_VOL} mkpart root ext4 257MiB 100%
+[ -n "$(blkid -s PARTUUID -o value ${ROOT_DEVICE}p2)" ] || \
+    parted ${ROOT_DEVICE} mkpart root ext4 257MiB 100%
 
-parted ${ROOT_VOL} print
+parted ${ROOT_DEVICE} print
 
-[ -n "$(blkid -s TYPE -o value ${ROOT_VOL}p1)" ] || \
-    mkfs -t vfat ${ROOT_VOL}p1
+[ -n "$(blkid -s TYPE -o value ${ROOT_DEVICE}p1)" ] || \
+    mkfs -t vfat ${ROOT_DEVICE}p1
 
-[ -n "$(blkid -s TYPE -o value ${ROOT_VOL}p2)" ] || \
-    mkfs -t ext4 ${ROOT_VOL}p2
+[ -n "$(blkid -s TYPE -o value ${ROOT_DEVICE}p2)" ] || \
+    mkfs -t ext4 ${ROOT_DEVICE}p2
 
-mountpoint -q /mnt || mount ${ROOT_VOL}p2 /mnt
+mountpoint -q /mnt || mount ${ROOT_DEVICE}p2 /mnt
 mkdir -p -m 0755 /mnt/boot
-mountpoint -q /mnt/boot || mount ${ROOT_VOL}p1 /mnt/boot
+mountpoint -q /mnt/boot || mount ${ROOT_DEVICE}p1 /mnt/boot
 
 mkdir -p -m 0755 /mnt/__cb__
 
@@ -50,7 +50,7 @@ ${EXEC_CONVERTER} \
     --login-user ${LOGIN_USER} \
     --login-shell ${LOGIN_SHELL} \
     --services ${SERVICES} \
-    --vm-image-device ${ROOT_VOL}
+    --vm-image-device ${ROOT_DEVICE}
 
 ls -l /mnt
 ls -l /mnt/__cb__

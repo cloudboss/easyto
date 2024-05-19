@@ -44,6 +44,7 @@ var (
 				"-var", fmt.Sprintf("container_image=%s", cfg.containerImage),
 				"-var", fmt.Sprintf("login_user=%s", cfg.loginUser),
 				"-var", fmt.Sprintf("login_shell=%s", cfg.loginShell),
+				"-var", fmt.Sprintf("root_device_name=%s", cfg.rootDeviceName),
 				"-var", fmt.Sprintf("root_vol_size=%d", cfg.size),
 				"-var", fmt.Sprintf("services=%s", quotedServices.String()),
 				"-var", fmt.Sprintf("subnet_id=%s", cfg.subnetID),
@@ -79,6 +80,7 @@ type config struct {
 	loginUser      string
 	loginShell     string
 	packerDir      string
+	rootDeviceName string
 	services       []string
 	size           int
 	subnetID       string
@@ -123,6 +125,9 @@ func init() {
 
 	cmd.Flags().StringVar(&cfg.loginShell, "login-shell", "/bin/sh",
 		"Shell to use for the login user if ssh service is enabled.")
+
+	cmd.Flags().StringVar(&cfg.rootDeviceName, "root-device-name", "/dev/xvda",
+		"Name of the AMI root device.")
 
 	cmd.Flags().StringVarP(&cfg.subnetID, "subnet-id", "s", "",
 		"Name of the subnet in which to run the image builder.")
