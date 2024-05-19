@@ -1,6 +1,7 @@
 package preinit
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -41,16 +42,71 @@ func linkEBSDevices(c chan error) {
 			deviceLinkPath = filepath.Join("/dev", deviceLinkPath)
 		}
 
-		if _, err := os.Stat(deviceLinkPath); os.IsNotExist(err) {
-			err = os.Symlink(deviceName, deviceLinkPath)
-			if err != nil {
-				c <- fmt.Errorf("unable to link device %s to %s: %w",
-					devicePath, deviceLinkPath, err)
+		err = os.Symlink(deviceName, deviceLinkPath)
+		if !(err == nil || os.IsExist(err)) {
+			c <- fmt.Errorf("unable to create link %s: %w", deviceLinkPath, err)
+			return
+		}
+
+		// Link partitions too if they exist.
+		partitions, err := diskPartitions(deviceName)
+		if err != nil {
+			c <- fmt.Errorf("unable to get partitions for device %s: %w", deviceName, err)
+			return
+		}
+		for _, partition := range partitions {
+			partitionSuffix := partition.partition
+			if deviceHasNumericSuffix(deviceInfo.Name) {
+				partitionSuffix = "p" + partitionSuffix
+			}
+			partitionLinkPath := deviceLinkPath + partitionSuffix
+			err = os.Symlink(partition.device, partitionLinkPath)
+			if !(err == nil || os.IsExist(err)) {
+				c <- fmt.Errorf("unable to create link %s: %w", partitionLinkPath, err)
 				return
 			}
 		}
 	}
 	c <- nil
+}
+
+type partitionInfo struct {
+	device    string
+	partition string
+}
+
+func diskPartitions(device string) ([]partitionInfo, error) {
+	partitions := []partitionInfo{}
+
+	deviceDir := filepath.Join("/sys/block", device)
+	entries, err := os.ReadDir(deviceDir)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read directory %s: %w", deviceDir, err)
+	}
+
+	for _, entry := range entries {
+		deviceName := entry.Name()
+		// Look for partition subdirectories, e.g. /sys/block/nvme0n1/nvme0n1*/.
+		if entry.IsDir() && strings.HasPrefix(deviceName, device) {
+			partitionFile := filepath.Join(deviceDir, deviceName, "partition")
+			contents, err := os.ReadFile(partitionFile)
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			if err != nil {
+				return nil, fmt.Errorf("unable to read file %s: %w", partitionFile, err)
+			}
+			partitions = append(partitions, partitionInfo{
+				device:    deviceName,
+				partition: strings.TrimSpace(string(contents)),
+			})
+		}
+	}
+	return partitions, nil
+}
+
+func deviceHasNumericSuffix(device string) bool {
+	return len(device) > 0 && device[len(device)-1] >= '0' && device[len(device)-1] <= '9'
 }
 
 func deviceHasFS(blkidPath, devicePath string) (bool, error) {
