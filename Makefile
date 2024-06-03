@@ -252,6 +252,7 @@ $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(UTIL_
 		-e CFLAGS=-s \
 		-w /code \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-blkid-ctr)"
+	@touch $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static
 
 $(DIR_CHRONY_STG)/$(DIR_CB)/chronyd: $(DIR_OUT)/$(CHRONY_SRC)/chronyd
 	@$(MAKE) $(DIR_CHRONY_STG)/$(DIR_CB)/
