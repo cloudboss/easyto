@@ -866,6 +866,12 @@ func Run() error {
 		return err
 	}
 
+	err = resizeRootVolume()
+	if err != nil {
+		return err
+	}
+	fmt.Println("After resizeRootVolume()")
+
 	debug()
 	fmt.Println("After debug()")
 

@@ -102,7 +102,8 @@ btrfsprogs: $(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.btrfs
 converter: $(DIR_OUT)/converter
 
 e2fsprogs: $(DIR_PREINIT_STG)/$(DIR_CB)/mke2fs $(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext2 \
-	$(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext3 $(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext4
+	$(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext3 $(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext4 \
+	$(DIR_PREINIT_STG)/$(DIR_CB)/resize2fs
 
 kernel: $(DIR_KERNEL_STG)/boot/vmlinuz-$(KERNEL_VERSION)
 
@@ -167,8 +168,8 @@ $(DIR_OUT)/$(BTRFSPROGS_SRC): $(HAS_COMMAND_XZCAT) $(DIR_OUT)/$(BTRFSPROGS_ARCHI
 $(DIR_OUT)/$(BTRFSPROGS_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -o $(DIR_OUT)/$(BTRFSPROGS_ARCHIVE) $(BTRFSPROGS_URL)
 
-$(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(E2FSPROGS_SRC) \
-		hack/compile-e2fsprogs-ctr
+$(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs $(DIR_OUT)/$(E2FSPROGS_SRC)/resize/resize2fs &: $(HAS_IMAGE_LOCAL) \
+		$(DIR_OUT)/$(E2FSPROGS_SRC) hack/compile-e2fsprogs-ctr
 	@docker run -it \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(E2FSPROGS_SRC):/code \
 		-e LDFLAGS="-s -static" \
@@ -188,6 +189,10 @@ $(DIR_PREINIT_STG)/$(DIR_CB)/mke2fs: $(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs
 $(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext%: $(DIR_PREINIT_STG)/$(DIR_CB)/mke2fs
 	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
 	@ln -f $(DIR_PREINIT_STG)/$(DIR_CB)/mke2fs $(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext$*
+
+$(DIR_PREINIT_STG)/$(DIR_CB)/resize2fs: $(DIR_OUT)/$(E2FSPROGS_SRC)/resize/resize2fs
+	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(E2FSPROGS_SRC)/resize/resize2fs $(DIR_PREINIT_STG)/$(DIR_CB)/resize2fs
 
 $(DIR_PREINIT_STG)/$(DIR_CB)/preinit: $(HAS_IMAGE_LOCAL) \
 		hack/compile-preinit-ctr \
@@ -407,7 +412,8 @@ $(DIR_RELEASE_ASSETS)/preinit.tar: \
 		$(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext2 \
 		$(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext3 \
 		$(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext4 \
-		$(DIR_PREINIT_STG)/$(DIR_CB)/preinit
+		$(DIR_PREINIT_STG)/$(DIR_CB)/preinit \
+		$(DIR_PREINIT_STG)/$(DIR_CB)/resize2fs
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/
 	@cd $(DIR_PREINIT_STG) && fakeroot tar cf $(DIR_ROOT)/$(DIR_RELEASE_ASSETS)/preinit.tar .
 
