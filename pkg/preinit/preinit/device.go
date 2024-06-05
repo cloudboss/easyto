@@ -253,13 +253,13 @@ func rereadPartition(disk *disk.Disk, partition *gpt.Partition, devicePath strin
 	const blkpgNameLen = 64
 
 	volname := [blkpgNameLen]uint8{}
-	for i, c := range partition.Name {
-		volname[i] = uint8(c)
+	for i, b := range []byte(partition.Name) {
+		volname[i] = uint8(b)
 	}
 
 	devname := [blkpgNameLen]uint8{}
-	for i, c := range devicePath {
-		devname[i] = uint8(c)
+	for i, b := range []byte(devicePath) {
+		devname[i] = uint8(b)
 	}
 
 	bp := unix.BlkpgPartition{
