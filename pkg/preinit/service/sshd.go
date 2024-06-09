@@ -46,7 +46,7 @@ func sshdInit() error {
 	oldmask := syscall.Umask(0)
 	defer syscall.Umask(oldmask)
 
-	_, userByName, err := login.ParsePasswd(fs, constants.FileEtcPasswd)
+	_, userByName, _, err := login.ParsePasswd(fs, constants.FileEtcPasswd)
 	if err != nil {
 		return fmt.Errorf("unable to parse %s: %s\n", constants.FileEtcPasswd, err)
 	}

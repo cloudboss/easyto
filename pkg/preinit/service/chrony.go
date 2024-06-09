@@ -31,7 +31,7 @@ func NewChronyService() Service {
 func chronyInit() error {
 	fmt.Println("Initializing chrony")
 
-	_, usersByName, err := login.ParsePasswd(fs, constants.FileEtcPasswd)
+	_, usersByName, _, err := login.ParsePasswd(fs, constants.FileEtcPasswd)
 	if err != nil {
 		return fmt.Errorf("unable to parse %s: %s", constants.FileEtcPasswd, err)
 	}

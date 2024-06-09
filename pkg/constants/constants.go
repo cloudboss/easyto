@@ -12,6 +12,8 @@ const (
 	FileEtcGroup   = "/etc/group"
 	FileEtcGShadow = "/etc/gshadow"
 
+	GroupNameWheel = "wheel"
+
 	ModeEtcPasswd  = 0644
 	ModeEtcShadow  = 0
 	ModeEtcGroup   = 0644

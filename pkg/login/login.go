@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -40,9 +39,10 @@ type GroupEntry struct {
 	Password  string
 	GID       uint16
 	Users     []string
+	index     int
 }
 
-func (g GroupEntry) String() string {
+func (g *GroupEntry) String() string {
 	return fmt.Sprintf("%s:%s:%d:%s",
 		g.Groupname, g.Password, g.GID, strings.Join(g.Users, ","))
 }
@@ -95,6 +95,7 @@ type GShadowEntry struct {
 	Password  string
 	Admins    []string
 	Users     []string
+	index     int
 }
 
 func (g GShadowEntry) String() string {
@@ -102,15 +103,16 @@ func (g GShadowEntry) String() string {
 		g.Groupname, g.Password, strings.Join(g.Admins, ","), strings.Join(g.Users, ","))
 }
 
-func ParsePasswd(fs afero.Fs, passwdFile string) (map[uint16]*PasswdEntry, map[string]*PasswdEntry, error) {
+func ParsePasswd(fs afero.Fs, passwdFile string) (map[uint16]*PasswdEntry, map[string]*PasswdEntry, []*PasswdEntry, error) {
 	f, err := fs.Open(passwdFile)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to open %s: %w", passwdFile, err)
+		return nil, nil, nil, fmt.Errorf("unable to open %s: %w", passwdFile, err)
 	}
 	defer f.Close()
 
 	entryMapUID := make(map[uint16]*PasswdEntry)
 	entryMapName := make(map[string]*PasswdEntry)
+	entryList := []*PasswdEntry{}
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -118,19 +120,19 @@ func ParsePasswd(fs afero.Fs, passwdFile string) (map[uint16]*PasswdEntry, map[s
 
 		fields := strings.Split(line, ":")
 		if len(fields) != 7 {
-			return nil, nil, fmt.Errorf("unexpected number of fields in %s: %d",
+			return nil, nil, nil, fmt.Errorf("unexpected number of fields in %s: %d",
 				passwdFile, len(fields))
 		}
 
 		uid, err := strconv.ParseUint(fields[2], 10, 16)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error parsing third field of line in %s: %w",
+			return nil, nil, nil, fmt.Errorf("error parsing third field of line in %s: %w",
 				passwdFile, err)
 		}
 
 		gid, err := strconv.ParseUint(fields[3], 10, 16)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error parsing fourth field of line in %s: %w",
+			return nil, nil, nil, fmt.Errorf("error parsing fourth field of line in %s: %w",
 				passwdFile, err)
 		}
 
@@ -145,38 +147,41 @@ func ParsePasswd(fs afero.Fs, passwdFile string) (map[uint16]*PasswdEntry, map[s
 		}
 		entryMapUID[uint16(uid)] = pwent
 		entryMapName[pwent.Username] = pwent
+		entryList = append(entryList, pwent)
 	}
 
 	if err = scanner.Err(); err != nil {
-		return nil, nil, fmt.Errorf("unable to read %s: %w", passwdFile, err)
+		return nil, nil, nil, fmt.Errorf("unable to read %s: %w", passwdFile, err)
 	}
 
-	return entryMapUID, entryMapName, nil
+	return entryMapUID, entryMapName, entryList, nil
 }
 
-func ParseGroup(fs afero.Fs, groupFile string) (map[uint16]*GroupEntry, map[string]*GroupEntry, error) {
+func ParseGroup(fs afero.Fs, groupFile string) (map[uint16]*GroupEntry, map[string]*GroupEntry, []*GroupEntry, error) {
 	f, err := fs.Open(groupFile)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to open %s: %w", groupFile, err)
+		return nil, nil, nil, fmt.Errorf("unable to open %s: %w", groupFile, err)
 	}
 	defer f.Close()
 
 	entryMapGID := make(map[uint16]*GroupEntry)
 	entryMapName := make(map[string]*GroupEntry)
+	entryList := []*GroupEntry{}
 
+	i := 0
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
 
 		fields := strings.Split(line, ":")
 		if len(fields) != 4 {
-			return nil, nil, fmt.Errorf("unexpected number of fields in %s: %d",
+			return nil, nil, nil, fmt.Errorf("unexpected number of fields in %s: %d",
 				groupFile, len(fields))
 		}
 
 		gid, err := strconv.ParseUint(fields[2], 10, 16)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error parsing third field of line in %s: %w",
+			return nil, nil, nil, fmt.Errorf("error parsing third field of line in %s: %w",
 				groupFile, err)
 		}
 
@@ -185,26 +190,30 @@ func ParseGroup(fs afero.Fs, groupFile string) (map[uint16]*GroupEntry, map[stri
 			Password:  fields[1],
 			GID:       uint16(gid),
 			Users:     nonEmptyStrings(strings.Split(fields[3], ",")),
+			index:     i,
 		}
 		entryMapGID[uint16(gid)] = groupEntry
 		entryMapName[groupEntry.Groupname] = groupEntry
+		entryList = append(entryList, groupEntry)
+		i++
 	}
 
 	if err = scanner.Err(); err != nil {
-		return nil, nil, fmt.Errorf("unable to read %s: %w", groupFile, err)
+		return nil, nil, nil, fmt.Errorf("unable to read %s: %w", groupFile, err)
 	}
 
-	return entryMapGID, entryMapName, nil
+	return entryMapGID, entryMapName, entryList, nil
 }
 
-func ParseShadow(fs afero.Fs, shadowFile string) (map[string]ShadowEntry, error) {
+func ParseShadow(fs afero.Fs, shadowFile string) (map[string]*ShadowEntry, []*ShadowEntry, error) {
 	f, err := fs.Open(shadowFile)
 	if err != nil {
-		return nil, fmt.Errorf("unable to open %s: %w", shadowFile, err)
+		return nil, nil, fmt.Errorf("unable to open %s: %w", shadowFile, err)
 	}
 	defer f.Close()
 
-	entryMap := make(map[string]ShadowEntry)
+	entryMap := make(map[string]*ShadowEntry)
+	entryList := []*ShadowEntry{}
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -212,7 +221,7 @@ func ParseShadow(fs afero.Fs, shadowFile string) (map[string]ShadowEntry, error)
 
 		fields := strings.Split(line, ":")
 		if len(fields) != 9 {
-			return nil, fmt.Errorf("unexpected number of fields in %s: %d",
+			return nil, nil, fmt.Errorf("unexpected number of fields in %s: %d",
 				shadowFile, len(fields))
 		}
 
@@ -220,7 +229,7 @@ func ParseShadow(fs afero.Fs, shadowFile string) (map[string]ShadowEntry, error)
 		if len(fields[2]) > 0 {
 			lastChange, err = strconv.Atoi(fields[2])
 			if err != nil {
-				return nil, fmt.Errorf("error parsing third field of line in %s: %w",
+				return nil, nil, fmt.Errorf("error parsing third field of line in %s: %w",
 					shadowFile, err)
 			}
 		}
@@ -229,7 +238,7 @@ func ParseShadow(fs afero.Fs, shadowFile string) (map[string]ShadowEntry, error)
 		if len(fields[3]) > 0 {
 			minAge, err = strconv.Atoi(fields[3])
 			if err != nil {
-				return nil, fmt.Errorf("error parsing fourth field of line in %s: %w",
+				return nil, nil, fmt.Errorf("error parsing fourth field of line in %s: %w",
 					shadowFile, err)
 			}
 		}
@@ -238,7 +247,7 @@ func ParseShadow(fs afero.Fs, shadowFile string) (map[string]ShadowEntry, error)
 		if len(fields[4]) > 0 {
 			maxAge, err = strconv.Atoi(fields[4])
 			if err != nil {
-				return nil, fmt.Errorf("error parsing fifth field of line in %s: %w",
+				return nil, nil, fmt.Errorf("error parsing fifth field of line in %s: %w",
 					shadowFile, err)
 			}
 		}
@@ -247,7 +256,7 @@ func ParseShadow(fs afero.Fs, shadowFile string) (map[string]ShadowEntry, error)
 		if len(fields[5]) > 0 {
 			warningPeriod, err = strconv.Atoi(fields[5])
 			if err != nil {
-				return nil, fmt.Errorf("error parsing sixth field of line in %s: %w",
+				return nil, nil, fmt.Errorf("error parsing sixth field of line in %s: %w",
 					shadowFile, err)
 			}
 		}
@@ -256,7 +265,7 @@ func ParseShadow(fs afero.Fs, shadowFile string) (map[string]ShadowEntry, error)
 		if len(fields[6]) > 0 {
 			inactivityPeriod, err = strconv.Atoi(fields[6])
 			if err != nil {
-				return nil, fmt.Errorf("error parsing seventh field of line in %s: %w",
+				return nil, nil, fmt.Errorf("error parsing seventh field of line in %s: %w",
 					shadowFile, err)
 			}
 		}
@@ -265,13 +274,13 @@ func ParseShadow(fs afero.Fs, shadowFile string) (map[string]ShadowEntry, error)
 		if len(fields[7]) > 0 {
 			expiration, err = strconv.Atoi(fields[7])
 			if err != nil {
-				return nil, fmt.Errorf("error parsing eighth field of line in %s: %w",
+				return nil, nil, fmt.Errorf("error parsing eighth field of line in %s: %w",
 					shadowFile, err)
 			}
 		}
 
 		username := fields[0]
-		entryMap[username] = ShadowEntry{
+		entry := &ShadowEntry{
 			Username:         username,
 			Password:         fields[1],
 			LastChange:       lastChange,
@@ -282,48 +291,56 @@ func ParseShadow(fs afero.Fs, shadowFile string) (map[string]ShadowEntry, error)
 			Expiration:       expiration,
 			Unused:           fields[8],
 		}
+		entryMap[username] = entry
+		entryList = append(entryList, entry)
 	}
 
 	if err = scanner.Err(); err != nil {
-		return nil, fmt.Errorf("unable to read %s: %w", shadowFile, err)
+		return nil, nil, fmt.Errorf("unable to read %s: %w", shadowFile, err)
 	}
 
-	return entryMap, nil
+	return entryMap, entryList, nil
 }
 
-func ParseGShadow(fs afero.Fs, shadowFile string) (map[string]GShadowEntry, error) {
+func ParseGShadow(fs afero.Fs, shadowFile string) (map[string]*GShadowEntry, []*GShadowEntry, error) {
 	f, err := fs.Open(shadowFile)
 	if err != nil {
-		return nil, fmt.Errorf("unable to open %s: %w", shadowFile, err)
+		return nil, nil, fmt.Errorf("unable to open %s: %w", shadowFile, err)
 	}
 	defer f.Close()
 
-	entryMap := make(map[string]GShadowEntry)
+	entryMap := make(map[string]*GShadowEntry)
+	entryList := []*GShadowEntry{}
 
+	i := 0
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
 
 		fields := strings.Split(line, ":")
 		if len(fields) != 4 {
-			return nil, fmt.Errorf("unexpected number of fields in %s: %d",
+			return nil, nil, fmt.Errorf("unexpected number of fields in %s: %d",
 				shadowFile, len(fields))
 		}
 
 		groupname := fields[0]
-		entryMap[groupname] = GShadowEntry{
+		entry := &GShadowEntry{
 			Groupname: groupname,
 			Password:  fields[1],
 			Admins:    nonEmptyStrings(strings.Split(fields[2], ",")),
 			Users:     nonEmptyStrings(strings.Split(fields[3], ",")),
+			index:     i,
 		}
+		entryMap[groupname] = entry
+		entryList = append(entryList, entry)
+		i++
 	}
 
 	if err = scanner.Err(); err != nil {
-		return nil, fmt.Errorf("unable to read %s: %w", shadowFile, err)
+		return nil, nil, fmt.Errorf("unable to read %s: %w", shadowFile, err)
 	}
 
-	return entryMap, nil
+	return entryMap, entryList, nil
 }
 
 func nextID[T any](entries map[uint16]T, start uint16) (uint16, error) {
@@ -360,31 +377,7 @@ func fileExists(fs afero.Fs, path string) (bool, error) {
 	return true, nil
 }
 
-func addFileEntry(fs afero.Fs, path, line string, mode os.FileMode) error {
-	if _, err := fs.Stat(path); os.IsNotExist(err) {
-		return addFileEntryNew(fs, path, line, mode)
-	}
-	return addFileEntryExisting(fs, path, line, mode)
-}
-
-func addFileEntryNew(fs afero.Fs, path, line string, mode os.FileMode) error {
-	oldmask := syscall.Umask(0)
-	defer syscall.Umask(oldmask)
-
-	f, err := fs.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, mode)
-	if err != nil {
-		return fmt.Errorf("unable to open %s: %w", path, err)
-	}
-	defer f.Close()
-
-	if _, err = f.WriteString(line + "\n"); err != nil {
-		return fmt.Errorf("unable to write to %s: %w", path, err)
-	}
-
-	return nil
-}
-
-func addFileEntryExisting(fs afero.Fs, path, line string, mode os.FileMode) error {
+func writeLines[T fmt.Stringer](fs afero.Fs, path string, lines []T, mode os.FileMode) error {
 	oldmask := syscall.Umask(0)
 	defer syscall.Umask(oldmask)
 
@@ -396,28 +389,15 @@ func addFileEntryExisting(fs afero.Fs, path, line string, mode os.FileMode) erro
 	// File will normally be closed earlier if there are no errors.
 	defer tf.Close()
 
-	f, err := fs.Open(path)
-	if err != nil {
-		return fmt.Errorf("unable to open %s: %w", path, err)
-	}
-	// As above, file will be closed earlier if there are no errors.
-	defer f.Close()
+	for _, line := range lines {
+		if _, err = tf.WriteString(fmt.Sprintf("%s\n", line)); err != nil {
+			return fmt.Errorf("unable to write to %s: %w", tmpPath, err)
+		}
 
-	_, err = io.Copy(tf, f)
-	if err != nil {
-		return fmt.Errorf("unable to copy %s to %s: %w", path, tmpPath, err)
-	}
-
-	if _, err = tf.WriteString(line + "\n"); err != nil {
-		return fmt.Errorf("unable to write to %s: %w", tmpPath, err)
 	}
 
 	if err = tf.Close(); err != nil {
 		return fmt.Errorf("unable to close %s: %w", tmpPath, err)
-	}
-
-	if err = f.Close(); err != nil {
-		return fmt.Errorf("unable to close %s: %w", path, err)
 	}
 
 	err = fs.Rename(tmpPath, path)
@@ -468,12 +448,28 @@ func AddLoginUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir stri
 func AddUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir string,
 	idStart uint16, createHome, locked bool) (uint16, uint16, error) {
 	var (
-		addToPasswd         = true
-		addToShadow         = true
-		addToGroup          = true
-		addToGShadow        = true
-		uid          uint16 = idStart
-		gid          uint16 = idStart
+		createPasswdEntry  = true
+		createShadowEntry  = true
+		createGroupEntry   = true
+		createGShadowEntry = true
+		modifiedPasswd     = false
+		modifiedGroup      = false
+		modifiedShadow     = false
+		modifiedGShadow    = false
+		addToWheelGroup    = createHome
+		passwdByUID        map[uint16]*PasswdEntry
+		passwdByName       map[string]*PasswdEntry
+		passwdList         []*PasswdEntry
+		shadowByName       map[string]*ShadowEntry
+		shadowList         []*ShadowEntry
+		groupByGID         map[uint16]*GroupEntry
+		groupByName        map[string]*GroupEntry
+		groupList          []*GroupEntry
+		gShadowByName      map[string]*GShadowEntry
+		gShadowList        []*GShadowEntry
+		uid                uint16 = idStart
+		gid                uint16 = idStart
+		idStartWheel       uint16 = 10
 	)
 
 	if len(username) == 0 {
@@ -507,13 +503,13 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir string,
 	}
 
 	if passwdFileExists {
-		passwdByUID, passwdByName, err := ParsePasswd(fs, fileEtcPasswd)
+		passwdByUID, passwdByName, passwdList, err = ParsePasswd(fs, fileEtcPasswd)
 		if err != nil {
 			return 0, 0, err
 		}
 
 		if _, ok := passwdByName[username]; ok {
-			addToPasswd = false
+			createPasswdEntry = false
 		} else {
 			uid, err = nextID(passwdByUID, uid)
 			if err != nil {
@@ -522,26 +518,26 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir string,
 		}
 
 		if !shadowFileExists {
-			addToShadow = false
+			createShadowEntry = false
 		} else {
-			shadowByName, err := ParseShadow(fs, fileEtcShadow)
+			shadowByName, shadowList, err = ParseShadow(fs, fileEtcShadow)
 			if err != nil {
 				return 0, 0, err
 			}
 			if _, ok := shadowByName[username]; ok {
-				addToShadow = false
+				createShadowEntry = false
 			}
 		}
 	}
 
 	if groupFileExists {
-		groupByGID, groupByName, err := ParseGroup(fs, fileEtcGroup)
+		groupByGID, groupByName, groupList, err = ParseGroup(fs, fileEtcGroup)
 		if err != nil {
 			return 0, 0, err
 		}
 
 		if _, ok := groupByName[groupname]; ok {
-			addToGroup = false
+			createGroupEntry = false
 		} else {
 			gid, err = nextID(groupByGID, gid)
 			if err != nil {
@@ -550,19 +546,62 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir string,
 		}
 
 		if !gShadowFileExists {
-			addToGShadow = false
+			createGShadowEntry = false
 		} else {
-			gShadowByName, err := ParseGShadow(fs, fileEtcGShadow)
+			gShadowByName, gShadowList, err = ParseGShadow(fs, fileEtcGShadow)
 			if err != nil {
 				return 0, 0, err
 			}
 			if _, ok := gShadowByName[groupname]; ok {
-				addToGShadow = false
+				createGShadowEntry = false
 			}
 		}
 	}
 
-	if addToPasswd {
+	if addToWheelGroup {
+		wheelGroup, ok := groupByName[constants.GroupNameWheel]
+		if ok {
+			i := wheelGroup.index
+			if !hasEntry(groupList[i].Users, username) {
+				groupList[i].Users = append(groupList[i].Users, username)
+				modifiedGroup = true
+			}
+		} else {
+			wheelGID, err := nextID(groupByGID, idStartWheel)
+			if err != nil {
+				return 0, 0, fmt.Errorf("unable to get next GID for %s: %w",
+					constants.GroupNameWheel, err)
+			}
+			wheelGroup = &GroupEntry{
+				Groupname: constants.GroupNameWheel,
+				Password:  "x",
+				GID:       wheelGID,
+				Users:     []string{username},
+			}
+			groupList = append(groupList, wheelGroup)
+			modifiedGroup = true
+		}
+
+		if createGShadowEntry {
+			wheelGShadow, ok := gShadowByName[constants.GroupNameWheel]
+			if ok {
+				i := wheelGShadow.index
+				if !hasEntry(gShadowList[i].Users, username) {
+					gShadowList[i].Users = append(gShadowList[i].Users, username)
+					modifiedGShadow = true
+				}
+			} else {
+				wheelGShadow = &GShadowEntry{
+					Groupname: constants.GroupNameWheel,
+					Users:     []string{username},
+				}
+				gShadowList = append(gShadowList, wheelGShadow)
+				modifiedGShadow = true
+			}
+		}
+	}
+
+	if createPasswdEntry {
 		passwdEntry := &PasswdEntry{
 			Username: username,
 			Password: "x",
@@ -572,27 +611,23 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir string,
 			HomeDir:  homeDir,
 			Shell:    shell,
 		}
-		err := addFileEntry(fs, fileEtcPasswd, passwdEntry.String(), constants.ModeEtcPasswd)
-		if err != nil {
-			return 0, 0, err
-		}
+		passwdList = append(passwdList, passwdEntry)
+		modifiedPasswd = true
 	}
 
-	if addToGroup {
+	if createGroupEntry {
 		groupEntry := &GroupEntry{
 			Groupname: groupname,
 			Password:  "x",
 			GID:       gid,
 			Users:     []string{username},
 		}
-		err := addFileEntry(fs, fileEtcGroup, groupEntry.String(), constants.ModeEtcGroup)
-		if err != nil {
-			return 0, 0, err
-		}
+		groupList = append(groupList, groupEntry)
+		modifiedGroup = true
 	}
 
-	if addToShadow {
-		shadowEntry := ShadowEntry{
+	if createShadowEntry {
+		shadowEntry := &ShadowEntry{
 			Username:         username,
 			Password:         "*",
 			LastChange:       0,
@@ -605,20 +640,44 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir string,
 		if locked {
 			shadowEntry.Password = "!!"
 		}
-		err := addFileEntry(fs, fileEtcShadow, shadowEntry.String(), constants.ModeEtcShadow)
-		if err != nil {
-			return 0, 0, err
-		}
+		shadowList = append(shadowList, shadowEntry)
+		modifiedShadow = true
 	}
 
-	if addToGShadow {
-		gShadowEntry := GShadowEntry{
+	if createGShadowEntry {
+		gShadowEntry := &GShadowEntry{
 			Groupname: groupname,
 			Password:  "!!",
 			Admins:    []string{},
 			Users:     []string{username},
 		}
-		err := addFileEntry(fs, fileEtcGShadow, gShadowEntry.String(), constants.ModeEtcGShadow)
+		gShadowList = append(gShadowList, gShadowEntry)
+		modifiedGShadow = true
+	}
+
+	if modifiedPasswd {
+		err := writeLines(fs, fileEtcPasswd, passwdList, constants.ModeEtcPasswd)
+		if err != nil {
+			return 0, 0, err
+		}
+	}
+
+	if modifiedGroup {
+		err := writeLines(fs, fileEtcGroup, groupList, constants.ModeEtcGroup)
+		if err != nil {
+			return 0, 0, err
+		}
+	}
+
+	if modifiedShadow {
+		err := writeLines(fs, fileEtcShadow, shadowList, constants.ModeEtcShadow)
+		if err != nil {
+			return 0, 0, err
+		}
+	}
+
+	if modifiedGShadow {
+		err := writeLines(fs, fileEtcGShadow, gShadowList, constants.ModeEtcGShadow)
 		if err != nil {
 			return 0, 0, err
 		}
@@ -632,4 +691,13 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir string,
 	}
 
 	return uid, gid, nil
+}
+
+func hasEntry(entries []string, entry string) bool {
+	for _, e := range entries {
+		if e == entry {
+			return true
+		}
+	}
+	return false
 }
