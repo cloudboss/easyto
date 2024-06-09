@@ -13,10 +13,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-const (
-	loginUser = "cloudboss"
-)
-
 type SSHDService struct {
 	svc
 }
@@ -46,13 +42,19 @@ func sshdInit() error {
 	oldmask := syscall.Umask(0)
 	defer syscall.Umask(oldmask)
 
+	loginUser, err := getLoginUser(fs)
+	if err != nil {
+		return fmt.Errorf("unable to get login user: %w", err)
+	}
+
 	_, userByName, _, err := login.ParsePasswd(fs, constants.FileEtcPasswd)
 	if err != nil {
 		return fmt.Errorf("unable to parse %s: %s\n", constants.FileEtcPasswd, err)
 	}
-	user, ok := userByName["cloudboss"]
+	user, ok := userByName[loginUser]
 	if !ok {
-		return fmt.Errorf("login user not found")
+		return fmt.Errorf("login user %s not found in %s", loginUser,
+			constants.FileEtcPasswd)
 	}
 
 	fmt.Println("Writing ssh public key for login user")
@@ -117,4 +119,21 @@ func sshWritePubKey(fs afero.Fs, dir string, uid, gid uint16) error {
 	}
 
 	return nil
+}
+
+// getLoginUser returns the login username for the system. If the image
+// was built with easyto and sshd is enabled, this should be the name of
+// the one directory under the easyto home directory.
+func getLoginUser(fs afero.Fs) (string, error) {
+	homeDir := filepath.Join(constants.DirCB, "home")
+
+	entries, err := afero.ReadDir(fs, homeDir)
+	if err != nil {
+		return "", err
+	}
+	if len(entries) != 1 {
+		return "", fmt.Errorf("expected one entry in %s", homeDir)
+	}
+
+	return entries[0].Name(), nil
 }
