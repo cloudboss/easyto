@@ -446,7 +446,7 @@ func AddLoginUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir stri
 
 // AddUser adds a user to the system.
 func AddUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir string,
-	idStart uint16, createHome, locked bool) (uint16, uint16, error) {
+	idStart uint16, isLoginUser, locked bool) (uint16, uint16, error) {
 	var (
 		createPasswdEntry  = true
 		createShadowEntry  = true
@@ -456,7 +456,6 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir string,
 		modifiedGroup      = false
 		modifiedShadow     = false
 		modifiedGShadow    = false
-		addToWheelGroup    = createHome
 		passwdByUID        map[uint16]*PasswdEntry
 		passwdByName       map[string]*PasswdEntry
 		passwdList         []*PasswdEntry
@@ -558,7 +557,7 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir string,
 		}
 	}
 
-	if addToWheelGroup {
+	if isLoginUser {
 		wheelGroup, ok := groupByName[constants.GroupNameWheel]
 		if ok {
 			i := wheelGroup.index
@@ -637,6 +636,9 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir string,
 			InactivityPeriod: -1,
 			Expiration:       -1,
 		}
+		if isLoginUser {
+			shadowEntry.LastChange = -1
+		}
 		if locked {
 			shadowEntry.Password = "!!"
 		}
@@ -683,7 +685,7 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir string,
 		}
 	}
 
-	if createHome {
+	if isLoginUser {
 		err := createHomeDir(fs, filepath.Join(baseDir, homeDir), uid, gid)
 		if err != nil {
 			return 0, 0, err
