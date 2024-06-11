@@ -28,6 +28,7 @@ const (
 	devicePartRoot   = "/dev/sda2"
 	fileMetadata     = "metadata.json"
 	modeDirStd       = 0755
+	tarCodeMode      = 'Y'
 	tarCodeTimestamp = 'Z'
 
 	dirLibModules = "/lib/modules"
@@ -101,6 +102,8 @@ func (e errExtract) Error() string {
 		msg = "unable to create file"
 	case tar.TypeSymlink:
 		msg = "unable to create symbolic link"
+	case tarCodeMode:
+		msg = "unable to set permissions"
 	case tarCodeTimestamp:
 		msg = "unable to set timestamp"
 	}
@@ -527,6 +530,7 @@ func untarReader(reader io.Reader, destDir string, verbose bool) error {
 		}
 
 		fi := hdr.FileInfo()
+		perm := fi.Mode()
 		dest := filepath.Join(destDir, hdr.Name)
 		if verbose {
 			fmt.Printf("untar: extracting %s\n", dest)
@@ -547,18 +551,18 @@ func untarReader(reader io.Reader, destDir string, verbose bool) error {
 				return newErrExtract(tar.TypeChar, err)
 			}
 		case tar.TypeDir:
-			err = os.Mkdir(dest, fi.Mode())
+			err = os.Mkdir(dest, perm)
 			if err != nil && os.IsNotExist(err) {
 				// Try to create directories individually with os.Mkdir so that permissions
 				// match the archive, but if a subdirectory entry comes before the parent
 				// directory, fall back to os.MkdirAll to create the hierarchy.
-				err = os.MkdirAll(dest, fi.Mode())
+				err = os.MkdirAll(dest, perm)
 				if err != nil {
 					return newErrExtract(tar.TypeDir, err)
 				}
 			} else if err != nil && os.IsExist(err) {
 				// Directory already exists, so just set the mode.
-				err = os.Chmod(dest, fi.Mode())
+				err = os.Chmod(dest, perm)
 				if err != nil {
 					return newErrExtract(tar.TypeDir, err)
 				}
@@ -576,7 +580,7 @@ func untarReader(reader io.Reader, destDir string, verbose bool) error {
 				return newErrExtract(tar.TypeLink, err)
 			}
 		case tar.TypeReg:
-			err = copyFile(treader, dest, fi.Mode())
+			err = copyFile(treader, dest, perm)
 			if err != nil {
 				return newErrExtract(tar.TypeReg, err)
 			}
@@ -590,6 +594,14 @@ func untarReader(reader io.Reader, destDir string, verbose bool) error {
 		err = os.Lchown(dest, hdr.Uid, hdr.Gid)
 		if err != nil {
 			return err
+		}
+
+		// Lchown may unset setuid and setgid bits.
+		if perm&os.ModeSetuid != 0 || perm&os.ModeSetgid != 0 {
+			err = os.Chmod(dest, perm)
+			if !(err == nil || os.IsNotExist(err)) {
+				return newErrExtract(tarCodeMode, err)
+			}
 		}
 	}
 
