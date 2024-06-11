@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/cloudboss/easyto/pkg/constants"
 	"github.com/spf13/cobra"
 )
 
@@ -123,7 +124,8 @@ func init() {
 	cmd.Flags().StringVar(&cfg.loginUser, "login-user", "cloudboss",
 		"Login user to create in the VM image if ssh service is enabled.")
 
-	cmd.Flags().StringVar(&cfg.loginShell, "login-shell", "/bin/sh",
+	loginShell := filepath.Join(constants.DirCB, "sh")
+	cmd.Flags().StringVar(&cfg.loginShell, "login-shell", loginShell,
 		"Shell to use for the login user if ssh service is enabled.")
 
 	cmd.Flags().StringVar(&cfg.rootDeviceName, "root-device-name", "/dev/xvda",

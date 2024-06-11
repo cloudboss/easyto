@@ -171,9 +171,9 @@ func WithLoginUser(user string) BuilderOpt {
 	}
 }
 
-func WithLoginShell(shell string) BuilderOpt {
+func WithLoginShell(loginShell string) BuilderOpt {
 	return func(b *Builder) {
-		b.LoginShell = shell
+		b.LoginShell = loginShell
 	}
 }
 

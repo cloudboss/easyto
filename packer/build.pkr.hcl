@@ -64,7 +64,6 @@ variable "login_user" {
 
 variable "login_shell" {
   type    = string
-  default = "/bin/sh"
 }
 
 variable "root_device_name" {

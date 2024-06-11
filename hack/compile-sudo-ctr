@@ -1,0 +1,15 @@
+#!/bin/sh
+
+set -e
+
+./configure LDFLAGS="--static -s" \
+    --prefix=/__cb__ \
+    --disable-log-client \
+    --disable-log-server \
+    --disable-shared \
+    --enable-static \
+    --enable-zlib=static \
+    --sysconfdir=/__cb__ \
+    --with-logpath=/__cb__/var/log \
+    --with-rundir=/__cb__/run && \
+    make -j$(nproc)

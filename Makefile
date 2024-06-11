@@ -66,6 +66,10 @@ CHRONY_ARCHIVE := $(CHRONY_SRC).tar.gz
 CHRONY_URL := https://chrony-project.org/releases/$(CHRONY_ARCHIVE)
 CHRONY_USER := cb-chrony
 
+BUSYBOX_VERSION := 1.35.0
+BUSYBOX_URL := https://www.busybox.net/downloads/binaries/$(BUSYBOX_VERSION)-x86_64-linux-musl/busybox
+BUSYBOX_BIN := busybox-$(BUSYBOX_VERSION)
+
 ZLIB_VERSION := 1.3.1
 ZLIB_SRC := zlib-$(ZLIB_VERSION)
 ZLIB_ARCHIVE := $(ZLIB_SRC).tar.gz
@@ -82,6 +86,12 @@ OPENSSH_ARCHIVE := $(OPENSSH_VERSION).tar.gz
 OPENSSH_URL := https://github.com/openssh/openssh-portable/archive/refs/tags/$(OPENSSH_ARCHIVE)
 OPENSSH_PRIVSEP_USER := cb-ssh
 OPENSSH_PRIVSEP_DIR := /$(DIR_CB)/empty
+OPENSSH_DEFAULT_PATH := /$(DIR_CB):/bin:/usr/bin:/usr/local/bin
+
+SUDO_VERSION := 1.9.15p5
+SUDO_SRC := sudo-$(SUDO_VERSION)
+SUDO_ARCHIVE := $(SUDO_SRC).tar.gz
+SUDO_URL := https://www.sudo.ws/dist/$(SUDO_ARCHIVE)
 
 HAS_COMMAND_AR := $(DIR_OUT)/.command-ar
 HAS_COMMAND_CURL := $(DIR_OUT)/.command-curl
@@ -284,6 +294,14 @@ $(DIR_SSH_STG)/$(DIR_CB)/sftp-server: $(DIR_OUT)/$(OPENSSH_SRC)/sshd
 	@$(MAKE) $(DIR_SSH_STG)/$(DIR_CB)/
 	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/sftp-server $(DIR_SSH_STG)/$(DIR_CB)/sftp-server
 
+$(DIR_SSH_STG)/$(DIR_CB)/busybox: $(DIR_OUT)/$(BUSYBOX_BIN)
+	@$(MAKE) $(DIR_SSH_STG)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(BUSYBOX_BIN) $(DIR_SSH_STG)/$(DIR_CB)/busybox
+
+$(DIR_SSH_STG)/$(DIR_CB)/sh: assets/sh $(DIR_SSH_STG)/$(DIR_CB)/busybox
+	@$(MAKE) $(DIR_SSH_STG)/$(DIR_CB)/
+	@install -m 0755 assets/sh $(DIR_SSH_STG)/$(DIR_CB)/sh
+
 $(DIR_SSH_STG)/$(DIR_CB)/ssh-keygen: $(DIR_OUT)/$(OPENSSH_SRC)/sshd
 	@$(MAKE) $(DIR_SSH_STG)/$(DIR_CB)/
 	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/ssh-keygen $(DIR_SSH_STG)/$(DIR_CB)/ssh-keygen
@@ -324,12 +342,28 @@ $(DIR_OUT)/$(OPENSSH_SRC)/sshd: $(DIR_OUT)/$(OPENSSH_SRC) $(DIR_OUT)/$(DIR_OPENS
 	@docker run -it \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(OPENSSH_SRC):/code \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(DIR_OPENSSH_DEPS):/$(DIR_OPENSSH_DEPS) \
+		-e OPENSSH_DEFAULT_PATH=$(OPENSSH_DEFAULT_PATH) \
 		-e OPENSSH_PRIVSEP_DIR=$(OPENSSH_PRIVSEP_DIR) \
 		-e OPENSSH_PRIVSEP_USER=$(OPENSSH_PRIVSEP_USER) \
 		-e DIR_OPENSSH_DEPS=/$(DIR_OPENSSH_DEPS) \
 		-w /code \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-openssh-ctr)"
 	@touch $(DIR_OUT)/$(OPENSSH_SRC)/sshd
+
+$(DIR_OUT)/$(SUDO_SRC)/src/sudo: $(DIR_OUT)/$(SUDO_SRC) hack/compile-sudo-ctr
+	@docker run -it \
+		-v $(DIR_ROOT)/$(DIR_OUT)/$(SUDO_SRC):/code \
+		-w /code \
+		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-sudo-ctr)"
+	@touch $(DIR_OUT)/$(SUDO_SRC)/src/sudo
+
+$(DIR_SSH_STG)/$(DIR_CB)/sudo: $(DIR_OUT)/$(SUDO_SRC)/src/sudo
+	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
+	@install -m 4511 $(DIR_OUT)/$(SUDO_SRC)/src/sudo $(DIR_SSH_STG)/$(DIR_CB)/sudo
+
+$(DIR_SSH_STG)/$(DIR_CB)/sudoers: assets/sudoers
+	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
+	@install -m 0440 assets/sudoers $(DIR_SSH_STG)/$(DIR_CB)/sudoers
 
 # Container image build is done in an empty directory to speed it up.
 $(HAS_IMAGE_LOCAL): $(HAS_COMMAND_DOCKER)
@@ -372,6 +406,15 @@ $(DIR_OUT)/$(OPENSSH_SRC): $(DIR_OUT)/$(OPENSSH_ARCHIVE)
 
 $(DIR_OUT)/$(OPENSSH_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -o $(DIR_OUT)/$(OPENSSH_ARCHIVE) $(OPENSSH_URL)
+
+$(DIR_OUT)/$(BUSYBOX_BIN): $(HAS_COMMAND_CURL)
+	@curl -o $(DIR_OUT)/$(BUSYBOX_BIN) $(BUSYBOX_URL)
+
+$(DIR_OUT)/$(SUDO_SRC): $(DIR_OUT)/$(SUDO_ARCHIVE)
+	@tar zxf $(DIR_OUT)/$(SUDO_ARCHIVE) -C $(DIR_OUT)
+
+$(DIR_OUT)/$(SUDO_ARCHIVE): $(HAS_COMMAND_CURL)
+	@curl -o $(DIR_OUT)/$(SUDO_ARCHIVE) $(SUDO_URL)
 
 $(DIR_RELEASE_ASSETS)/boot.tar: $(HAS_COMMAND_FAKEROOT) $(DIR_BOOTLOADER_STG)/boot/EFI/BOOT/BOOTX64.EFI
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/ $(DIR_BOOTLOADER_STG)/boot/loader/entries/
@@ -429,13 +472,17 @@ $(DIR_RELEASE_ASSETS)/chrony.tar: \
 
 $(DIR_RELEASE_ASSETS)/ssh.tar: \
 		$(HAS_COMMAND_FAKEROOT) \
+		$(DIR_SSH_STG)/$(DIR_CB)/busybox \
 		$(DIR_SSH_STG)/$(DIR_CB)/sftp-server \
+		$(DIR_SSH_STG)/$(DIR_CB)/sh \
 		$(DIR_SSH_STG)/$(DIR_CB)/ssh-keygen \
 		$(DIR_SSH_STG)/$(DIR_CB)/sshd \
 		$(DIR_SSH_STG)/$(DIR_CB)/sshd_config \
-		$(DIR_SSH_STG)/$(DIR_CB)/services/ssh
+		$(DIR_SSH_STG)/$(DIR_CB)/services/ssh \
+		$(DIR_SSH_STG)/$(DIR_CB)/sudo \
+		$(DIR_SSH_STG)/$(DIR_CB)/sudoers
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/
-	@cd $(DIR_SSH_STG) && fakeroot tar cf $(DIR_ROOT)/$(DIR_RELEASE_ASSETS)/ssh.tar .
+	@cd $(DIR_SSH_STG) && fakeroot tar cpf $(DIR_ROOT)/$(DIR_RELEASE_ASSETS)/ssh.tar .
 
 $(DIR_RELEASE)/unpack-$(VERSION)-$(OS)-$(ARCH).tar.gz: $(HAS_COMMAND_FAKEROOT) packer \
 		$(DIR_RELEASE_ASSETS)/boot.tar \

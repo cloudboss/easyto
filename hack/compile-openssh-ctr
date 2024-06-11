@@ -4,6 +4,7 @@ set -e
 
 autoreconf -i
 ./configure LDFLAGS="-s -static" \
+    --with-default-path=${OPENSSH_DEFAULT_PATH} \
     --with-privsep-path=${OPENSSH_PRIVSEP_DIR} \
     --with-privsep-user=${OPENSSH_PRIVSEP_USER} \
     --with-ssl-dir=${DIR_OPENSSH_DEPS} \

@@ -1,0 +1,3 @@
+#!/__cb__/busybox sh
+
+exec /__cb__/busybox sh --noprofile
