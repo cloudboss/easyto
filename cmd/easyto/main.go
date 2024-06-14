@@ -17,7 +17,7 @@ import (
 var (
 	cfg = &config{}
 	cmd = cobra.Command{
-		Use:   "unpack",
+		Use:   "easyto",
 		Short: "A tool to convert a container image to an EC2 AMI",
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			cmd.SilenceUsage = true

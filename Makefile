@@ -124,7 +124,7 @@ packer: $(DIR_RELEASE_PACKER)/build.pkr.hcl \
 		$(DIR_RELEASE_PACKER)/provision \
 		$(DIR_RELEASE_PACKER_PLUGIN)/$(PACKER_PLUGIN_AMZ_FILE)_SHA256SUM
 
-unpack: $(DIR_OSARCH_BUILD)/unpack
+easyto: $(DIR_OSARCH_BUILD)/easyto
 
 assets-bootloader: $(DIR_RELEASE_ASSETS)/boot.tar
 
@@ -134,12 +134,12 @@ assets-preinit: $(DIR_RELEASE_ASSETS)/preinit.tar
 
 assets-kernel: $(DIR_RELEASE_ASSETS)/kernel.tar
 
-release-one: $(DIR_RELEASE)/unpack-$(VERSION)-$(OS)-$(ARCH).tar.gz
+release-one: $(DIR_RELEASE)/easyto-$(VERSION)-$(OS)-$(ARCH).tar.gz
 
 release:
 	for os in linux darwin; do \
 		for arch in amd64 arm64; do \
-			$(MAKE) $(DIR_OUT)/release/$${os}/$${arch}/unpack-$(VERSION)-$${os}-$${arch}.tar.gz \
+			$(MAKE) $(DIR_OUT)/release/$${os}/$${arch}/easyto-$(VERSION)-$${os}-$${arch}.tar.gz \
 				OS=$${os} ARCH=$${arch}; \
 		done; \
 	done
@@ -484,26 +484,26 @@ $(DIR_RELEASE_ASSETS)/ssh.tar: \
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/
 	@cd $(DIR_SSH_STG) && fakeroot tar cpf $(DIR_ROOT)/$(DIR_RELEASE_ASSETS)/ssh.tar .
 
-$(DIR_RELEASE)/unpack-$(VERSION)-$(OS)-$(ARCH).tar.gz: $(HAS_COMMAND_FAKEROOT) packer \
+$(DIR_RELEASE)/easyto-$(VERSION)-$(OS)-$(ARCH).tar.gz: $(HAS_COMMAND_FAKEROOT) packer \
 		$(DIR_RELEASE_ASSETS)/boot.tar \
 		$(DIR_RELEASE_ASSETS)/converter \
 		$(DIR_RELEASE_ASSETS)/preinit.tar \
 		$(DIR_RELEASE_ASSETS)/chrony.tar \
 		$(DIR_RELEASE_ASSETS)/ssh.tar \
 		$(DIR_RELEASE_ASSETS)/kernel.tar \
-		$(DIR_RELEASE_BIN)/unpack
+		$(DIR_RELEASE_BIN)/easyto
 	@[ -n "$(VERSION)" ] || (echo "VERSION is required"; exit 1)
 	@cd $(DIR_RELEASE) && \
-		fakeroot tar czf $(DIR_ROOT)/$(DIR_RELEASE)/unpack-$(VERSION)-$(OS)-$(ARCH).tar.gz assets bin packer
+		fakeroot tar czf $(DIR_ROOT)/$(DIR_RELEASE)/easyto-$(VERSION)-$(OS)-$(ARCH).tar.gz assets bin packer
 
-$(DIR_RELEASE_BIN)/unpack: $(DIR_OSARCH_BUILD)/unpack
+$(DIR_RELEASE_BIN)/easyto: $(DIR_OSARCH_BUILD)/easyto
 	@$(MAKE) $(DIR_RELEASE_BIN)/
-	@install -m 0755 $(DIR_OSARCH_BUILD)/unpack $(DIR_RELEASE_BIN)/unpack
+	@install -m 0755 $(DIR_OSARCH_BUILD)/easyto $(DIR_RELEASE_BIN)/easyto
 
-$(DIR_OSARCH_BUILD)/unpack: $(HAS_IMAGE_LOCAL) \
-		hack/compile-unpack-ctr \
+$(DIR_OSARCH_BUILD)/easyto: $(HAS_IMAGE_LOCAL) \
+		hack/compile-easyto-ctr \
 		go.mod \
-		$(shell find cmd/unpack -type f -path '*.go' ! -path '*_test.go')
+		$(shell find cmd/easyto -type f -path '*.go' ! -path '*_test.go')
 	@[ -d $(DIR_OSARCH_BUILD) ] || mkdir -p $(DIR_OSARCH_BUILD)
 	@docker run -it \
 		-v $(DIR_ROOT):/code \
@@ -514,7 +514,7 @@ $(DIR_OSARCH_BUILD)/unpack: $(HAS_IMAGE_LOCAL) \
 		-e GOARCH=$(ARCH) \
 		-e GOOS=$(OS) \
 		-w /code \
-		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-unpack-ctr)"
+		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-easyto-ctr)"
 
 $(DIR_RELEASE_PACKER)/packer: $(HAS_COMMAND_UNZIP) $(DIR_OUT)/$(PACKER_ARCHIVE)
 	@$(MAKE) $(DIR_RELEASE_PACKER)/

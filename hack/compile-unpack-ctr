@@ -1,3 +1,0 @@
-#!/bin/sh
-
-go build -o ${DIR_OUT}/unpack ./cmd/unpack
