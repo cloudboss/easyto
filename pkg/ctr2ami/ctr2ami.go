@@ -39,8 +39,8 @@ const (
 
 	archiveBootloader = "boot.tar"
 	archiveChrony     = "chrony.tar"
+	archiveInit       = "init.tar"
 	archiveKernel     = "kernel.tar"
-	archivePreinit    = "preinit.tar"
 	archiveSSH        = "ssh.tar"
 )
 
@@ -128,8 +128,8 @@ type Builder struct {
 	kernelVersion  string
 	pathBootloader string
 	pathChrony     string
+	pathInit       string
 	pathKernel     string
-	pathPreinit    string
 	pathSSH        string
 }
 
@@ -190,7 +190,7 @@ func NewBuilder(opts ...BuilderOpt) (*Builder, error) {
 	builder.pathBootloader = filepath.Join(builder.AssetDir, archiveBootloader)
 	builder.pathChrony = filepath.Join(builder.AssetDir, archiveChrony)
 	builder.pathKernel = filepath.Join(builder.AssetDir, archiveKernel)
-	builder.pathPreinit = filepath.Join(builder.AssetDir, archivePreinit)
+	builder.pathInit = filepath.Join(builder.AssetDir, archiveInit)
 	builder.pathSSH = filepath.Join(builder.AssetDir, archiveSSH)
 
 	kernelVersion, err := kernelVersionFromArchive(builder.pathKernel)
@@ -227,7 +227,7 @@ func (b *Builder) MakeVMImage() (err error) {
 		return err
 	}
 
-	err = b.setupPreinit()
+	err = b.setupInit()
 	if err != nil {
 		return err
 	}
@@ -257,7 +257,7 @@ func (b *Builder) MakeVMImage() (err error) {
 
 func (b *Builder) formatBootEntry(partUUID string) string {
 	contentFmt := `linux /vmlinuz-%s
-options rw root=PARTUUID=%s console=tty0 console=ttyS0,115200 earlyprintk=ttyS0,115200 consoleblank=0 ip=dhcp init=%s/preinit
+options rw root=PARTUUID=%s console=tty0 console=ttyS0,115200 earlyprintk=ttyS0,115200 consoleblank=0 ip=dhcp init=%s/init
 `
 	return fmt.Sprintf(contentFmt, b.kernelVersion, partUUID, constants.DirCB)
 }
@@ -298,35 +298,8 @@ func (b *Builder) setupBootloader() error {
 	return nil
 }
 
-func (b *Builder) setupPreinit() error {
-	return untarFile(b.pathPreinit, b.VMImageMount, false)
-}
-
 func (b *Builder) setupInit() error {
-	src, err := os.Open(b.pathPreinit)
-	if err != nil {
-		return fmt.Errorf("unable to open %s: %w", b.pathPreinit, err)
-	}
-	defer src.Close()
-
-	destPath := filepath.Join(b.VMImageMount, constants.DirCB, "init")
-	dest, err := os.Create(destPath)
-	if err != nil {
-		return fmt.Errorf("unable to create %s: %w", destPath, err)
-	}
-	defer dest.Close()
-
-	_, err = io.Copy(dest, src)
-	if err != nil {
-		return fmt.Errorf("unable to copy %s to %s: %w", b.pathPreinit, destPath, err)
-	}
-
-	err = os.Chmod(destPath, 0755)
-	if err != nil {
-		return fmt.Errorf("unable to set permissions on %s: %w", destPath, err)
-	}
-
-	return nil
+	return untarFile(b.pathInit, b.VMImageMount, false)
 }
 
 func (b *Builder) setupKernel() error {

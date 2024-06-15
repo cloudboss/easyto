@@ -8,7 +8,7 @@ DIR_OUT := _output
 DIR_CB := __cb__
 DIR_BOOTLOADER_TMP := $(DIR_OUT)/bootloader-tmp
 DIR_BOOTLOADER_STG := $(DIR_OUT)/staging/bootloader
-DIR_PREINIT_STG := $(DIR_OUT)/staging/preinit
+DIR_INIT_STG := $(DIR_OUT)/staging/init
 DIR_KERNEL_STG := $(DIR_OUT)/staging/kernel
 DIR_CHRONY_STG := $(DIR_OUT)/staging/chrony
 DIR_SSH_STG := $(DIR_OUT)/staging/ssh
@@ -105,19 +105,19 @@ default: release
 
 bootloader: $(DIR_BOOTLOADER_STG)/boot/EFI/BOOT/BOOTX64.EFI
 
-blkid: $(DIR_PREINIT_STG)/$(DIR_CB)/blkid
+blkid: $(DIR_INIT_STG)/$(DIR_CB)/blkid
 
-btrfsprogs: $(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.btrfs
+btrfsprogs: $(DIR_INIT_STG)/$(DIR_CB)/mkfs.btrfs
 
 converter: $(DIR_OUT)/converter
 
-e2fsprogs: $(DIR_PREINIT_STG)/$(DIR_CB)/mke2fs $(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext2 \
-	$(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext3 $(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext4 \
-	$(DIR_PREINIT_STG)/$(DIR_CB)/resize2fs
+e2fsprogs: $(DIR_INIT_STG)/$(DIR_CB)/mke2fs $(DIR_INIT_STG)/$(DIR_CB)/mkfs.ext2 \
+	$(DIR_INIT_STG)/$(DIR_CB)/mkfs.ext3 $(DIR_INIT_STG)/$(DIR_CB)/mkfs.ext4 \
+	$(DIR_INIT_STG)/$(DIR_CB)/resize2fs
 
 kernel: $(DIR_KERNEL_STG)/boot/vmlinuz-$(KERNEL_VERSION)
 
-preinit: $(DIR_PREINIT_STG)/$(DIR_CB)/preinit
+init: $(DIR_INIT_STG)/$(DIR_CB)/init
 
 packer: $(DIR_RELEASE_PACKER)/build.pkr.hcl \
 		$(DIR_RELEASE_PACKER)/packer \
@@ -130,7 +130,7 @@ assets-bootloader: $(DIR_RELEASE_ASSETS)/boot.tar
 
 assets-converter: $(DIR_RELEASE_ASSETS)/converter
 
-assets-preinit: $(DIR_RELEASE_ASSETS)/preinit.tar
+assets-init: $(DIR_RELEASE_ASSETS)/init.tar
 
 assets-kernel: $(DIR_RELEASE_ASSETS)/kernel.tar
 
@@ -159,9 +159,9 @@ $(DIR_BOOTLOADER_STG)/boot/EFI/BOOT/BOOTX64.EFI: $(DIR_BOOTLOADER_TMP)/data.tar.
 $(DIR_OUT)/$(SYSTEMD_BOOT_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -o $(DIR_OUT)/$(SYSTEMD_BOOT_ARCHIVE) $(SYSTEMD_BOOT_URL)
 
-$(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.btrfs: $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static
-	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static $(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.btrfs
+$(DIR_INIT_STG)/$(DIR_CB)/mkfs.btrfs: $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static
+	@$(MAKE) $(DIR_INIT_STG)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static $(DIR_INIT_STG)/$(DIR_CB)/mkfs.btrfs
 
 $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(BTRFSPROGS_SRC) \
 		hack/compile-btrfsprogs-ctr
@@ -192,27 +192,27 @@ $(DIR_OUT)/$(E2FSPROGS_SRC): $(DIR_OUT)/$(E2FSPROGS_ARCHIVE)
 $(DIR_OUT)/$(E2FSPROGS_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -o $(DIR_OUT)/$(E2FSPROGS_ARCHIVE) $(E2FSPROGS_URL)
 
-$(DIR_PREINIT_STG)/$(DIR_CB)/mke2fs: $(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs
-	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs $(DIR_PREINIT_STG)/$(DIR_CB)/mke2fs
+$(DIR_INIT_STG)/$(DIR_CB)/mke2fs: $(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs
+	@$(MAKE) $(DIR_INIT_STG)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs $(DIR_INIT_STG)/$(DIR_CB)/mke2fs
 
-$(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext%: $(DIR_PREINIT_STG)/$(DIR_CB)/mke2fs
-	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
-	@ln -f $(DIR_PREINIT_STG)/$(DIR_CB)/mke2fs $(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext$*
+$(DIR_INIT_STG)/$(DIR_CB)/mkfs.ext%: $(DIR_INIT_STG)/$(DIR_CB)/mke2fs
+	@$(MAKE) $(DIR_INIT_STG)/$(DIR_CB)/
+	@ln -f $(DIR_INIT_STG)/$(DIR_CB)/mke2fs $(DIR_INIT_STG)/$(DIR_CB)/mkfs.ext$*
 
-$(DIR_PREINIT_STG)/$(DIR_CB)/resize2fs: $(DIR_OUT)/$(E2FSPROGS_SRC)/resize/resize2fs
-	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(E2FSPROGS_SRC)/resize/resize2fs $(DIR_PREINIT_STG)/$(DIR_CB)/resize2fs
+$(DIR_INIT_STG)/$(DIR_CB)/resize2fs: $(DIR_OUT)/$(E2FSPROGS_SRC)/resize/resize2fs
+	@$(MAKE) $(DIR_INIT_STG)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(E2FSPROGS_SRC)/resize/resize2fs $(DIR_INIT_STG)/$(DIR_CB)/resize2fs
 
-$(DIR_PREINIT_STG)/$(DIR_CB)/preinit: $(HAS_IMAGE_LOCAL) \
-		hack/compile-preinit-ctr \
+$(DIR_INIT_STG)/$(DIR_CB)/init: $(HAS_IMAGE_LOCAL) \
+		hack/compile-init-ctr \
 		go.mod \
-		$(shell find cmd/preinit -type f -path '*.go' ! -path '*_test.go') \
+		$(shell find cmd/initial -type f -path '*.go' ! -path '*_test.go') \
 		$(shell find pkg -type f -path '*.go' ! -path '*_test.go')
-	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
+	@$(MAKE) $(DIR_INIT_STG)/$(DIR_CB)/
 	@docker run -it \
 		-v $(DIR_ROOT):/code \
-		-v $(DIR_ROOT)/$(DIR_PREINIT_STG):/install \
+		-v $(DIR_ROOT)/$(DIR_INIT_STG):/install \
 		-e OPENSSH_PRIVSEP_DIR=$(OPENSSH_PRIVSEP_DIR) \
 		-e OPENSSH_PRIVSEP_USER=$(OPENSSH_PRIVSEP_USER) \
 		-e CHRONY_USER=$(CHRONY_USER) \
@@ -221,7 +221,7 @@ $(DIR_PREINIT_STG)/$(DIR_CB)/preinit: $(HAS_IMAGE_LOCAL) \
 		-e GOCACHE=/code/$(DIR_OUT)/gocache \
 		-e CGO_ENABLED=1 \
 		-w /code \
-		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-preinit-ctr)"
+		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-init-ctr)"
 
 # Other files are created by the kernel build, but vmlinuz-$(KERNEL_VERSION) will
 # be used to indicate the target is created. It is the last file created by the build
@@ -247,13 +247,13 @@ $(DIR_OUT)/$(KERNEL_SRC): $(HAS_COMMAND_XZCAT) $(DIR_OUT)/$(KERNEL_ARCHIVE)
 $(DIR_OUT)/$(KERNEL_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -o $(DIR_OUT)/$(KERNEL_ARCHIVE) $(KERNEL_URL)
 
-$(DIR_PREINIT_STG)/$(DIR_CB)/amazon.pem: assets/amazon.pem
-	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
-	@install -m 0644 assets/amazon.pem $(DIR_PREINIT_STG)/$(DIR_CB)/amazon.pem
+$(DIR_INIT_STG)/$(DIR_CB)/amazon.pem: assets/amazon.pem
+	@$(MAKE) $(DIR_INIT_STG)/$(DIR_CB)/
+	@install -m 0644 assets/amazon.pem $(DIR_INIT_STG)/$(DIR_CB)/amazon.pem
 
-$(DIR_PREINIT_STG)/$(DIR_CB)/blkid: $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static
-	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static $(DIR_PREINIT_STG)/$(DIR_CB)/blkid
+$(DIR_INIT_STG)/$(DIR_CB)/blkid: $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static
+	@$(MAKE) $(DIR_INIT_STG)/$(DIR_CB)/
+	@install -m 0755 $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static $(DIR_INIT_STG)/$(DIR_CB)/blkid
 
 $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(UTIL_LINUX_SRC) \
 		hack/compile-blkid-ctr
@@ -358,11 +358,11 @@ $(DIR_OUT)/$(SUDO_SRC)/src/sudo: $(DIR_OUT)/$(SUDO_SRC) hack/compile-sudo-ctr
 	@touch $(DIR_OUT)/$(SUDO_SRC)/src/sudo
 
 $(DIR_SSH_STG)/$(DIR_CB)/sudo: $(DIR_OUT)/$(SUDO_SRC)/src/sudo
-	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
+	@$(MAKE) $(DIR_INIT_STG)/$(DIR_CB)/
 	@install -m 4511 $(DIR_OUT)/$(SUDO_SRC)/src/sudo $(DIR_SSH_STG)/$(DIR_CB)/sudo
 
 $(DIR_SSH_STG)/$(DIR_CB)/sudoers: assets/sudoers
-	@$(MAKE) $(DIR_PREINIT_STG)/$(DIR_CB)/
+	@$(MAKE) $(DIR_INIT_STG)/$(DIR_CB)/
 	@install -m 0440 assets/sudoers $(DIR_SSH_STG)/$(DIR_CB)/sudoers
 
 # Container image build is done in an empty directory to speed it up.
@@ -447,19 +447,19 @@ $(DIR_RELEASE_ASSETS)/kernel.tar: $(HAS_COMMAND_FAKEROOT) \
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/
 	@cd $(DIR_KERNEL_STG) && fakeroot tar cf $(DIR_ROOT)/$(DIR_RELEASE_ASSETS)/kernel.tar .
 
-$(DIR_RELEASE_ASSETS)/preinit.tar: \
+$(DIR_RELEASE_ASSETS)/init.tar: \
 		$(HAS_COMMAND_FAKEROOT) \
-		$(DIR_PREINIT_STG)/$(DIR_CB)/amazon.pem \
-		$(DIR_PREINIT_STG)/$(DIR_CB)/blkid \
-		$(DIR_PREINIT_STG)/$(DIR_CB)/mke2fs \
-		$(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.btrfs \
-		$(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext2 \
-		$(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext3 \
-		$(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext4 \
-		$(DIR_PREINIT_STG)/$(DIR_CB)/preinit \
-		$(DIR_PREINIT_STG)/$(DIR_CB)/resize2fs
+		$(DIR_INIT_STG)/$(DIR_CB)/amazon.pem \
+		$(DIR_INIT_STG)/$(DIR_CB)/blkid \
+		$(DIR_INIT_STG)/$(DIR_CB)/init \
+		$(DIR_INIT_STG)/$(DIR_CB)/mke2fs \
+		$(DIR_INIT_STG)/$(DIR_CB)/mkfs.btrfs \
+		$(DIR_INIT_STG)/$(DIR_CB)/mkfs.ext2 \
+		$(DIR_INIT_STG)/$(DIR_CB)/mkfs.ext3 \
+		$(DIR_INIT_STG)/$(DIR_CB)/mkfs.ext4 \
+		$(DIR_INIT_STG)/$(DIR_CB)/resize2fs
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/
-	@cd $(DIR_PREINIT_STG) && fakeroot tar cf $(DIR_ROOT)/$(DIR_RELEASE_ASSETS)/preinit.tar .
+	@cd $(DIR_INIT_STG) && fakeroot tar cf $(DIR_ROOT)/$(DIR_RELEASE_ASSETS)/init.tar .
 
 $(DIR_RELEASE_ASSETS)/chrony.tar: \
 		$(HAS_COMMAND_FAKEROOT) \
@@ -487,8 +487,8 @@ $(DIR_RELEASE_ASSETS)/ssh.tar: \
 $(DIR_RELEASE)/easyto-$(VERSION)-$(OS)-$(ARCH).tar.gz: $(HAS_COMMAND_FAKEROOT) packer \
 		$(DIR_RELEASE_ASSETS)/boot.tar \
 		$(DIR_RELEASE_ASSETS)/converter \
-		$(DIR_RELEASE_ASSETS)/preinit.tar \
 		$(DIR_RELEASE_ASSETS)/chrony.tar \
+		$(DIR_RELEASE_ASSETS)/init.tar \
 		$(DIR_RELEASE_ASSETS)/ssh.tar \
 		$(DIR_RELEASE_ASSETS)/kernel.tar \
 		$(DIR_RELEASE_BIN)/easyto
@@ -558,16 +558,16 @@ clean-converter:
 
 clean-blkid:
 	@rm -f $(DIR_OUT)/$(UTIL_LINUX_ARCHIVE)
-	@rm -f $(DIR_PREINIT_STG)/$(DIR_CB)/blkid
+	@rm -f $(DIR_INIT_STG)/$(DIR_CB)/blkid
 	@rm -rf $(DIR_OUT)/$(UTIL_LINUX_SRC)
 
-	@rm -f $(DIR_PREINIT_STG)/$(DIR_CB)/blkid
+	@rm -f $(DIR_INIT_STG)/$(DIR_CB)/blkid
 	@rm -f $(DIR_OUT)/$(UTIL_LINUX_ARCHIVE)
 	@rm -rf $(DIR_OUT)/$(UTIL_LINUX_SRC)
 
 clean-e2fsprogs:
 	@rm -f $(DIR_OUT)/$(E2FSPROGS_ARCHIVE)
-	@rm -f $(DIR_PREINIT_STG)/$(DIR_CB)/mke2fs $(DIR_PREINIT_STG)/$(DIR_CB)/mkfs.ext*
+	@rm -f $(DIR_INIT_STG)/$(DIR_CB)/mke2fs $(DIR_INIT_STG)/$(DIR_CB)/mkfs.ext*
 	@rm -rf $(DIR_OUT)/$(E2FSPROGS_SRC)
 
 clean-kernel:
@@ -575,8 +575,8 @@ clean-kernel:
 	@rm -rf $(DIR_OUT)/$(KERNEL_SRC)
 	@rm -rf $(DIR_KERNEL_STG)
 
-clean-preinit:
-	@rm -f $(DIR_PREINIT_STG)/$(DIR_CB)/preinit
+clean-init:
+	@rm -f $(DIR_INIT_STG)/$(DIR_CB)/init
 
 clean:
 	@chmod -R +w $(DIR_OUT)/go

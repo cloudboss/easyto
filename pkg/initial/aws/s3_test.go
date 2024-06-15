@@ -8,7 +8,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/cloudboss/easyto/pkg/preinit/maps"
+	"github.com/cloudboss/easyto/pkg/initial/maps"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 )

@@ -6,11 +6,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cloudboss/easyto/pkg/preinit/preinit"
+	"github.com/cloudboss/easyto/pkg/initial/initial"
 )
 
 func main() {
-	err := preinit.Run()
+	err := initial.Run()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to set up init: %s\n", err)
 	}

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
-	"github.com/cloudboss/easyto/pkg/preinit/maps"
+	"github.com/cloudboss/easyto/pkg/initial/maps"
 	"github.com/stretchr/testify/assert"
 )
 

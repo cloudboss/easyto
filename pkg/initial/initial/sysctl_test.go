@@ -1,4 +1,4 @@
-package preinit
+package initial
 
 import (
 	"testing"

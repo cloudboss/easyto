@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/cloudboss/easyto/pkg/preinit/files"
+	"github.com/cloudboss/easyto/pkg/initial/files"
 	"github.com/spf13/afero"
 )
 

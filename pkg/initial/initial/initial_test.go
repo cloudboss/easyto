@@ -1,4 +1,4 @@
-package preinit
+package initial
 
 import (
 	"errors"
@@ -6,9 +6,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/cloudboss/easyto/pkg/preinit/aws"
-	"github.com/cloudboss/easyto/pkg/preinit/maps"
-	"github.com/cloudboss/easyto/pkg/preinit/vmspec"
+	"github.com/cloudboss/easyto/pkg/initial/aws"
+	"github.com/cloudboss/easyto/pkg/initial/maps"
+	"github.com/cloudboss/easyto/pkg/initial/vmspec"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 )

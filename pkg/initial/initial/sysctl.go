@@ -1,4 +1,4 @@
-package preinit
+package initial
 
 import (
 	"errors"
@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/cloudboss/easyto/pkg/preinit/vmspec"
+	"github.com/cloudboss/easyto/pkg/initial/vmspec"
 )
 
 func keyToPath(key string) string {

@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/cloudboss/easyto/pkg/preinit/vmspec"
+	"github.com/cloudboss/easyto/pkg/initial/vmspec"
 	yaml "github.com/goccy/go-yaml"
 )
 

@@ -27,8 +27,8 @@ variable "asset_files" {
     "boot.tar",
     "chrony.tar",
     "converter",
+    "init.tar",
     "kernel.tar",
-    "preinit.tar",
     "ssh.tar",
   ]
 }

@@ -11,8 +11,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/cloudboss/easyto/pkg/preinit/files"
-	"github.com/cloudboss/easyto/pkg/preinit/maps"
+	"github.com/cloudboss/easyto/pkg/initial/files"
+	"github.com/cloudboss/easyto/pkg/initial/maps"
 	"github.com/spf13/afero"
 )
 

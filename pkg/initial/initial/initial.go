@@ -1,4 +1,4 @@
-package preinit
+package initial
 
 import (
 	"bufio"
@@ -16,9 +16,9 @@ import (
 	"time"
 
 	"github.com/cloudboss/easyto/pkg/constants"
-	"github.com/cloudboss/easyto/pkg/preinit/aws"
-	"github.com/cloudboss/easyto/pkg/preinit/service"
-	"github.com/cloudboss/easyto/pkg/preinit/vmspec"
+	"github.com/cloudboss/easyto/pkg/initial/aws"
+	"github.com/cloudboss/easyto/pkg/initial/service"
+	"github.com/cloudboss/easyto/pkg/initial/vmspec"
 	"github.com/google/go-containerregistry/pkg/v1"
 	"github.com/spf13/afero"
 	"golang.org/x/sys/unix"

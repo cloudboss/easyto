@@ -8,8 +8,8 @@ import (
 	"syscall"
 
 	"github.com/cloudboss/easyto/pkg/constants"
+	"github.com/cloudboss/easyto/pkg/initial/aws"
 	"github.com/cloudboss/easyto/pkg/login"
-	"github.com/cloudboss/easyto/pkg/preinit/aws"
 	"github.com/spf13/afero"
 )
 
