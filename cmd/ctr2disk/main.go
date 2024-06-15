@@ -6,26 +6,26 @@ import (
 	"path/filepath"
 
 	"github.com/cloudboss/easyto/pkg/constants"
-	"github.com/cloudboss/easyto/pkg/ctr2ami"
+	"github.com/cloudboss/easyto/pkg/ctr2disk"
 	"github.com/spf13/cobra"
 )
 
 var (
 	cfg = config{}
 	cmd = &cobra.Command{
-		Use:   "ctr2ami",
-		Short: "Convert a container image to an EC2 AMI",
+		Use:   "ctr2disk",
+		Short: "Convert a container image to a disk image",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cmd.SilenceUsage = true
 
-			builder, err := ctr2ami.NewBuilder(
-				ctr2ami.WithAssetDir(cfg.assetDir),
-				ctr2ami.WithCTRImageName(cfg.image),
-				ctr2ami.WithVMImageDevice(cfg.vmImageDevice),
-				ctr2ami.WithVMImageMount(cfg.vmImageMount),
-				ctr2ami.WithServices(cfg.services),
-				ctr2ami.WithLoginUser(cfg.loginUser),
-				ctr2ami.WithLoginShell(cfg.loginShell),
+			builder, err := ctr2disk.NewBuilder(
+				ctr2disk.WithAssetDir(cfg.assetDir),
+				ctr2disk.WithCTRImageName(cfg.image),
+				ctr2disk.WithVMImageDevice(cfg.vmImageDevice),
+				ctr2disk.WithVMImageMount(cfg.vmImageMount),
+				ctr2disk.WithServices(cfg.services),
+				ctr2disk.WithLoginUser(cfg.loginUser),
+				ctr2disk.WithLoginShell(cfg.loginShell),
 			)
 			if err != nil {
 				return fmt.Errorf("failed to create VM image builder: %w", err)

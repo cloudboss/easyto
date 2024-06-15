@@ -4,4 +4,4 @@ var_chrony_user="github.com/cloudboss/easyto/pkg/constants.ChronyUser=${CHRONY_U
 var_ssh_dir="github.com/cloudboss/easyto/pkg/constants.SSHPrivsepDir=${OPENSSH_PRIVSEP_DIR}"
 var_ssh_user="github.com/cloudboss/easyto/pkg/constants.SSHPrivsepUser=${OPENSSH_PRIVSEP_USER}"
 ldflags_vars="-X ${var_chrony_user} -X ${var_ssh_dir} -X ${var_ssh_user}"
-go build -o ${DIR_OUT}/converter -ldflags "${ldflags_vars} -s -w" ./cmd/ctr2ami
+go build -o ${DIR_OUT}/ctr2disk -ldflags "${ldflags_vars} -s -w" ./cmd/ctr2disk

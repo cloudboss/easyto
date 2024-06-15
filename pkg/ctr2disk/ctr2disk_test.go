@@ -1,4 +1,4 @@
-package ctr2ami
+package ctr2disk
 
 import (
 	"os"

@@ -12,7 +12,7 @@ for f in ${ASSET_FILES}; do
 done
 [ -z "${files_missing}" ] || fail "Files missing in ${ASSET_DIR}: ${files_missing}"
 
-chmod 0755 ${EXEC_CONVERTER}
+chmod 0755 ${EXEC_CTR2DISK}
 
 apt-get update
 apt-get install -y --no-install-recommends \
@@ -44,7 +44,7 @@ mountpoint -q /mnt/boot || mount ${ROOT_DEVICE}p1 /mnt/boot
 
 mkdir -p -m 0755 /mnt/__cb__
 
-${EXEC_CONVERTER} \
+${EXEC_CTR2DISK} \
     --asset-dir ${ASSET_DIR} \
     --container-image ${CONTAINER_IMAGE} \
     --login-user ${LOGIN_USER} \

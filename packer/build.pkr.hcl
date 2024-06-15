@@ -26,7 +26,7 @@ variable "asset_files" {
   default = [
     "boot.tar",
     "chrony.tar",
-    "converter",
+    "ctr2disk",
     "init.tar",
     "kernel.tar",
     "ssh.tar",
@@ -164,7 +164,7 @@ build {
       ASSET_DIR               = "/tmp/assets"
       ASSET_FILES             = join(" ", var.asset_files)
       CONTAINER_IMAGE         = var.container_image
-      EXEC_CONVERTER          = "/tmp/assets/converter"
+      EXEC_CTR2DISK           = "/tmp/assets/ctr2disk"
       ROOT_DEVICE             = local.source_root_device_name
       SERVICES                = join(",", var.services)
       LOGIN_USER              = var.login_user

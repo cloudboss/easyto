@@ -109,7 +109,7 @@ blkid: $(DIR_INIT_STG)/$(DIR_CB)/blkid
 
 btrfsprogs: $(DIR_INIT_STG)/$(DIR_CB)/mkfs.btrfs
 
-converter: $(DIR_OUT)/converter
+ctr2disk: $(DIR_OUT)/ctr2disk
 
 e2fsprogs: $(DIR_INIT_STG)/$(DIR_CB)/mke2fs $(DIR_INIT_STG)/$(DIR_CB)/mkfs.ext2 \
 	$(DIR_INIT_STG)/$(DIR_CB)/mkfs.ext3 $(DIR_INIT_STG)/$(DIR_CB)/mkfs.ext4 \
@@ -128,7 +128,7 @@ easyto: $(DIR_OSARCH_BUILD)/easyto
 
 assets-bootloader: $(DIR_RELEASE_ASSETS)/boot.tar
 
-assets-converter: $(DIR_RELEASE_ASSETS)/converter
+assets-ctr2disk: $(DIR_RELEASE_ASSETS)/ctr2disk
 
 assets-init: $(DIR_RELEASE_ASSETS)/init.tar
 
@@ -421,14 +421,14 @@ $(DIR_RELEASE_ASSETS)/boot.tar: $(HAS_COMMAND_FAKEROOT) $(DIR_BOOTLOADER_STG)/bo
 	@chmod -R 0755 $(DIR_BOOTLOADER_STG)
 	@cd $(DIR_BOOTLOADER_STG) && fakeroot tar cf $(DIR_ROOT)/$(DIR_RELEASE_ASSETS)/boot.tar boot
 
-$(DIR_RELEASE_ASSETS)/converter: $(DIR_OUT)/converter
+$(DIR_RELEASE_ASSETS)/ctr2disk: $(DIR_OUT)/ctr2disk
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/
-	@install -m 0755 $(DIR_OUT)/converter $(DIR_RELEASE_ASSETS)/converter
+	@install -m 0755 $(DIR_OUT)/ctr2disk $(DIR_RELEASE_ASSETS)/ctr2disk
 
-$(DIR_OUT)/converter: $(HAS_IMAGE_LOCAL) \
-		hack/compile-converter-ctr \
+$(DIR_OUT)/ctr2disk: $(HAS_IMAGE_LOCAL) \
+		hack/compile-ctr2disk-ctr \
 		go.mod \
-		$(shell find cmd/ctr2ami -type f -path '*.go' ! -path '*_test.go') \
+		$(shell find cmd/ctr2disk -type f -path '*.go' ! -path '*_test.go') \
 		$(shell find pkg -type f -path '*.go' ! -path '*_test.go')
 	@docker run -it \
 		-v $(DIR_ROOT):/code \
@@ -440,7 +440,7 @@ $(DIR_OUT)/converter: $(HAS_IMAGE_LOCAL) \
 		-e GOCACHE=/code/$(DIR_OUT)/gocache \
 		-e CGO_ENABLED=0 \
 		-w /code \
-		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-converter-ctr)"
+		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-ctr2disk-ctr)"
 
 $(DIR_RELEASE_ASSETS)/kernel.tar: $(HAS_COMMAND_FAKEROOT) \
 		$(DIR_KERNEL_STG)/boot/vmlinuz-$(KERNEL_VERSION)
@@ -486,8 +486,8 @@ $(DIR_RELEASE_ASSETS)/ssh.tar: \
 
 $(DIR_RELEASE)/easyto-$(VERSION)-$(OS)-$(ARCH).tar.gz: $(HAS_COMMAND_FAKEROOT) packer \
 		$(DIR_RELEASE_ASSETS)/boot.tar \
-		$(DIR_RELEASE_ASSETS)/converter \
 		$(DIR_RELEASE_ASSETS)/chrony.tar \
+		$(DIR_RELEASE_ASSETS)/ctr2disk \
 		$(DIR_RELEASE_ASSETS)/init.tar \
 		$(DIR_RELEASE_ASSETS)/ssh.tar \
 		$(DIR_RELEASE_ASSETS)/kernel.tar \
@@ -553,8 +553,8 @@ $(DIR_OUT)/.command-%:
 $(DIR_OUT)/%/:
 	@[ -d $(DIR_OUT)/$* ] || mkdir -p $(DIR_OUT)/$*
 
-clean-converter:
-	@rm -f $(DIR_OUT)/converter
+clean-ctr2disk:
+	@rm -f $(DIR_OUT)/ctr2disk
 
 clean-blkid:
 	@rm -f $(DIR_OUT)/$(UTIL_LINUX_ARCHIVE)
