@@ -24,9 +24,9 @@ type Supervisor struct {
 }
 
 func (s *Supervisor) Start() error {
-	dirs, err := afero.ReadDir(fs, constants.DirServices)
+	dirs, err := afero.ReadDir(fs, constants.DirETServices)
 	if err != nil {
-		return fmt.Errorf("unable to read directory %s: %w", constants.DirServices, err)
+		return fmt.Errorf("unable to read directory %s: %w", constants.DirETServices, err)
 	}
 
 	for _, dir := range dirs {

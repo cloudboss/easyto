@@ -1,3 +1,3 @@
-#!/__cb__/busybox sh
+#!/__ROOT_DIR__/bin/busybox sh
 
-exec /__cb__/busybox sh --noprofile
+exec /__ROOT_DIR__/bin/busybox sh --noprofile

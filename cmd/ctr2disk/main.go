@@ -72,7 +72,7 @@ func init() {
 	cmd.Flags().StringVar(&cfg.loginUser, "login-user", "cloudboss",
 		"Login user to create in the VM image if ssh service is enabled.")
 
-	loginShell := filepath.Join(constants.DirCB, "sh")
+	loginShell := filepath.Join(constants.DirETBin, "sh")
 	cmd.Flags().StringVar(&cfg.loginShell, "login-shell", loginShell,
 		"Login shell to use for the login user if ssh service is enabled.")
 }

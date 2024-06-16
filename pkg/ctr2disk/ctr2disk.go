@@ -247,7 +247,7 @@ func (b *Builder) MakeVMImage() (err error) {
 		return err
 	}
 
-	err = b.setupMetadata(ctrImage, filepath.Join(b.VMImageMount, constants.DirCB, fileMetadata))
+	err = b.setupMetadata(ctrImage, filepath.Join(b.VMImageMount, constants.DirETRoot, fileMetadata))
 	if err != nil {
 		return err
 	}
@@ -259,7 +259,7 @@ func (b *Builder) formatBootEntry(partUUID string) string {
 	contentFmt := `linux /vmlinuz-%s
 options rw root=PARTUUID=%s console=tty0 console=ttyS0,115200 earlyprintk=ttyS0,115200 consoleblank=0 ip=dhcp init=%s/init
 `
-	return fmt.Sprintf(contentFmt, b.kernelVersion, partUUID, constants.DirCB)
+	return fmt.Sprintf(contentFmt, b.kernelVersion, partUUID, constants.DirETSbin)
 }
 
 func (b *Builder) setupBootloader() error {
@@ -317,7 +317,7 @@ func (b *Builder) setupKernel() error {
 	}
 
 	linkPath := filepath.Join(b.VMImageMount, dirLibModules, b.kernelVersion)
-	linkTargetPath := filepath.Join(constants.DirCB, dirLibModules, b.kernelVersion)
+	linkTargetPath := filepath.Join(constants.DirETRoot, dirLibModules, b.kernelVersion)
 	err = os.Symlink(linkTargetPath, linkPath)
 	if err != nil {
 		return fmt.Errorf("unable to link %s to %s: %w", linkPath, linkTargetPath, err)
@@ -441,11 +441,14 @@ func (b *Builder) setupSSH() error {
 	}
 
 	dirSSHPrivsep := filepath.Join(b.VMImageMount, constants.SSHPrivsepDir)
-	if err := fs.Mkdir(dirSSHPrivsep, 0711); err != nil && !os.IsExist(err) {
+	if err := fs.MkdirAll(dirSSHPrivsep, 0755); err != nil {
 		return fmt.Errorf("unable to create %s: %w", dirSSHPrivsep, err)
 	}
+	if err := fs.Chmod(dirSSHPrivsep, 0711); err != nil {
+		return fmt.Errorf("unable to set permissions on %s: %w", dirSSHPrivsep, err)
+	}
 
-	homeDir := filepath.Join(constants.DirHome, b.LoginUser)
+	homeDir := filepath.Join(constants.DirETHome, b.LoginUser)
 	_, _, err = login.AddLoginUser(fs, b.LoginUser, b.LoginUser, homeDir, b.LoginShell, b.VMImageMount)
 	if err != nil {
 		return fmt.Errorf("unable to add login user: %w", err)

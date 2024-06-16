@@ -5,12 +5,12 @@ VERSION :=
 
 DIR_ROOT := $(shell echo ${PWD})
 DIR_OUT := _output
-DIR_CB := __cb__
+DIR_ET := .easyto
 DIR_BOOTLOADER_TMP := $(DIR_OUT)/bootloader-tmp
 DIR_BOOTLOADER_STG := $(DIR_OUT)/staging/bootloader
+DIR_CHRONY_STG := $(DIR_OUT)/staging/chrony
 DIR_INIT_STG := $(DIR_OUT)/staging/init
 DIR_KERNEL_STG := $(DIR_OUT)/staging/kernel
-DIR_CHRONY_STG := $(DIR_OUT)/staging/chrony
 DIR_SSH_STG := $(DIR_OUT)/staging/ssh
 DIR_RELEASE := $(DIR_OUT)/release/$(OS)/$(ARCH)
 DIR_RELEASE_ASSETS := $(DIR_RELEASE)/assets
@@ -19,6 +19,9 @@ DIR_RELEASE_PACKER := $(DIR_RELEASE)/packer
 DIR_RELEASE_PACKER_PLUGIN := $(DIR_RELEASE_PACKER)/plugins/github.com/hashicorp/amazon
 DIR_OSARCH_BUILD := $(DIR_OUT)/osarch/$(OS)/$(ARCH)
 DIR_OPENSSH_DEPS := openssh-deps
+
+# $(DIR_BOOTLOADER_STG) not included here as it does not have a $(DIR_ET) subdirectory.
+DIRS_STG := $(DIR_CHRONY_STG) $(DIR_INIT_STG) $(DIR_KERNEL_STG) $(DIR_SSH_STG)
 
 DOCKERFILE_SHA256 := $(shell sha256sum Dockerfile.build | awk '{print $$1}' | cut -c 1-40)
 CTR_IMAGE_GO := golang:1.21.0-alpine3.18
@@ -85,8 +88,8 @@ OPENSSH_SRC := openssh-portable-$(OPENSSH_VERSION)
 OPENSSH_ARCHIVE := $(OPENSSH_VERSION).tar.gz
 OPENSSH_URL := https://github.com/openssh/openssh-portable/archive/refs/tags/$(OPENSSH_ARCHIVE)
 OPENSSH_PRIVSEP_USER := cb-ssh
-OPENSSH_PRIVSEP_DIR := /$(DIR_CB)/empty
-OPENSSH_DEFAULT_PATH := /$(DIR_CB):/bin:/usr/bin:/usr/local/bin
+OPENSSH_PRIVSEP_DIR := /$(DIR_ET)/var/empty
+OPENSSH_DEFAULT_PATH := /$(DIR_ET)/bin:/$(DIR_ET)/sbin:/bin:/usr/bin:/usr/local/bin
 
 SUDO_VERSION := 1.9.15p5
 SUDO_SRC := sudo-$(SUDO_VERSION)
@@ -101,23 +104,25 @@ HAS_COMMAND_UNZIP := $(DIR_OUT)/.command-unzip
 HAS_COMMAND_XZCAT := $(DIR_OUT)/.command-xzcat
 HAS_IMAGE_LOCAL := $(DIR_OUT)/.image-local-$(DOCKERFILE_SHA256)
 
+VAR_DIR_ET := $(DIR_OUT)/.var-dir-et
+
 default: release
 
 bootloader: $(DIR_BOOTLOADER_STG)/boot/EFI/BOOT/BOOTX64.EFI
 
-blkid: $(DIR_INIT_STG)/$(DIR_CB)/blkid
+blkid: $(DIR_INIT_STG)/$(DIR_ET)/sbin/blkid
 
-btrfsprogs: $(DIR_INIT_STG)/$(DIR_CB)/mkfs.btrfs
+btrfsprogs: $(DIR_INIT_STG)/$(DIR_ET)/sbin/mkfs.btrfs
 
 ctr2disk: $(DIR_OUT)/ctr2disk
 
-e2fsprogs: $(DIR_INIT_STG)/$(DIR_CB)/mke2fs $(DIR_INIT_STG)/$(DIR_CB)/mkfs.ext2 \
-	$(DIR_INIT_STG)/$(DIR_CB)/mkfs.ext3 $(DIR_INIT_STG)/$(DIR_CB)/mkfs.ext4 \
-	$(DIR_INIT_STG)/$(DIR_CB)/resize2fs
+e2fsprogs: $(DIR_INIT_STG)/$(DIR_ET)/sbin/mke2fs $(DIR_INIT_STG)/$(DIR_ET)/sbin/mkfs.ext2 \
+	$(DIR_INIT_STG)/$(DIR_ET)/sbin/mkfs.ext3 $(DIR_INIT_STG)/$(DIR_ET)/sbin/mkfs.ext4 \
+	$(DIR_INIT_STG)/$(DIR_ET)/sbin/resize2fs
 
 kernel: $(DIR_KERNEL_STG)/boot/vmlinuz-$(KERNEL_VERSION)
 
-init: $(DIR_INIT_STG)/$(DIR_CB)/init
+init: $(DIR_INIT_STG)/$(DIR_ET)/sbin/init
 
 packer: $(DIR_RELEASE_PACKER)/build.pkr.hcl \
 		$(DIR_RELEASE_PACKER)/packer \
@@ -159,9 +164,9 @@ $(DIR_BOOTLOADER_STG)/boot/EFI/BOOT/BOOTX64.EFI: $(DIR_BOOTLOADER_TMP)/data.tar.
 $(DIR_OUT)/$(SYSTEMD_BOOT_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -o $(DIR_OUT)/$(SYSTEMD_BOOT_ARCHIVE) $(SYSTEMD_BOOT_URL)
 
-$(DIR_INIT_STG)/$(DIR_CB)/mkfs.btrfs: $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static
-	@$(MAKE) $(DIR_INIT_STG)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static $(DIR_INIT_STG)/$(DIR_CB)/mkfs.btrfs
+$(DIR_INIT_STG)/$(DIR_ET)/sbin/mkfs.btrfs: $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static $(VAR_DIR_ET)
+	@$(MAKE) $(DIR_INIT_STG)/$(DIR_ET)/sbin/
+	@install -m 0755 $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static $(DIR_INIT_STG)/$(DIR_ET)/sbin/mkfs.btrfs
 
 $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(BTRFSPROGS_SRC) \
 		hack/compile-btrfsprogs-ctr
@@ -192,31 +197,33 @@ $(DIR_OUT)/$(E2FSPROGS_SRC): $(DIR_OUT)/$(E2FSPROGS_ARCHIVE)
 $(DIR_OUT)/$(E2FSPROGS_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -o $(DIR_OUT)/$(E2FSPROGS_ARCHIVE) $(E2FSPROGS_URL)
 
-$(DIR_INIT_STG)/$(DIR_CB)/mke2fs: $(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs
-	@$(MAKE) $(DIR_INIT_STG)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs $(DIR_INIT_STG)/$(DIR_CB)/mke2fs
+$(DIR_INIT_STG)/$(DIR_ET)/sbin/mke2fs: $(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs $(VAR_DIR_ET)
+	@$(MAKE) $(DIR_INIT_STG)/$(DIR_ET)/sbin/
+	@install -m 0755 $(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs $(DIR_INIT_STG)/$(DIR_ET)/sbin/mke2fs
 
-$(DIR_INIT_STG)/$(DIR_CB)/mkfs.ext%: $(DIR_INIT_STG)/$(DIR_CB)/mke2fs
-	@$(MAKE) $(DIR_INIT_STG)/$(DIR_CB)/
-	@ln -f $(DIR_INIT_STG)/$(DIR_CB)/mke2fs $(DIR_INIT_STG)/$(DIR_CB)/mkfs.ext$*
+$(DIR_INIT_STG)/$(DIR_ET)/sbin/mkfs.ext%: $(DIR_INIT_STG)/$(DIR_ET)/sbin/mke2fs $(VAR_DIR_ET)
+	@$(MAKE) $(DIR_INIT_STG)/$(DIR_ET)/sbin/
+	@ln -f $(DIR_INIT_STG)/$(DIR_ET)/sbin/mke2fs $(DIR_INIT_STG)/$(DIR_ET)/sbin/mkfs.ext$*
 
-$(DIR_INIT_STG)/$(DIR_CB)/resize2fs: $(DIR_OUT)/$(E2FSPROGS_SRC)/resize/resize2fs
-	@$(MAKE) $(DIR_INIT_STG)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(E2FSPROGS_SRC)/resize/resize2fs $(DIR_INIT_STG)/$(DIR_CB)/resize2fs
+$(DIR_INIT_STG)/$(DIR_ET)/sbin/resize2fs: $(DIR_OUT)/$(E2FSPROGS_SRC)/resize/resize2fs $(VAR_DIR_ET)
+	@$(MAKE) $(DIR_INIT_STG)/$(DIR_ET)/sbin/
+	@install -m 0755 $(DIR_OUT)/$(E2FSPROGS_SRC)/resize/resize2fs $(DIR_INIT_STG)/$(DIR_ET)/sbin/resize2fs
 
-$(DIR_INIT_STG)/$(DIR_CB)/init: $(HAS_IMAGE_LOCAL) \
+$(DIR_INIT_STG)/$(DIR_ET)/sbin/init: $(HAS_IMAGE_LOCAL) \
+		$(VAR_DIR_ET) \
 		hack/compile-init-ctr \
 		go.mod \
 		$(shell find cmd/initial -type f -path '*.go' ! -path '*_test.go') \
 		$(shell find pkg -type f -path '*.go' ! -path '*_test.go')
-	@$(MAKE) $(DIR_INIT_STG)/$(DIR_CB)/
+	@$(MAKE) $(DIR_INIT_STG)/$(DIR_ET)/sbin/
 	@docker run -it \
 		-v $(DIR_ROOT):/code \
 		-v $(DIR_ROOT)/$(DIR_INIT_STG):/install \
 		-e OPENSSH_PRIVSEP_DIR=$(OPENSSH_PRIVSEP_DIR) \
 		-e OPENSSH_PRIVSEP_USER=$(OPENSSH_PRIVSEP_USER) \
 		-e CHRONY_USER=$(CHRONY_USER) \
-		-e DIR_OUT=/install/$(DIR_CB) \
+		-e DIR_ET_ROOT=/$(DIR_ET) \
+		-e DIR_OUT=/install/$(DIR_ET)/sbin \
 		-e GOPATH=/code/$(DIR_OUT)/go \
 		-e GOCACHE=/code/$(DIR_OUT)/gocache \
 		-e CGO_ENABLED=1 \
@@ -226,20 +233,23 @@ $(DIR_INIT_STG)/$(DIR_CB)/init: $(HAS_IMAGE_LOCAL) \
 # Other files are created by the kernel build, but vmlinuz-$(KERNEL_VERSION) will
 # be used to indicate the target is created. It is the last file created by the build
 # via the $(DIR_ROOT)/kernel/installkernel script mounted in the build container.
-$(DIR_KERNEL_STG)/boot/vmlinuz-$(KERNEL_VERSION): $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(KERNEL_SRC) kernel/config \
+$(DIR_KERNEL_STG)/boot/vmlinuz-$(KERNEL_VERSION): $(HAS_IMAGE_LOCAL) \
+		$(DIR_OUT)/$(KERNEL_SRC) \
+		$(VAR_DIR_ET) \
+		kernel/config \
 		hack/compile-kernel-ctr
-	@$(MAKE) $(DIR_KERNEL_STG)/boot/ $(DIR_KERNEL_STG)/$(DIR_CB)/
+	@$(MAKE) $(DIR_KERNEL_STG)/boot/ $(DIR_KERNEL_STG)/$(DIR_ET)/
 	@docker run -it \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(KERNEL_SRC):/code \
 		-v $(DIR_ROOT)/$(DIR_KERNEL_STG):/install \
 		-v $(DIR_ROOT)/kernel/config:/config \
 		-v $(DIR_ROOT)/kernel/installkernel:/sbin/installkernel \
 		-e INSTALL_PATH=/install/boot \
-		-e INSTALL_MOD_PATH=/install/$(DIR_CB) \
+		-e INSTALL_MOD_PATH=/install/$(DIR_ET) \
 		-w /code \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-kernel-ctr)"
-	@rm -f $(DIR_KERNEL_STG)/$(DIR_CB)/lib/modules/$(KERNEL_VERSION)/build
-	@rm -f $(DIR_KERNEL_STG)/$(DIR_CB)/lib/modules/$(KERNEL_VERSION)/source
+	@rm -f $(DIR_KERNEL_STG)/$(DIR_ET)/lib/modules/$(KERNEL_VERSION)/build
+	@rm -f $(DIR_KERNEL_STG)/$(DIR_ET)/lib/modules/$(KERNEL_VERSION)/source
 
 $(DIR_OUT)/$(KERNEL_SRC): $(HAS_COMMAND_XZCAT) $(DIR_OUT)/$(KERNEL_ARCHIVE)
 	@xzcat $(DIR_OUT)/$(KERNEL_ARCHIVE) | tar xf - -C $(DIR_OUT)
@@ -247,13 +257,13 @@ $(DIR_OUT)/$(KERNEL_SRC): $(HAS_COMMAND_XZCAT) $(DIR_OUT)/$(KERNEL_ARCHIVE)
 $(DIR_OUT)/$(KERNEL_ARCHIVE): $(HAS_COMMAND_CURL)
 	@curl -o $(DIR_OUT)/$(KERNEL_ARCHIVE) $(KERNEL_URL)
 
-$(DIR_INIT_STG)/$(DIR_CB)/amazon.pem: assets/amazon.pem
-	@$(MAKE) $(DIR_INIT_STG)/$(DIR_CB)/
-	@install -m 0644 assets/amazon.pem $(DIR_INIT_STG)/$(DIR_CB)/amazon.pem
+$(DIR_INIT_STG)/$(DIR_ET)/etc/amazon.pem: assets/amazon.pem $(VAR_DIR_ET)
+	@$(MAKE) $(DIR_INIT_STG)/$(DIR_ET)/etc/
+	@install -m 0644 assets/amazon.pem $(DIR_INIT_STG)/$(DIR_ET)/etc/amazon.pem
 
-$(DIR_INIT_STG)/$(DIR_CB)/blkid: $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static
-	@$(MAKE) $(DIR_INIT_STG)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static $(DIR_INIT_STG)/$(DIR_CB)/blkid
+$(DIR_INIT_STG)/$(DIR_ET)/sbin/blkid: $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static $(VAR_DIR_ET)
+	@$(MAKE) $(DIR_INIT_STG)/$(DIR_ET)/sbin/
+	@install -m 0755 $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static $(DIR_INIT_STG)/$(DIR_ET)/sbin/blkid
 
 $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(UTIL_LINUX_SRC) \
 		hack/compile-blkid-ctr
@@ -264,59 +274,61 @@ $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(UTIL_
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-blkid-ctr)"
 	@touch $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static
 
-$(DIR_CHRONY_STG)/$(DIR_CB)/chronyd: $(DIR_OUT)/$(CHRONY_SRC)/chronyd
-	@$(MAKE) $(DIR_CHRONY_STG)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(CHRONY_SRC)/chronyd $(DIR_CHRONY_STG)/$(DIR_CB)/chronyd
+$(DIR_CHRONY_STG)/$(DIR_ET)/sbin/chronyd: $(DIR_OUT)/$(CHRONY_SRC)/chronyd $(VAR_DIR_ET)
+	@$(MAKE) $(DIR_CHRONY_STG)/$(DIR_ET)/sbin/
+	@install -m 0755 $(DIR_OUT)/$(CHRONY_SRC)/chronyd $(DIR_CHRONY_STG)/$(DIR_ET)/sbin/chronyd
 
-$(DIR_CHRONY_STG)/$(DIR_CB)/chronyc: $(DIR_OUT)/$(CHRONY_SRC)/chronyd
-	@$(MAKE) $(DIR_CHRONY_STG)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(CHRONY_SRC)/chronyc $(DIR_CHRONY_STG)/$(DIR_CB)/chronyc
+$(DIR_CHRONY_STG)/$(DIR_ET)/bin/chronyc: $(DIR_OUT)/$(CHRONY_SRC)/chronyd $(VAR_DIR_ET)
+	@$(MAKE) $(DIR_CHRONY_STG)/$(DIR_ET)/bin/
+	@install -m 0755 $(DIR_OUT)/$(CHRONY_SRC)/chronyc $(DIR_CHRONY_STG)/$(DIR_ET)/bin/chronyc
 
-$(DIR_OUT)/$(CHRONY_SRC)/chronyd: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(CHRONY_SRC) \
+$(DIR_OUT)/$(CHRONY_SRC)/chronyd: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(CHRONY_SRC) $(VAR_DIR_ET) \
 		hack/compile-chrony-ctr
 	@docker run -it \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(CHRONY_SRC):/code \
 		-e CHRONY_USER=$(CHRONY_USER) \
-		-e SYSCONFDIR=/$(DIR_CB) \
+		-e SYSCONFDIR=/$(DIR_ET)/etc \
 		-w /code \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-chrony-ctr)"
 	@touch $(DIR_OUT)/$(CHRONY_SRC)/chronyd $(DIR_OUT)/$(CHRONY_SRC)/chronyc
 
-$(DIR_CHRONY_STG)/$(DIR_CB)/chrony.conf: assets/chrony.conf
-	@$(MAKE) $(DIR_CHRONY_STG)/$(DIR_CB)/
-	@install -m 0644 assets/chrony.conf $(DIR_CHRONY_STG)/$(DIR_CB)/chrony.conf
+$(DIR_CHRONY_STG)/$(DIR_ET)/etc/chrony.conf: assets/chrony.conf $(VAR_DIR_ET)
+	@$(MAKE) $(DIR_CHRONY_STG)/$(DIR_ET)/etc/
+	@install -m 0644 assets/chrony.conf $(DIR_CHRONY_STG)/$(DIR_ET)/etc/chrony.conf
 
-$(DIR_CHRONY_STG)/$(DIR_CB)/services/chrony:
-	@$(MAKE) $(DIR_CHRONY_STG)/$(DIR_CB)/services/
-	@touch $(DIR_CHRONY_STG)/$(DIR_CB)/services/chrony
+$(DIR_CHRONY_STG)/$(DIR_ET)/services/chrony: $(VAR_DIR_ET)
+	@$(MAKE) $(DIR_CHRONY_STG)/$(DIR_ET)/services/
+	@touch $(DIR_CHRONY_STG)/$(DIR_ET)/services/chrony
 
-$(DIR_SSH_STG)/$(DIR_CB)/sftp-server: $(DIR_OUT)/$(OPENSSH_SRC)/sshd
-	@$(MAKE) $(DIR_SSH_STG)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/sftp-server $(DIR_SSH_STG)/$(DIR_CB)/sftp-server
+$(DIR_SSH_STG)/$(DIR_ET)/libexec/sftp-server: $(DIR_OUT)/$(OPENSSH_SRC)/sshd $(VAR_DIR_ET)
+	@$(MAKE) $(DIR_SSH_STG)/$(DIR_ET)/libexec/
+	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/sftp-server $(DIR_SSH_STG)/$(DIR_ET)/libexec/sftp-server
 
-$(DIR_SSH_STG)/$(DIR_CB)/busybox: $(DIR_OUT)/$(BUSYBOX_BIN)
-	@$(MAKE) $(DIR_SSH_STG)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(BUSYBOX_BIN) $(DIR_SSH_STG)/$(DIR_CB)/busybox
+$(DIR_SSH_STG)/$(DIR_ET)/bin/busybox: $(DIR_OUT)/$(BUSYBOX_BIN) $(VAR_DIR_ET)
+	@$(MAKE) $(DIR_SSH_STG)/$(DIR_ET)/bin/
+	@install -m 0755 $(DIR_OUT)/$(BUSYBOX_BIN) $(DIR_SSH_STG)/$(DIR_ET)/bin/busybox
 
-$(DIR_SSH_STG)/$(DIR_CB)/sh: assets/sh $(DIR_SSH_STG)/$(DIR_CB)/busybox
-	@$(MAKE) $(DIR_SSH_STG)/$(DIR_CB)/
-	@install -m 0755 assets/sh $(DIR_SSH_STG)/$(DIR_CB)/sh
+$(DIR_SSH_STG)/$(DIR_ET)/bin/sh: assets/sh $(DIR_SSH_STG)/$(DIR_ET)/bin/busybox $(VAR_DIR_ET)
+	$(MAKE) $(DIR_SSH_STG)/$(DIR_ET)/bin/
+	@sed "s|__ROOT_DIR__|${DIR_ET}|g" assets/sh > $(DIR_SSH_STG)/$(DIR_ET)/bin/sh
+	@chmod 0755 $(DIR_SSH_STG)/$(DIR_ET)/bin/sh
 
-$(DIR_SSH_STG)/$(DIR_CB)/ssh-keygen: $(DIR_OUT)/$(OPENSSH_SRC)/sshd
-	@$(MAKE) $(DIR_SSH_STG)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/ssh-keygen $(DIR_SSH_STG)/$(DIR_CB)/ssh-keygen
+$(DIR_SSH_STG)/$(DIR_ET)/bin/ssh-keygen: $(DIR_OUT)/$(OPENSSH_SRC)/sshd $(VAR_DIR_ET)
+	@$(MAKE) $(DIR_SSH_STG)/$(DIR_ET)/bin/
+	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/ssh-keygen $(DIR_SSH_STG)/$(DIR_ET)/bin/ssh-keygen
 
-$(DIR_SSH_STG)/$(DIR_CB)/sshd: $(DIR_OUT)/$(OPENSSH_SRC)/sshd
-	@$(MAKE) $(DIR_SSH_STG)/$(DIR_CB)/
-	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/sshd $(DIR_SSH_STG)/$(DIR_CB)/sshd
+$(DIR_SSH_STG)/$(DIR_ET)/sbin/sshd: $(DIR_OUT)/$(OPENSSH_SRC)/sshd $(VAR_DIR_ET)
+	@$(MAKE) $(DIR_SSH_STG)/$(DIR_ET)/sbin/
+	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/sshd $(DIR_SSH_STG)/$(DIR_ET)/sbin/sshd
 
-$(DIR_SSH_STG)/$(DIR_CB)/sshd_config: assets/sshd_config
-	@$(MAKE) $(DIR_SSH_STG)/$(DIR_CB)/
-	@install -m 0644 assets/sshd_config $(DIR_SSH_STG)/$(DIR_CB)/sshd_config
+$(DIR_SSH_STG)/$(DIR_ET)/etc/ssh/sshd_config: assets/sshd_config $(VAR_DIR_ET)
+	@$(MAKE) $(DIR_SSH_STG)/$(DIR_ET)/etc/ssh/
+	@sed "s|__ROOT_DIR__|${DIR_ET}|g" assets/sshd_config > $(DIR_SSH_STG)/$(DIR_ET)/etc/ssh/sshd_config
+	@chmod 0600 $(DIR_SSH_STG)/$(DIR_ET)/etc/ssh/sshd_config
 
-$(DIR_SSH_STG)/$(DIR_CB)/services/ssh:
-	@$(MAKE) $(DIR_SSH_STG)/$(DIR_CB)/services/
-	@touch $(DIR_SSH_STG)/$(DIR_CB)/services/ssh
+$(DIR_SSH_STG)/$(DIR_ET)/services/ssh: $(VAR_DIR_ET)
+	@$(MAKE) $(DIR_SSH_STG)/$(DIR_ET)/services/
+	@touch $(DIR_SSH_STG)/$(DIR_ET)/services/ssh
 
 $(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libz.a: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(ZLIB_SRC) \
 		hack/compile-zlib-ctr
@@ -337,7 +349,8 @@ $(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libcrypto.a: $(DIR_OUT)/$(OPENSSL_SRC) \
 		-w /code \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-openssl-ctr)"
 
-$(DIR_OUT)/$(OPENSSH_SRC)/sshd: $(DIR_OUT)/$(OPENSSH_SRC) $(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libcrypto.a \
+$(DIR_OUT)/$(OPENSSH_SRC)/sshd: $(DIR_OUT)/$(OPENSSH_SRC) $(VAR_DIR_ET) \
+		$(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libcrypto.a \
 		$(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libz.a hack/compile-openssh-ctr
 	@docker run -it \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(OPENSSH_SRC):/code \
@@ -350,20 +363,21 @@ $(DIR_OUT)/$(OPENSSH_SRC)/sshd: $(DIR_OUT)/$(OPENSSH_SRC) $(DIR_OUT)/$(DIR_OPENS
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-openssh-ctr)"
 	@touch $(DIR_OUT)/$(OPENSSH_SRC)/sshd
 
-$(DIR_OUT)/$(SUDO_SRC)/src/sudo: $(DIR_OUT)/$(SUDO_SRC) hack/compile-sudo-ctr
+$(DIR_OUT)/$(SUDO_SRC)/src/sudo: $(DIR_OUT)/$(SUDO_SRC) $(VAR_DIR_ET) hack/compile-sudo-ctr
 	@docker run -it \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(SUDO_SRC):/code \
+		-e DIR_ET_ROOT=/$(DIR_ET) \
 		-w /code \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-sudo-ctr)"
 	@touch $(DIR_OUT)/$(SUDO_SRC)/src/sudo
 
-$(DIR_SSH_STG)/$(DIR_CB)/sudo: $(DIR_OUT)/$(SUDO_SRC)/src/sudo
-	@$(MAKE) $(DIR_INIT_STG)/$(DIR_CB)/
-	@install -m 4511 $(DIR_OUT)/$(SUDO_SRC)/src/sudo $(DIR_SSH_STG)/$(DIR_CB)/sudo
+$(DIR_SSH_STG)/$(DIR_ET)/bin/sudo: $(DIR_OUT)/$(SUDO_SRC)/src/sudo $(VAR_DIR_ET)
+	@$(MAKE) $(DIR_INIT_STG)/$(DIR_ET)/bin/
+	@install -m 4511 $(DIR_OUT)/$(SUDO_SRC)/src/sudo $(DIR_SSH_STG)/$(DIR_ET)/bin/sudo
 
-$(DIR_SSH_STG)/$(DIR_CB)/sudoers: assets/sudoers
-	@$(MAKE) $(DIR_INIT_STG)/$(DIR_CB)/
-	@install -m 0440 assets/sudoers $(DIR_SSH_STG)/$(DIR_CB)/sudoers
+$(DIR_SSH_STG)/$(DIR_ET)/etc/sudoers: assets/sudoers $(VAR_DIR_ET)
+	@$(MAKE) $(DIR_INIT_STG)/$(DIR_ET)/etc/
+	@install -m 0440 assets/sudoers $(DIR_SSH_STG)/$(DIR_ET)/etc/sudoers
 
 # Container image build is done in an empty directory to speed it up.
 $(HAS_IMAGE_LOCAL): $(HAS_COMMAND_DOCKER)
@@ -426,6 +440,7 @@ $(DIR_RELEASE_ASSETS)/ctr2disk: $(DIR_OUT)/ctr2disk
 	@install -m 0755 $(DIR_OUT)/ctr2disk $(DIR_RELEASE_ASSETS)/ctr2disk
 
 $(DIR_OUT)/ctr2disk: $(HAS_IMAGE_LOCAL) \
+		$(VAR_DIR_ET) \
 		hack/compile-ctr2disk-ctr \
 		go.mod \
 		$(shell find cmd/ctr2disk -type f -path '*.go' ! -path '*_test.go') \
@@ -435,6 +450,7 @@ $(DIR_OUT)/ctr2disk: $(HAS_IMAGE_LOCAL) \
 		-e OPENSSH_PRIVSEP_DIR=$(OPENSSH_PRIVSEP_DIR) \
 		-e OPENSSH_PRIVSEP_USER=$(OPENSSH_PRIVSEP_USER) \
 		-e CHRONY_USER=$(CHRONY_USER) \
+		-e DIR_ET_ROOT=/$(DIR_ET) \
 		-e DIR_OUT=/code/$(DIR_OUT) \
 		-e GOPATH=/code/$(DIR_OUT)/go \
 		-e GOCACHE=/code/$(DIR_OUT)/gocache \
@@ -449,38 +465,38 @@ $(DIR_RELEASE_ASSETS)/kernel.tar: $(HAS_COMMAND_FAKEROOT) \
 
 $(DIR_RELEASE_ASSETS)/init.tar: \
 		$(HAS_COMMAND_FAKEROOT) \
-		$(DIR_INIT_STG)/$(DIR_CB)/amazon.pem \
-		$(DIR_INIT_STG)/$(DIR_CB)/blkid \
-		$(DIR_INIT_STG)/$(DIR_CB)/init \
-		$(DIR_INIT_STG)/$(DIR_CB)/mke2fs \
-		$(DIR_INIT_STG)/$(DIR_CB)/mkfs.btrfs \
-		$(DIR_INIT_STG)/$(DIR_CB)/mkfs.ext2 \
-		$(DIR_INIT_STG)/$(DIR_CB)/mkfs.ext3 \
-		$(DIR_INIT_STG)/$(DIR_CB)/mkfs.ext4 \
-		$(DIR_INIT_STG)/$(DIR_CB)/resize2fs
+		$(DIR_INIT_STG)/$(DIR_ET)/etc/amazon.pem \
+		$(DIR_INIT_STG)/$(DIR_ET)/sbin/blkid \
+		$(DIR_INIT_STG)/$(DIR_ET)/sbin/init \
+		$(DIR_INIT_STG)/$(DIR_ET)/sbin/mke2fs \
+		$(DIR_INIT_STG)/$(DIR_ET)/sbin/mkfs.btrfs \
+		$(DIR_INIT_STG)/$(DIR_ET)/sbin/mkfs.ext2 \
+		$(DIR_INIT_STG)/$(DIR_ET)/sbin/mkfs.ext3 \
+		$(DIR_INIT_STG)/$(DIR_ET)/sbin/mkfs.ext4 \
+		$(DIR_INIT_STG)/$(DIR_ET)/sbin/resize2fs
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/
 	@cd $(DIR_INIT_STG) && fakeroot tar cf $(DIR_ROOT)/$(DIR_RELEASE_ASSETS)/init.tar .
 
 $(DIR_RELEASE_ASSETS)/chrony.tar: \
 		$(HAS_COMMAND_FAKEROOT) \
-		$(DIR_CHRONY_STG)/$(DIR_CB)/chrony.conf \
-		$(DIR_CHRONY_STG)/$(DIR_CB)/chronyd \
-		$(DIR_CHRONY_STG)/$(DIR_CB)/chronyc \
-		$(DIR_CHRONY_STG)/$(DIR_CB)/services/chrony
+		$(DIR_CHRONY_STG)/$(DIR_ET)/bin/chronyc \
+		$(DIR_CHRONY_STG)/$(DIR_ET)/etc/chrony.conf \
+		$(DIR_CHRONY_STG)/$(DIR_ET)/sbin/chronyd \
+		$(DIR_CHRONY_STG)/$(DIR_ET)/services/chrony
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/
 	@cd $(DIR_CHRONY_STG) && fakeroot tar cf $(DIR_ROOT)/$(DIR_RELEASE_ASSETS)/chrony.tar .
 
 $(DIR_RELEASE_ASSETS)/ssh.tar: \
 		$(HAS_COMMAND_FAKEROOT) \
-		$(DIR_SSH_STG)/$(DIR_CB)/busybox \
-		$(DIR_SSH_STG)/$(DIR_CB)/sftp-server \
-		$(DIR_SSH_STG)/$(DIR_CB)/sh \
-		$(DIR_SSH_STG)/$(DIR_CB)/ssh-keygen \
-		$(DIR_SSH_STG)/$(DIR_CB)/sshd \
-		$(DIR_SSH_STG)/$(DIR_CB)/sshd_config \
-		$(DIR_SSH_STG)/$(DIR_CB)/services/ssh \
-		$(DIR_SSH_STG)/$(DIR_CB)/sudo \
-		$(DIR_SSH_STG)/$(DIR_CB)/sudoers
+		$(DIR_SSH_STG)/$(DIR_ET)/bin/busybox \
+		$(DIR_SSH_STG)/$(DIR_ET)/libexec/sftp-server \
+		$(DIR_SSH_STG)/$(DIR_ET)/bin/sh \
+		$(DIR_SSH_STG)/$(DIR_ET)/bin/ssh-keygen \
+		$(DIR_SSH_STG)/$(DIR_ET)/sbin/sshd \
+		$(DIR_SSH_STG)/$(DIR_ET)/etc/ssh/sshd_config \
+		$(DIR_SSH_STG)/$(DIR_ET)/services/ssh \
+		$(DIR_SSH_STG)/$(DIR_ET)/bin/sudo \
+		$(DIR_SSH_STG)/$(DIR_ET)/etc/sudoers
 	@$(MAKE) $(DIR_RELEASE_ASSETS)/
 	@cd $(DIR_SSH_STG) && fakeroot tar cpf $(DIR_ROOT)/$(DIR_RELEASE_ASSETS)/ssh.tar .
 
@@ -501,12 +517,14 @@ $(DIR_RELEASE_BIN)/easyto: $(DIR_OSARCH_BUILD)/easyto
 	@install -m 0755 $(DIR_OSARCH_BUILD)/easyto $(DIR_RELEASE_BIN)/easyto
 
 $(DIR_OSARCH_BUILD)/easyto: $(HAS_IMAGE_LOCAL) \
+		$(VAR_DIR_ET) \
 		hack/compile-easyto-ctr \
 		go.mod \
 		$(shell find cmd/easyto -type f -path '*.go' ! -path '*_test.go')
 	@[ -d $(DIR_OSARCH_BUILD) ] || mkdir -p $(DIR_OSARCH_BUILD)
 	@docker run -it \
 		-v $(DIR_ROOT):/code \
+		-e DIR_ET_ROOT=/$(DIR_ET) \
 		-e DIR_OUT=/code/$(DIR_OUT)/osarch/$(OS)/$(ARCH) \
 		-e GOPATH=/code/$(DIR_OUT)/go \
 		-e GOCACHE=/code/$(DIR_OUT)/gocache \
@@ -549,6 +567,21 @@ $(DIR_OUT)/.command-%:
 	@[ -d $(DIR_OUT) ] || mkdir -p $(DIR_OUT)
 	@which $* 2>&1 >/dev/null && touch $(DIR_OUT)/.command-$* || (echo "$* is required"; exit 1)
 
+# Create a file to depend on the contents of $(DIR_ET). Remove the staging
+# directory if it changes so the old $(DIR_ET) doesn't end up in release tarballs.
+$(VAR_DIR_ET): .FORCE
+	@if [ ! -f "$(VAR_DIR_ET)" ]; then \
+		echo "$(DIR_ET)" > $(VAR_DIR_ET); \
+	else \
+		dir_et=$$(cat $(VAR_DIR_ET)); \
+		if [ "$(DIR_ET)" != "$${dir_et}" ]; then \
+			rm -rf $(DIRS_STG); \
+			echo "$(DIR_ET)" > $(VAR_DIR_ET); \
+		fi; \
+	fi
+
+.FORCE:
+
 # Create any directory under $(DIR_OUT) as long as it ends in a `/` character.
 $(DIR_OUT)/%/:
 	@[ -d $(DIR_OUT)/$* ] || mkdir -p $(DIR_OUT)/$*
@@ -558,16 +591,12 @@ clean-ctr2disk:
 
 clean-blkid:
 	@rm -f $(DIR_OUT)/$(UTIL_LINUX_ARCHIVE)
-	@rm -f $(DIR_INIT_STG)/$(DIR_CB)/blkid
-	@rm -rf $(DIR_OUT)/$(UTIL_LINUX_SRC)
-
-	@rm -f $(DIR_INIT_STG)/$(DIR_CB)/blkid
-	@rm -f $(DIR_OUT)/$(UTIL_LINUX_ARCHIVE)
+	@rm -f $(DIR_INIT_STG)/$(DIR_ET)/sbin/blkid
 	@rm -rf $(DIR_OUT)/$(UTIL_LINUX_SRC)
 
 clean-e2fsprogs:
 	@rm -f $(DIR_OUT)/$(E2FSPROGS_ARCHIVE)
-	@rm -f $(DIR_INIT_STG)/$(DIR_CB)/mke2fs $(DIR_INIT_STG)/$(DIR_CB)/mkfs.ext*
+	@rm -f $(DIR_INIT_STG)/$(DIR_ET)/sbin/mke2fs $(DIR_INIT_STG)/$(DIR_ET)/sbin/mkfs.ext*
 	@rm -rf $(DIR_OUT)/$(E2FSPROGS_SRC)
 
 clean-kernel:
@@ -576,7 +605,7 @@ clean-kernel:
 	@rm -rf $(DIR_KERNEL_STG)
 
 clean-init:
-	@rm -f $(DIR_INIT_STG)/$(DIR_CB)/init
+	@rm -f $(DIR_INIT_STG)/$(DIR_ET)/sbin/init
 
 clean:
 	@chmod -R +w $(DIR_OUT)/go

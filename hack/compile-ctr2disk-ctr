@@ -3,5 +3,6 @@
 var_chrony_user="github.com/cloudboss/easyto/pkg/constants.ChronyUser=${CHRONY_USER}"
 var_ssh_dir="github.com/cloudboss/easyto/pkg/constants.SSHPrivsepDir=${OPENSSH_PRIVSEP_DIR}"
 var_ssh_user="github.com/cloudboss/easyto/pkg/constants.SSHPrivsepUser=${OPENSSH_PRIVSEP_USER}"
-ldflags_vars="-X ${var_chrony_user} -X ${var_ssh_dir} -X ${var_ssh_user}"
+var_dir_et_root="github.com/cloudboss/easyto/pkg/constants.DirETRoot=${DIR_ET_ROOT}"
+ldflags_vars="-X ${var_chrony_user} -X ${var_ssh_dir} -X ${var_ssh_user} -X ${var_dir_et_root}"
 go build -o ${DIR_OUT}/ctr2disk -ldflags "${ldflags_vars} -s -w" ./cmd/ctr2disk

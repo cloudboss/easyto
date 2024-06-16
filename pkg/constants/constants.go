@@ -1,11 +1,7 @@
 package constants
 
 const (
-	DirCB       = "/__cb__"
-	DirHome     = "/__cb__/home"
-	DirRun      = "/run"
-	DirServices = "/__cb__/services"
-	DirVar      = "/var"
+	DirRun = "/run"
 
 	FileEtcPasswd  = "/etc/passwd"
 	FileEtcShadow  = "/etc/shadow"
@@ -25,4 +21,11 @@ var (
 	ChronyUser     string
 	SSHPrivsepDir  string
 	SSHPrivsepUser string
+
+	DirETRoot     string
+	DirETBin      = DirETRoot + "/bin"
+	DirETSbin     = DirETRoot + "/sbin"
+	DirETEtc      = DirETRoot + "/etc"
+	DirETHome     = DirETRoot + "/home"
+	DirETServices = DirETRoot + "/services"
 )

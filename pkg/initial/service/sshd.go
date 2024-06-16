@@ -21,10 +21,10 @@ func NewSSHDService() Service {
 	return &SSHDService{
 		svc: svc{
 			Args: []string{
-				filepath.Join(constants.DirCB, "sshd"),
+				filepath.Join(constants.DirETSbin, "sshd"),
 				"-D",
 				"-f",
-				filepath.Join(constants.DirCB, "sshd_config"),
+				filepath.Join(constants.DirETEtc, "ssh", "sshd_config"),
 				"-e",
 			},
 			Dir:      "/",
@@ -65,7 +65,7 @@ func sshdInit() error {
 	}
 
 	fmt.Println("Creating RSA host key")
-	rsaKeyPath := filepath.Join(constants.DirCB, "ssh_host_rsa_key")
+	rsaKeyPath := filepath.Join(constants.DirETEtc, "ssh", "ssh_host_rsa_key")
 	if _, err := fs.Stat(rsaKeyPath); os.IsNotExist(err) {
 		if err := sshKeygen("rsa", rsaKeyPath); err != nil {
 			return fmt.Errorf("unable to create RSA host key: %w", err)
@@ -73,7 +73,7 @@ func sshdInit() error {
 	}
 
 	fmt.Println("Creating ED25519 host key")
-	ed25519KeyPath := filepath.Join(constants.DirCB, "ssh_host_ed25519_key")
+	ed25519KeyPath := filepath.Join(constants.DirETEtc, "ssh", "ssh_host_ed25519_key")
 	if _, err := fs.Stat(ed25519KeyPath); os.IsNotExist(err) {
 		if err := sshKeygen("ed25519", ed25519KeyPath); err != nil {
 			return fmt.Errorf("unable to create ED25519 host key: %w", err)
@@ -84,7 +84,7 @@ func sshdInit() error {
 }
 
 func sshKeygen(keyType, keyPath string) error {
-	keygen := filepath.Join(constants.DirCB, "ssh-keygen")
+	keygen := filepath.Join(constants.DirETBin, "ssh-keygen")
 	cmd := exec.Command(keygen, "-t", keyType, "-f", keyPath, "-N", "")
 	return cmd.Run()
 }
@@ -125,14 +125,12 @@ func sshWritePubKey(fs afero.Fs, dir string, uid, gid uint16) error {
 // was built with easyto and sshd is enabled, this should be the name of
 // the one directory under the easyto home directory.
 func getLoginUser(fs afero.Fs) (string, error) {
-	homeDir := filepath.Join(constants.DirCB, "home")
-
-	entries, err := afero.ReadDir(fs, homeDir)
+	entries, err := afero.ReadDir(fs, constants.DirETHome)
 	if err != nil {
 		return "", err
 	}
 	if len(entries) != 1 {
-		return "", fmt.Errorf("expected one entry in %s", homeDir)
+		return "", fmt.Errorf("expected one entry in %s", constants.DirETHome)
 	}
 
 	return entries[0].Name(), nil

@@ -17,7 +17,7 @@ func NewChronyService() Service {
 	return &ChronyService{
 		svc: svc{
 			Args: []string{
-				filepath.Join(constants.DirCB, "chronyd"),
+				filepath.Join(constants.DirETSbin, "chronyd"),
 				"-d",
 			},
 			Dir:  "/",

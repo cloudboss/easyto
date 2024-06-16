@@ -570,12 +570,12 @@ func handleVolumeEBS(volume *vmspec.EBSVolumeSource, index int) error {
 	}
 	fmt.Printf("Changed ownership of mount point %s\n", volume.Mount.Directory)
 
-	hasFS, err := deviceHasFS(filepath.Join(constants.DirCB, "blkid"), volume.Device)
+	hasFS, err := deviceHasFS(filepath.Join(constants.DirETSbin, "blkid"), volume.Device)
 	if err != nil {
 		return fmt.Errorf("unable to determine if %s has a filesystem: %w", volume.Device, err)
 	}
 	if !hasFS {
-		mkfsPath := filepath.Join(constants.DirCB, "mkfs."+volume.FSType)
+		mkfsPath := filepath.Join(constants.DirETSbin, "mkfs."+volume.FSType)
 		if _, err := os.Stat(mkfsPath); os.IsNotExist(err) {
 			return fmt.Errorf("unsupported filesystem type %s for volume at index %d",
 				volume.FSType, index)
@@ -801,7 +801,7 @@ func Run() error {
 
 	// Override Go's builtin known certificate directories, for
 	// making API calls to AWS.
-	os.Setenv("SSL_CERT_FILE", filepath.Join(constants.DirCB, fileCACerts))
+	os.Setenv("SSL_CERT_FILE", filepath.Join(constants.DirETEtc, fileCACerts))
 
 	err := mounts()
 	if err != nil {
@@ -820,7 +820,7 @@ func Run() error {
 		linkEBSDevicesErrC <- linkEBSDevices()
 	}()
 
-	metadata, err := readMetadata(filepath.Join(constants.DirCB, fileMetadata))
+	metadata, err := readMetadata(filepath.Join(constants.DirETRoot, fileMetadata))
 	if err != nil {
 		return err
 	}

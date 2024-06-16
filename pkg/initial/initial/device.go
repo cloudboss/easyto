@@ -140,7 +140,7 @@ func resizeRootVolume() error {
 
 // findRootDevice returns the disk device and partition device for the root partition.
 func findRootDevice() (string, string, error) {
-	blkidPath := filepath.Join(constants.DirCB, "blkid")
+	blkidPath := filepath.Join(constants.DirETSbin, "blkid")
 
 	cmd := exec.Command(blkidPath, "-t", "PARTLABEL=root", "-o", "device")
 	out, err := cmd.Output()
@@ -286,7 +286,7 @@ func rereadPartition(disk *disk.Disk, partition *gpt.Partition, devicePath strin
 }
 
 func growFilesystem(devicePath string) error {
-	resize2fsPath := filepath.Join(constants.DirCB, "resize2fs")
+	resize2fsPath := filepath.Join(constants.DirETSbin, "resize2fs")
 	cmd := exec.Command(resize2fsPath, devicePath)
 	err := cmd.Run()
 	if err != nil {

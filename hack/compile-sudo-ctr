@@ -3,13 +3,13 @@
 set -e
 
 ./configure LDFLAGS="--static -s" \
-    --prefix=/__cb__ \
+    --prefix=${DIR_ET_ROOT} \
     --disable-log-client \
     --disable-log-server \
     --disable-shared \
     --enable-static \
     --enable-zlib=static \
-    --sysconfdir=/__cb__ \
-    --with-logpath=/__cb__/var/log \
-    --with-rundir=/__cb__/run && \
+    --sysconfdir=${DIR_ET_ROOT}/etc \
+    --with-logpath=${DIR_ET_ROOT}/var/log \
+    --with-rundir=/run && \
     make -j$(nproc)

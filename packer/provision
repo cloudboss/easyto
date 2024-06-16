@@ -42,8 +42,6 @@ mountpoint -q /mnt || mount ${ROOT_DEVICE}p2 /mnt
 mkdir -p -m 0755 /mnt/boot
 mountpoint -q /mnt/boot || mount ${ROOT_DEVICE}p1 /mnt/boot
 
-mkdir -p -m 0755 /mnt/__cb__
-
 ${EXEC_CTR2DISK} \
     --asset-dir ${ASSET_DIR} \
     --container-image ${CONTAINER_IMAGE} \
@@ -52,8 +50,7 @@ ${EXEC_CTR2DISK} \
     --services ${SERVICES} \
     --vm-image-device ${ROOT_DEVICE}
 
-ls -l /mnt
-ls -l /mnt/__cb__
+ls -la /mnt
 find /mnt/boot -ls
 cat /mnt/boot/loader/entries/cb.conf
 
