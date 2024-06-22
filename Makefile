@@ -24,7 +24,7 @@ DIR_OPENSSH_DEPS := openssh-deps
 DIRS_STG := $(DIR_CHRONY_STG) $(DIR_INIT_STG) $(DIR_KERNEL_STG) $(DIR_SSH_STG)
 
 DOCKERFILE_SHA256 := $(shell sha256sum Dockerfile.build | awk '{print $$1}' | cut -c 1-40)
-CTR_IMAGE_GO := golang:1.21.0-alpine3.18
+CTR_IMAGE_GO := golang:1.22.4-alpine3.20
 CTR_IMAGE_LOCAL := $(PROJECT):$(DOCKERFILE_SHA256)
 
 KERNEL_ORG := https://cdn.kernel.org/pub/linux
@@ -105,6 +105,7 @@ HAS_COMMAND_XZCAT := $(DIR_OUT)/.command-xzcat
 HAS_IMAGE_LOCAL := $(DIR_OUT)/.image-local-$(DOCKERFILE_SHA256)
 
 VAR_DIR_ET := $(DIR_OUT)/.var-dir-et
+VAR_CTR_IMAGE_GO := $(DIR_OUT)/.var-ctr-image-go
 
 default: release
 
@@ -380,7 +381,7 @@ $(DIR_SSH_STG)/$(DIR_ET)/etc/sudoers: assets/sudoers $(VAR_DIR_ET)
 	@install -m 0440 assets/sudoers $(DIR_SSH_STG)/$(DIR_ET)/etc/sudoers
 
 # Container image build is done in an empty directory to speed it up.
-$(HAS_IMAGE_LOCAL): $(HAS_COMMAND_DOCKER)
+$(HAS_IMAGE_LOCAL): $(HAS_COMMAND_DOCKER) $(VAR_CTR_IMAGE_GO)
 	@$(MAKE) $(DIR_OUT)/dockerbuild/
 	@docker build \
 		--build-arg FROM=$(CTR_IMAGE_GO) \
@@ -577,6 +578,16 @@ $(VAR_DIR_ET): .FORCE
 		if [ "$(DIR_ET)" != "$${dir_et}" ]; then \
 			rm -rf $(DIRS_STG); \
 			echo "$(DIR_ET)" > $(VAR_DIR_ET); \
+		fi; \
+	fi
+
+$(VAR_CTR_IMAGE_GO): .FORCE
+	@if [ ! -f "$(VAR_CTR_IMAGE_GO)" ]; then \
+		echo "$(CTR_IMAGE_GO)" > $(VAR_CTR_IMAGE_GO); \
+	else \
+		ctr_image_go=$$(cat $(VAR_CTR_IMAGE_GO)); \
+		if [ "$(CTR_IMAGE_GO)" != "$${ctr_image_go}" ]; then \
+			echo "$(CTR_IMAGE_GO)" > $(VAR_CTR_IMAGE_GO); \
 		fi; \
 	fi
 
