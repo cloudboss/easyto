@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -29,7 +30,7 @@ func NewChronyService() Service {
 }
 
 func chronyInit() error {
-	fmt.Println("Initializing chrony")
+	slog.Info("Initializing chrony")
 
 	_, usersByName, _, err := login.ParsePasswd(fs, constants.FileEtcPasswd)
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -124,6 +125,7 @@ type Builder struct {
 	Services      []string
 	LoginUser     string
 	LoginShell    string
+	Debug         bool
 
 	kernelVersion  string
 	pathBootloader string
@@ -177,6 +179,12 @@ func WithLoginShell(loginShell string) BuilderOpt {
 	}
 }
 
+func WithDebug(debug bool) BuilderOpt {
+	return func(b *Builder) {
+		b.Debug = debug
+	}
+}
+
 func NewBuilder(opts ...BuilderOpt) (*Builder, error) {
 	builder := &Builder{}
 	for _, opt := range opts {
@@ -203,11 +211,16 @@ func NewBuilder(opts ...BuilderOpt) (*Builder, error) {
 }
 
 func (b *Builder) MakeVMImage() (err error) {
+	slog.SetLogLoggerLevel(slog.LevelInfo)
+	if b.Debug {
+		slog.SetLogLoggerLevel(slog.LevelDebug)
+	}
+
 	ctrImageRef, err := name.ParseReference(b.CTRImageName)
 	if err != nil {
 		return fmt.Errorf("unable to parse container image name: %w", err)
 	}
-	fmt.Printf("ctr image ref: %s, fully qualified: %s\n", ctrImageRef, ctrImageRef.Name())
+	slog.Debug("Container image reference", "short", ctrImageRef, "long", ctrImageRef.Name())
 
 	ctrImage, err := remote.Image(ctrImageRef)
 	if err != nil {
@@ -217,7 +230,7 @@ func (b *Builder) MakeVMImage() (err error) {
 	imageReader := mutate.Extract(ctrImage)
 	defer imageReader.Close()
 
-	err = untarReader(imageReader, dirMnt, false)
+	err = untarReader(imageReader, dirMnt)
 	if err != nil {
 		return err
 	}
@@ -263,7 +276,7 @@ options rw root=PARTUUID=%s console=tty0 console=ttyS0,115200 earlyprintk=ttyS0,
 }
 
 func (b *Builder) setupBootloader() error {
-	err := untarFile(b.pathBootloader, b.VMImageMount, true)
+	err := untarFile(b.pathBootloader, b.VMImageMount)
 	if err != nil {
 		return err
 	}
@@ -275,7 +288,7 @@ func (b *Builder) setupBootloader() error {
 		return err
 	}
 	partRootUUID := strings.TrimSpace(string(out))
-	fmt.Printf("partition UUID: %s\n", partRootUUID)
+	slog.Debug("Partition UUID", "uuid", partRootUUID)
 
 	bootEntryPath := filepath.Join(b.VMImageMount, "boot/loader/entries/cb.conf")
 	err = os.MkdirAll(filepath.Dir(bootEntryPath), 0755)
@@ -299,11 +312,11 @@ func (b *Builder) setupBootloader() error {
 }
 
 func (b *Builder) setupInit() error {
-	return untarFile(b.pathInit, b.VMImageMount, false)
+	return untarFile(b.pathInit, b.VMImageMount)
 }
 
 func (b *Builder) setupKernel() error {
-	err := untarFile(b.pathKernel, b.VMImageMount, false)
+	err := untarFile(b.pathKernel, b.VMImageMount)
 	if err != nil {
 		return err
 	}
@@ -411,7 +424,7 @@ type ts struct {
 }
 
 func (b *Builder) setupChrony() error {
-	err := untarFile(b.pathChrony, b.VMImageMount, false)
+	err := untarFile(b.pathChrony, b.VMImageMount)
 	if err != nil {
 		return err
 	}
@@ -429,7 +442,7 @@ func (b *Builder) setupSSH() error {
 	oldMask := syscall.Umask(0)
 	defer syscall.Umask(oldMask)
 
-	err := untarFile(b.pathSSH, b.VMImageMount, false)
+	err := untarFile(b.pathSSH, b.VMImageMount)
 	if err != nil {
 		return err
 	}
@@ -488,7 +501,7 @@ func kernelVersionFromArchive(pathKernelArchive string) (string, error) {
 	return fields[1], nil
 }
 
-func untarReader(reader io.Reader, destDir string, verbose bool) error {
+func untarReader(reader io.Reader, destDir string) error {
 	oldMask := syscall.Umask(0)
 	defer syscall.Umask(oldMask)
 
@@ -508,9 +521,7 @@ func untarReader(reader io.Reader, destDir string, verbose bool) error {
 		fi := hdr.FileInfo()
 		perm := fi.Mode()
 		dest := filepath.Join(destDir, hdr.Name)
-		if verbose {
-			fmt.Printf("untar: extracting %s\n", dest)
-		}
+		slog.Debug("untar extracting", "dest", dest)
 		timestamps[dest] = ts{atime: hdr.AccessTime, mtime: hdr.ModTime}
 
 		switch hdr.Typeflag {
@@ -613,14 +624,14 @@ func copyFile(src io.Reader, dest string, perm os.FileMode) error {
 	return err
 }
 
-func untarFile(srcFile, destDir string, verbose bool) error {
+func untarFile(srcFile, destDir string) error {
 	reader, err := os.Open(srcFile)
 	if err != nil {
 		return fmt.Errorf("unable to open %s for reading: %w", srcFile, err)
 	}
 	defer reader.Close()
 
-	err = untarReader(reader, destDir, verbose)
+	err = untarReader(reader, destDir)
 	if err != nil {
 		return fmt.Errorf("unable to extract %s to %s: %w", srcFile, destDir, err)
 	}

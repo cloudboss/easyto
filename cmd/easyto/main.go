@@ -43,6 +43,7 @@ var (
 				"-var", fmt.Sprintf("ami_name=%s", cfg.amiName),
 				"-var", fmt.Sprintf("asset_dir=%s", cfg.assetDir),
 				"-var", fmt.Sprintf("container_image=%s", cfg.containerImage),
+				"-var", fmt.Sprintf("debug=%t", cfg.debug),
 				"-var", fmt.Sprintf("login_user=%s", cfg.loginUser),
 				"-var", fmt.Sprintf("login_shell=%s", cfg.loginShell),
 				"-var", fmt.Sprintf("root_device_name=%s", cfg.rootDeviceName),
@@ -78,6 +79,7 @@ type config struct {
 	amiName        string
 	assetDir       string
 	containerImage string
+	debug          bool
 	loginUser      string
 	loginShell     string
 	packerDir      string
@@ -137,6 +139,8 @@ func init() {
 
 	cmd.Flags().StringSliceVar(&cfg.services, "services", []string{"chrony"},
 		"Comma separated list of services to enable [chrony,ssh].")
+
+	cmd.Flags().BoolVar(&cfg.debug, "debug", false, "Enable debug output.")
 }
 
 func validateServices(services []string) error {

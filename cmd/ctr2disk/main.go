@@ -26,6 +26,7 @@ var (
 				ctr2disk.WithServices(cfg.services),
 				ctr2disk.WithLoginUser(cfg.loginUser),
 				ctr2disk.WithLoginShell(cfg.loginShell),
+				ctr2disk.WithDebug(cfg.debug),
 			)
 			if err != nil {
 				return fmt.Errorf("failed to create VM image builder: %w", err)
@@ -49,6 +50,7 @@ type config struct {
 	services      []string
 	loginUser     string
 	loginShell    string
+	debug         bool
 }
 
 func init() {
@@ -75,6 +77,8 @@ func init() {
 	loginShell := filepath.Join(constants.DirETBin, "sh")
 	cmd.Flags().StringVar(&cfg.loginShell, "login-shell", loginShell,
 		"Login shell to use for the login user if ssh service is enabled.")
+
+	cmd.Flags().BoolVar(&cfg.debug, "debug", false, "Enable debug output.")
 }
 
 func main() {

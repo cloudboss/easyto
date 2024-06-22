@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 
@@ -139,10 +140,10 @@ func GetUserData(endpoint ...string) (*vmspec.VMSpec, error) {
 		// Return an empty VMSpec when no user data is defined.
 		hErr := &HTTPError{}
 		if errors.As(err, &hErr) && hErr.statusCode == http.StatusNotFound {
-			fmt.Printf("Got http error %+v\n", hErr)
+			slog.Error("Got http error", "error", hErr)
 			return spec, nil
 		} else {
-			fmt.Printf("Got error %+v\n", err)
+			slog.Error("Got error", "error", err)
 			return nil, err
 		}
 	}

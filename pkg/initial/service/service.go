@@ -1,7 +1,7 @@
 package service
 
 import (
-	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"syscall"
@@ -47,16 +47,16 @@ func (s *svc) Start() error {
 
 	s.init()
 
-	fmt.Printf("Starting service %+v\n", s.cmd)
+	slog.Info("Starting service", "service", s.cmd)
 
 	go func() {
 		for {
 			err := s.cmd.Run()
 			if !s.shutdown {
 				if err != nil {
-					fmt.Printf("Process %s exited with error %s, will restart\n", s.Args[0], err)
+					slog.Error("Process errored, will restart", "process", s.Args[0], "error", err)
 				} else {
-					fmt.Printf("Process %s exited, will restart\n", s.Args[0])
+					slog.Warn("Process exited, will restart", "process", s.Args[0])
 				}
 				s.init()
 				time.Sleep(5 * time.Second)
@@ -88,7 +88,7 @@ func (s *svc) Optional() bool {
 
 func (s *svc) signal(signal os.Signal) {
 	if s.cmd.Process != nil {
-		fmt.Printf("Sending signal %s to %+v\n", signal, s)
+		slog.Debug("Sending signal", "signal", signal, "command", s.Args[0])
 		s.shutdown = true
 		s.cmd.Process.Signal(signal)
 	} else {

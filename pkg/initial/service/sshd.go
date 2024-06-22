@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -37,7 +38,7 @@ func NewSSHDService() Service {
 }
 
 func sshdInit() error {
-	fmt.Println("Initializing sshd")
+	slog.Info("Initializing sshd")
 
 	oldmask := syscall.Umask(0)
 	defer syscall.Umask(oldmask)
@@ -57,14 +58,14 @@ func sshdInit() error {
 			constants.FileEtcPasswd)
 	}
 
-	fmt.Println("Writing ssh public key for login user")
+	slog.Debug("Writing ssh public key", "user", loginUser)
 	sshDir := filepath.Join(user.HomeDir, ".ssh")
 	err = sshWritePubKey(fs, sshDir, user.UID, user.GID)
 	if err != nil {
 		return fmt.Errorf("unable to write SSH public key: %w", err)
 	}
 
-	fmt.Println("Creating RSA host key")
+	slog.Debug("Creating RSA host key")
 	rsaKeyPath := filepath.Join(constants.DirETEtc, "ssh", "ssh_host_rsa_key")
 	if _, err := fs.Stat(rsaKeyPath); os.IsNotExist(err) {
 		if err := sshKeygen("rsa", rsaKeyPath); err != nil {
@@ -72,7 +73,7 @@ func sshdInit() error {
 		}
 	}
 
-	fmt.Println("Creating ED25519 host key")
+	slog.Debug("Creating ED25519 host key")
 	ed25519KeyPath := filepath.Join(constants.DirETEtc, "ssh", "ssh_host_ed25519_key")
 	if _, err := fs.Stat(ed25519KeyPath); os.IsNotExist(err) {
 		if err := sshKeygen("ed25519", ed25519KeyPath); err != nil {

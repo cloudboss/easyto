@@ -3,6 +3,7 @@ package initial
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -211,8 +212,8 @@ func resizeRootPartition(rootDiskDevice, rootPartitionDevice string) error {
 	lastDataSector := disk.Size/int64(disk.LogicalBlocksize) - gptSectors - 1
 
 	if int64(rootPartition.End) < lastDataSector {
-		fmt.Printf("root partition last sector is %d but last available is %d, attempting to extend\n",
-			rootPartition.End, lastDataSector)
+		slog.Info("extending root partition", "last-partition-sector", rootPartition.End,
+			"last-available-sector", lastDataSector)
 
 		rootPartition.End = uint64(lastDataSector)
 		rootPartition.Size = (rootPartition.End - rootPartition.Start + 1) * uint64(disk.LogicalBlocksize)
@@ -242,7 +243,7 @@ func resizeRootPartition(rootDiskDevice, rootPartitionDevice string) error {
 			return fmt.Errorf("unable to re-read partition after resizing: %w", err)
 		}
 
-		fmt.Println("root partition extended")
+		slog.Info("root partition extended")
 	}
 
 	return nil

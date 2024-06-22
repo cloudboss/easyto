@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -37,7 +38,7 @@ func (s *Supervisor) Start() error {
 		case "ssh":
 			s.Services = append(s.Services, NewSSHDService())
 		default:
-			fmt.Printf("Unknown service %s\n", svc)
+			slog.Warn("Unknown service", "service", svc)
 		}
 	}
 
@@ -45,7 +46,7 @@ func (s *Supervisor) Start() error {
 		err := service.Start()
 		if err != nil {
 			if service.Optional() {
-				fmt.Printf("Optional service %s failed to start: %s\n", service, err)
+				slog.Warn("Optional service failed to start", "service", service, "error", err)
 				continue
 			}
 			return err
@@ -81,7 +82,7 @@ func (s *Supervisor) Wait() {
 	timeout := time.NewTimer(forever)
 
 	shutdownAll := func() {
-		fmt.Println("Shutting down all processes")
+		slog.Info("Shutting down all processes")
 
 		// Set the timer in case services do not exit.
 		timeout.Reset(s.Timeout)
@@ -92,7 +93,7 @@ func (s *Supervisor) Wait() {
 		for _, service := range s.Services {
 			err := service.Wait()
 			if err != nil {
-				fmt.Printf("Process %s exited with error: %s\n", service, err)
+				slog.Error("Process exited with error", "service", service, "error", err)
 			}
 		}
 
@@ -102,7 +103,7 @@ func (s *Supervisor) Wait() {
 	go func() {
 		err := s.Main.Wait()
 		if err != nil {
-			fmt.Printf("Main process exited with error: %s\n", err)
+			slog.Error("Main process exited with error", "error", err)
 		}
 		shutdownAll()
 	}()
@@ -112,13 +113,13 @@ func (s *Supervisor) Wait() {
 	for !stopped {
 		select {
 		case <-poweroffC:
-			fmt.Println("Got poweroff signal")
+			slog.Info("Got poweroff signal")
 			go shutdownAll()
 		case <-doneC:
-			fmt.Println("All processes have exited")
+			slog.Info("All processes have exited")
 			stopped = true
 		case <-timeout.C:
-			fmt.Println("Timeout waiting for graceful shutdown")
+			slog.Warn("Timeout waiting for graceful shutdown")
 			s.Kill()
 			stopped = true
 		}

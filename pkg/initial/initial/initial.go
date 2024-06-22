@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -238,13 +239,13 @@ func mounts() error {
 	}()
 
 	for _, m := range ms {
-		fmt.Printf("About to process mount: %+v\n", m)
+		slog.Debug("About to process mount", "mount", m)
 		_, err := os.Stat(m.target)
 		if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
 				return fmt.Errorf("unexpected error checking status of %s: %w", m.target, err)
 			}
-			fmt.Printf("About to make directory %s with mode %s\n", m.target, m.mode)
+			slog.Debug("About to make directory", "directory", m.target, "mode", m.mode)
 			err := os.MkdirAll(m.target, m.mode)
 			if err != nil {
 				return fmt.Errorf("unable to create directory %s: %w", m.target, err)
@@ -536,7 +537,7 @@ func parseMode(mode string) (fs.FileMode, error) {
 }
 
 func handleVolumeEBS(volume *vmspec.EBSVolumeSource, index int) error {
-	fmt.Printf("Handling volume: %+v\n", volume)
+	slog.Debug("Handling volume", "volume", volume)
 
 	if len(volume.Device) == 0 {
 		return errors.New("volume must have device")
@@ -554,21 +555,21 @@ func handleVolumeEBS(volume *vmspec.EBSVolumeSource, index int) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Parsed mode %s into %s\n", volume.Mount.Mode, mode)
+	slog.Debug("Parsed mode", "before", volume.Mount.Mode, "mode", mode)
 
 	err = os.MkdirAll(volume.Mount.Directory, mode)
 	if err != nil {
 		return fmt.Errorf("unable to create mount point %s: %w",
 			volume.Mount.Directory, err)
 	}
-	fmt.Printf("Created mount point %s\n", volume.Mount.Directory)
+	slog.Debug("Created mount point", "directory", volume.Mount.Directory)
 
 	err = os.Chown(volume.Mount.Directory, volume.Mount.UserID,
 		volume.Mount.GroupID)
 	if err != nil {
 		return fmt.Errorf("unable to change ownership of mount point: %w", err)
 	}
-	fmt.Printf("Changed ownership of mount point %s\n", volume.Mount.Directory)
+	slog.Debug("Changed ownership of mount point", "directory", volume.Mount.Directory)
 
 	hasFS, err := deviceHasFS(filepath.Join(constants.DirETSbin, "blkid"), volume.Device)
 	if err != nil {
@@ -584,7 +585,7 @@ func handleVolumeEBS(volume *vmspec.EBSVolumeSource, index int) error {
 		if err != nil {
 			return fmt.Errorf("unable to create filesystem on %s: %w", volume.Device, err)
 		}
-		fmt.Printf("Created %s filesystem on %s\n", volume.FSType, volume.Device)
+		slog.Debug("Created filesystem", "device", volume.Device, "fstype", volume.FSType)
 	}
 
 	err = unix.Mount(volume.Device, volume.Mount.Directory, volume.FSType, 0, "")
@@ -592,7 +593,7 @@ func handleVolumeEBS(volume *vmspec.EBSVolumeSource, index int) error {
 		return fmt.Errorf("unable to mount %s on %s: %w", volume.Mount.Directory,
 			volume.FSType, err)
 	}
-	fmt.Printf("Mounted %s on %s\n", volume.Device, volume.Mount.Directory)
+	slog.Debug("Mounted volume", "device", volume.Device, "directory", volume.Mount.Directory)
 
 	return nil
 }
@@ -670,7 +671,7 @@ func waitForShutdown(spec *vmspec.VMSpec, supervisor *service.Supervisor) {
 
 	err := unmountAll(osFS, mountPoints)
 	if err != nil {
-		fmt.Printf("Error unmounting volumes: %s\n", err)
+		slog.Error("Error unmounting volumes", "error", err)
 	}
 
 	// Best-effort wait, even if there were unmount errors. This can be improved
@@ -704,15 +705,15 @@ func waitForUnmounts(fs afero.Fs, mtab string, mountPoints []string, timeout tim
 	end := time.Now().Add(timeout)
 
 loop:
-	fmt.Printf("Waiting for unmounts: %+v\n", mountPoints)
+	slog.Debug("Waiting for unmounts", "mountpoints", mountPoints)
 	for _, mountPoint := range mountPoints {
 		mounted, err := isMounted(fs, mountPoint, mtab)
 		if err != nil {
-			fmt.Printf("Unable to check if %s is mounted: %s\n", mountPoint, err)
+			slog.Error("Unable to check if mount point is mounted", "mountpoint", mountPoint, "error", err)
 		}
 		if !mounted {
 			unmounted[mountPoint] = struct{}{}
-			fmt.Printf("%s is unmounted\n", mountPoint)
+			slog.Debug("Mount point is unmounted", "mountpoint", mountPoint)
 		}
 	}
 
@@ -725,11 +726,11 @@ loop:
 	}
 
 	if now.After(end) && lenUnmounted < lenMountPoints {
-		fmt.Println("Timeout waiting for unmounts")
+		slog.Error("Timeout waiting for unmounts")
 		return
 	}
 
-	fmt.Println("All unmounts complete")
+	slog.Info("All mount points unmounted")
 }
 
 func isMounted(fs afero.Fs, mountPoint, mtab string) (bool, error) {
@@ -797,7 +798,7 @@ func resolveAllEnvs(conn aws.Connection, env vmspec.NameValueSource,
 }
 
 func Run() error {
-	fmt.Println("Starting init")
+	slog.Info("Starting init")
 
 	// Override Go's builtin known certificate directories, for
 	// making API calls to AWS.
@@ -807,13 +808,11 @@ func Run() error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("After mounts()")
 
 	err = links()
 	if err != nil {
 		return err
 	}
-	fmt.Println("After links()")
 
 	linkEBSDevicesErrC := make(chan error, 1)
 	go func() {
@@ -824,21 +823,21 @@ func Run() error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("After readMetadata()")
 
 	spec, err := metadataToVMSpec(metadata)
 	if err != nil {
 		return err
 	}
-	fmt.Println("After metadataToVMSpec()")
 
 	userData, err := aws.GetUserData()
 	if err != nil {
 		return fmt.Errorf("unable to get user data: %w", err)
 	}
-	fmt.Println("After getUserData()")
+
 	spec = spec.Merge(userData)
-	fmt.Println("After vmSpec.merge()")
+	if spec.Debug {
+		slog.SetLogLoggerLevel(slog.LevelDebug)
+	}
 
 	err = spec.Validate()
 	if err != nil {
@@ -870,10 +869,6 @@ func Run() error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("After resizeRootVolume()")
-
-	debug()
-	fmt.Println("After debug()")
 
 	for i, volume := range spec.Volumes {
 		if volume.EBS != nil {
@@ -895,7 +890,6 @@ func Run() error {
 			}
 		}
 	}
-	fmt.Println("After handling volumes")
 
 	if spec.Security.ReadonlyRootFS {
 		err = unix.Mount("", dirRoot, "", syscall.MS_REMOUNT|syscall.MS_RDONLY, "")
@@ -914,7 +908,7 @@ func Run() error {
 		return fmt.Errorf("unable to resolve all environment variables: %w", err)
 	}
 
-	fmt.Println("About to run entrypoint")
+	slog.Debug("About to run entrypoint", "command", command, "env", env)
 
 	if spec.ReplaceInit {
 		err = doExec(spec, command, env)

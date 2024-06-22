@@ -1,5 +1,9 @@
 #!/bin/sh -e
 
+if [ "${DEBUG}" = "true" ]; then
+    set -x
+fi
+
 fail()
 {
     echo >&2 "${1}"
@@ -42,17 +46,22 @@ mountpoint -q /mnt || mount ${ROOT_DEVICE}p2 /mnt
 mkdir -p -m 0755 /mnt/boot
 mountpoint -q /mnt/boot || mount ${ROOT_DEVICE}p1 /mnt/boot
 
+[ "${DEBUG}" = "true" ] && debug_arg=--debug
+
 ${EXEC_CTR2DISK} \
     --asset-dir ${ASSET_DIR} \
     --container-image ${CONTAINER_IMAGE} \
     --login-user ${LOGIN_USER} \
     --login-shell ${LOGIN_SHELL} \
     --services ${SERVICES} \
-    --vm-image-device ${ROOT_DEVICE}
+    --vm-image-device ${ROOT_DEVICE} \
+    ${debug_arg}
 
-ls -la /mnt
-find /mnt/boot -ls
-cat /mnt/boot/loader/entries/cb.conf
+if [ "${DEBUG}" = "true" ]; then
+    ls -la /mnt
+    find /mnt/boot -ls
+    cat /mnt/boot/loader/entries/cb.conf
+fi
 
 umount /mnt/boot
 umount /mnt

@@ -1,7 +1,7 @@
 package service
 
 import (
-	"fmt"
+	"log/slog"
 )
 
 type Main struct {
@@ -24,7 +24,7 @@ func NewMainService(command, env []string, workingDir string, uid, gid uint32) S
 func (m *Main) Start() error {
 	m.init()
 
-	fmt.Printf("Starting main command %+v\n", m.cmd)
+	slog.Info("Starting main command", "command", m.cmd)
 
 	go func() {
 		m.C <- m.cmd.Run()

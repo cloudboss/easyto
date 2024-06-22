@@ -10,6 +10,7 @@ import (
 type VMSpec struct {
 	Args        []string        `json:"args,omitempty"`
 	Command     []string        `json:"command,omitempty"`
+	Debug       bool            `json:"debug,omitempty"`
 	Env         NameValueSource `json:"env,omitempty"`
 	EnvFrom     EnvFromSource   `json:"env-from,omitempty"`
 	ReplaceInit bool            `json:"replace-init,omitempty"`
@@ -31,6 +32,8 @@ func (v *VMSpec) Merge(other *VMSpec) *VMSpec {
 		newVMSpec.Args = other.Args
 	}
 
+	if other.Debug {
+		newVMSpec.Debug = other.Debug
 	}
 
 	if other.ReplaceInit {

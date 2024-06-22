@@ -93,6 +93,10 @@ variable "subnet_id" {
   type    = string
 }
 
+variable "debug" {
+  type    = bool
+}
+
 locals {
   remote_asset_dir        = "/tmp/assets"
   source_root_device_name = "/dev/xvdf"
@@ -169,6 +173,7 @@ build {
       SERVICES                = join(",", var.services)
       LOGIN_USER              = var.login_user
       LOGIN_SHELL             = var.login_shell
+      DEBUG                   = var.debug
     }
     execute_command           = "sudo env {{ .Vars }} {{ .Path }}"
     script                    = "provision"

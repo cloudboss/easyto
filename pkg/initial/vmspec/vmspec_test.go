@@ -20,6 +20,16 @@ func Test_VMSpec_Merge(t *testing.T) {
 			expected:    &VMSpec{},
 		},
 		{
+			description: "Debug enabled",
+			orig:        &VMSpec{},
+			other: &VMSpec{
+				Debug: true,
+			},
+			expected: &VMSpec{
+				Debug: true,
+			},
+		},
+		{
 			description: "ReplaceInit enabled",
 			orig:        &VMSpec{},
 			other: &VMSpec{
