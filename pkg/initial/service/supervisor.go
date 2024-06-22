@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -81,7 +82,14 @@ func (s *Supervisor) Wait() {
 	forever := time.Duration(1<<63 - 1)
 	timeout := time.NewTimer(forever)
 
+	didShutdownAll := false
 	shutdownAll := func() {
+		if didShutdownAll {
+			return
+		} else {
+			didShutdownAll = true
+		}
+
 		slog.Info("Shutting down all processes")
 
 		// Set the timer in case services do not exit.
@@ -89,23 +97,28 @@ func (s *Supervisor) Wait() {
 
 		// Send a SIGTERM to all services.
 		s.Stop()
-
-		for _, service := range s.Services {
-			err := service.Wait()
-			if err != nil {
-				slog.Error("Process exited with error", "service", service, "error", err)
-			}
-		}
-
-		doneC <- struct{}{}
 	}
 
 	go func() {
 		err := s.Main.Wait()
-		if err != nil {
-			slog.Error("Main process exited with error", "error", err)
+		if !(err == nil || errors.Is(err, syscall.ECHILD)) {
+			slog.Error("Main process exited", "error", err)
+		} else {
+			slog.Info("Main process exited")
 		}
 		shutdownAll()
+	}()
+
+	go func() {
+		for {
+			pid, err := syscall.Wait4(-1, nil, 0, nil)
+			slog.Debug("Reaped process", "pid", pid, "error", err)
+			if err != nil && errors.Is(err, syscall.ECHILD) {
+				// All processes have exited.
+				break
+			}
+		}
+		doneC <- struct{}{}
 	}()
 
 	stopped := false
