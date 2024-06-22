@@ -31,20 +31,15 @@ func (v *VMSpec) Merge(other *VMSpec) *VMSpec {
 		newVMSpec.Args = other.Args
 	}
 
+	}
+
+	if other.ReplaceInit {
+		newVMSpec.ReplaceInit = other.ReplaceInit
+	}
+
 	newVMSpec.Env = newVMSpec.Env.Merge(other.Env)
 
-	if other.Security.ReadonlyRootFS {
-		newVMSpec.Security.ReadonlyRootFS = other.Security.ReadonlyRootFS
-	}
-	if other.Security.RunAsGroupID != 0 {
-		newVMSpec.Security.RunAsGroupID = other.Security.RunAsGroupID
-	}
-	if other.Security.RunAsUserID != 0 {
-		newVMSpec.Security.RunAsUserID = other.Security.RunAsUserID
-	}
-	if other.Security.SSHD.Enable {
-		newVMSpec.Security.SSHD.Enable = other.Security.SSHD.Enable
-	}
+	newVMSpec.Security = newVMSpec.Security.Merge(other.Security)
 
 	if len(other.WorkingDir) != 0 {
 		newVMSpec.WorkingDir = other.WorkingDir
@@ -256,6 +251,22 @@ type SecurityContext struct {
 	RunAsGroupID   int  `json:"run-as-group-id,omitempty"`
 	RunAsUserID    int  `json:"run-as-user-id,omitempty"`
 	SSHD           SSHD `json:"sshd,omitempty"`
+}
+
+func (s SecurityContext) Merge(other SecurityContext) SecurityContext {
+	if other.ReadonlyRootFS {
+		s.ReadonlyRootFS = other.ReadonlyRootFS
+	}
+	if other.RunAsGroupID != 0 {
+		s.RunAsGroupID = other.RunAsGroupID
+	}
+	if other.RunAsUserID != 0 {
+		s.RunAsUserID = other.RunAsUserID
+	}
+	if other.SSHD.Enable {
+		s.SSHD.Enable = other.SSHD.Enable
+	}
+	return s
 }
 
 type SSHD struct {
