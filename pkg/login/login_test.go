@@ -221,11 +221,11 @@ func TestAddLoginUser(t *testing.T) {
 			err:         ErrGroupnameLength,
 		},
 		{
-			description:   "No files exist", // Fix: not adding wheel group
+			description:   "No files exist",
 			homeDir:       "/home/xyz",
 			shell:         "/bin/sh",
 			passwdResult:  p("xyz:x:1000:1000:xyz:/home/xyz:/bin/sh\n"),
-			shadowResult:  p("xyz:*:0:0:99999:7:::\n"),
+			shadowResult:  p("xyz:*::0:99999:7:::\n"),
 			groupResult:   p("wheel:x:10:xyz\nxyz:x:1000:xyz\n"),
 			gshadowResult: p("wheel:::xyz\nxyz:!!::xyz\n"),
 			username:      "xyz",
@@ -254,7 +254,7 @@ xyz:x:1001:1001:xyz:/home/xyz:/bin/sh
 `),
 			shadow: p("abc:*:0:0:99999:7:::\n"),
 			shadowResult: p(`abc:*:0:0:99999:7:::
-xyz:*:0:0:99999:7:::
+xyz:*::0:99999:7:::
 `),
 			group:       p("abc:x:1000:\n"),
 			groupResult: p("abc:x:1000:\nwheel:x:10:xyz\nxyz:x:1001:xyz\n"),
@@ -286,7 +286,7 @@ xyz:x:1000:1000:xyz:/home/xyz:/bin/bash
 `),
 			shadow: p("rpc:!!:19460:0:99999:7:::\n"),
 			shadowResult: p(`rpc:!!:19460:0:99999:7:::
-xyz:*:0:0:99999:7:::
+xyz:*::0:99999:7:::
 `),
 			group:         p("rpc:x:32:\n"),
 			groupResult:   p("rpc:x:32:\nwheel:x:10:xyz\nxyz:x:1000:xyz\n"),
@@ -301,7 +301,7 @@ xyz:*:0:0:99999:7:::
 			homeDir:       "/home/xyz",
 			shell:         "/bin/bash",
 			passwdResult:  p("xyz:x:1000:1000:xyz:/home/xyz:/bin/bash\n"),
-			shadowResult:  p("xyz:*:0:0:99999:7:::\n"),
+			shadowResult:  p("xyz:*::0:99999:7:::\n"),
 			groupResult:   p("wheel:x:10:xyz\nxyz:x:1000:xyz\n"),
 			gshadowResult: p("wheel:::xyz\nxyz:!!::xyz\n"),
 			username:      "xyz",
@@ -317,7 +317,7 @@ xyz:x:1000:1000:xyz:/home/xyz:/bin/bash
 `),
 			shadow: p("rpc:!!:19460:0:99999:7:::\n"),
 			shadowResult: p(`rpc:!!:19460:0:99999:7:::
-xyz:*:0:0:99999:7:::
+xyz:*::0:99999:7:::
 `),
 			group:         p("wheel:x:10:\nrpc:x:32:\n"),
 			groupResult:   p("wheel:x:10:xyz\nrpc:x:32:\nxyz:x:1000:xyz\n"),
