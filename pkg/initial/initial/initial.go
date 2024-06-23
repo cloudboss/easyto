@@ -417,9 +417,10 @@ func envToEnv(envVars []string) (vmspec.NameValueSource, error) {
 
 func metadataToVMSpec(metadata *v1.ConfigFile) (*vmspec.VMSpec, error) {
 	spec := &vmspec.VMSpec{
-		Command:  metadata.Config.Entrypoint,
-		Args:     metadata.Config.Cmd,
-		Security: vmspec.SecurityContext{},
+		Command:             metadata.Config.Entrypoint,
+		Args:                metadata.Config.Cmd,
+		ShutdownGracePeriod: 10,
+		Security:            vmspec.SecurityContext{},
 	}
 
 	env, err := envToEnv(metadata.Config.Env)
@@ -652,7 +653,7 @@ func doForkExec(spec *vmspec.VMSpec, command []string, env vmspec.NameValueSourc
 			uint32(spec.Security.RunAsGroupID),
 			uint32(spec.Security.RunAsUserID),
 		),
-		Timeout: 10 * time.Second,
+		Timeout: time.Duration(spec.ShutdownGracePeriod) * time.Second,
 	}
 	err := supervisor.Start()
 	if err != nil {

@@ -8,16 +8,17 @@ import (
 )
 
 type VMSpec struct {
-	Args        []string        `json:"args,omitempty"`
-	Command     []string        `json:"command,omitempty"`
-	Debug       bool            `json:"debug,omitempty"`
-	Env         NameValueSource `json:"env,omitempty"`
-	EnvFrom     EnvFromSource   `json:"env-from,omitempty"`
-	ReplaceInit bool            `json:"replace-init,omitempty"`
-	Security    SecurityContext `json:"security,omitempty"`
-	Sysctls     NameValueSource `json:"sysctls,omitempty"`
-	Volumes     Volumes         `json:"volumes,omitempty"`
-	WorkingDir  string          `json:"working-dir,omitempty"`
+	Args                []string        `json:"args,omitempty"`
+	Command             []string        `json:"command,omitempty"`
+	Debug               bool            `json:"debug,omitempty"`
+	Env                 NameValueSource `json:"env,omitempty"`
+	EnvFrom             EnvFromSource   `json:"env-from,omitempty"`
+	ReplaceInit         bool            `json:"replace-init,omitempty"`
+	Security            SecurityContext `json:"security,omitempty"`
+	ShutdownGracePeriod int             `json:"shutdown-grace-period,omitempty"`
+	Sysctls             NameValueSource `json:"sysctls,omitempty"`
+	Volumes             Volumes         `json:"volumes,omitempty"`
+	WorkingDir          string          `json:"working-dir,omitempty"`
 }
 
 func (v *VMSpec) Merge(other *VMSpec) *VMSpec {
@@ -26,10 +27,15 @@ func (v *VMSpec) Merge(other *VMSpec) *VMSpec {
 	if other.Args != nil {
 		newVMSpec.Args = other.Args
 	}
+
 	if other.Command != nil {
 		newVMSpec.Command = other.Command
 		// Always wipe the args from the image if the command is overridden.
 		newVMSpec.Args = other.Args
+	}
+
+	if other.ShutdownGracePeriod != 0 {
+		newVMSpec.ShutdownGracePeriod = other.ShutdownGracePeriod
 	}
 
 	if other.Debug {
