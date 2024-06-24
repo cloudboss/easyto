@@ -10,16 +10,19 @@ import (
 
 func Test_parametersToMap(t *testing.T) {
 	testCases := []struct {
-		parameters []types.Parameter
-		result     maps.ParameterMap
-		prefix     string
+		description string
+		parameters  []types.Parameter
+		result      maps.ParameterMap
+		prefix      string
 	}{
 		{
-			parameters: []types.Parameter{},
-			result:     maps.ParameterMap{},
-			prefix:     "/zzzzz",
+			description: "Null test case",
+			parameters:  []types.Parameter{},
+			result:      maps.ParameterMap{},
+			prefix:      "/zzzzz",
 		},
 		{
+			description: "Prefix elided",
 			parameters: []types.Parameter{
 				{
 					Name:  p("/easy/to/abc"),
@@ -44,6 +47,7 @@ func Test_parametersToMap(t *testing.T) {
 			prefix: "/easy/to",
 		},
 		{
+			description: "Prefix not found",
 			parameters: []types.Parameter{
 				{
 					Name:  p("/easy/to/abc"),
@@ -61,9 +65,44 @@ func Test_parametersToMap(t *testing.T) {
 			result: maps.ParameterMap{},
 			prefix: "zzzzz",
 		},
+		{
+			description: "File and directory collision",
+			parameters: []types.Parameter{
+				{
+					Name:  p("/easy/to/abc"),
+					Value: p("abc-value"),
+				},
+				// Value is not included in map because there is
+				// an occurrence of /easy/to with a nested subpath.
+				{
+					Name:  p("/easy/to"),
+					Value: p("to-value"),
+				},
+				{
+					Name:  p("/easy/to/subpath/abc"),
+					Value: p("subpath-abc-value"),
+				},
+				{
+					Name:  p("/easy/to/xyz"),
+					Value: p("xyz-value"),
+				},
+			},
+			result: maps.ParameterMap{
+				"to": maps.ParameterMap{
+					"abc": "abc-value",
+					"subpath": maps.ParameterMap{
+						"abc": "subpath-abc-value",
+					},
+					"xyz": "xyz-value",
+				},
+			},
+			prefix: "/easy",
+		},
 	}
 	for _, tc := range testCases {
-		actual := parametersToMap(tc.parameters, tc.prefix)
-		assert.EqualValues(t, tc.result, actual)
+		t.Run(tc.description, func(t *testing.T) {
+			actual := parametersToMap(tc.parameters, tc.prefix)
+			assert.EqualValues(t, tc.result, actual)
+		})
 	}
 }
