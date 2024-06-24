@@ -599,14 +599,19 @@ func handleVolumeEBS(volume *vmspec.EBSVolumeSource, index int) error {
 	return nil
 }
 
-func handleVolumeSSMParameter(volume *vmspec.SSMParameterVolumeSource, conn aws.Connection) error {
+func handleVolumeSSMParameter(volume *vmspec.SSMParameterVolumeSource, uid, gid int, conn aws.Connection) error {
 	parameters, err := conn.SSMClient().GetParameters(volume.Path)
 	if !(err == nil || volume.Optional) {
 		return err
 	}
+	if volume.Mount.UserID != 0 {
+		uid = volume.Mount.UserID
+	}
+	if volume.Mount.GroupID != 0 {
+		gid = volume.Mount.GroupID
+	}
 	if err == nil {
-		return parameters.Write(volume.Mount.Directory, "", volume.Mount.UserID,
-			volume.Mount.GroupID)
+		return parameters.Write(volume.Mount.Directory, "", uid, gid)
 	}
 	return nil
 }
@@ -879,7 +884,8 @@ func Run() error {
 			}
 		}
 		if volume.SSMParameter != nil {
-			err = handleVolumeSSMParameter(volume.SSMParameter, conn)
+			err = handleVolumeSSMParameter(volume.SSMParameter, spec.Security.RunAsUserID,
+				spec.Security.RunAsGroupID, conn)
 			if err != nil {
 				return err
 			}
