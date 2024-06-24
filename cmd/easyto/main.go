@@ -120,7 +120,7 @@ func init() {
 		"Name of the container image.")
 	cmd.MarkFlagRequired("container-image")
 
-	cmd.Flags().IntVarP(&cfg.size, "size", "S", 2,
+	cmd.Flags().IntVarP(&cfg.size, "size", "S", 10,
 		"Size of the image root volume in GB.")
 
 	cmd.Flags().StringVar(&cfg.loginUser, "login-user", "cloudboss",
@@ -134,11 +134,11 @@ func init() {
 		"Name of the AMI root device.")
 
 	cmd.Flags().StringVarP(&cfg.subnetID, "subnet-id", "s", "",
-		"Name of the subnet in which to run the image builder.")
+		"ID of the subnet in which to run the image builder.")
 	cmd.MarkFlagRequired("subnet-id")
 
 	cmd.Flags().StringSliceVar(&cfg.services, "services", []string{"chrony"},
-		"Comma separated list of services to enable [chrony,ssh].")
+		"Comma separated list of services to enable [chrony,ssh]. Use an empty string to disable all services.")
 
 	cmd.Flags().BoolVar(&cfg.debug, "debug", false, "Enable debug output.")
 }
