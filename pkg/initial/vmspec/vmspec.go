@@ -236,17 +236,9 @@ type Volumes []Volume
 func (v Volumes) MountPoints() []string {
 	mountPoints := []string{}
 	for _, v := range v {
+		// Only EBS volumes have actual mount points, so ignore the rest.
 		if v.EBS != nil {
 			mountPoints = append(mountPoints, v.EBS.Mount.Directory)
-		}
-		if v.SecretsManager != nil {
-			mountPoints = append(mountPoints, v.SecretsManager.Mount.Directory)
-		}
-		if v.SSMParameter != nil {
-			mountPoints = append(mountPoints, v.SSMParameter.Mount.Directory)
-		}
-		if v.S3 != nil {
-			mountPoints = append(mountPoints, v.S3.Mount.Directory)
 		}
 	}
 	// Reverse sort the mountpoints so children are listed before their
