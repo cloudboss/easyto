@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/cloudboss/easyto/pkg/constants"
 	"github.com/cloudboss/easyto/pkg/initial/aws"
 	"github.com/cloudboss/easyto/pkg/initial/maps"
 	"github.com/cloudboss/easyto/pkg/initial/vmspec"
@@ -301,7 +302,7 @@ func Test_resolveAllEnvs(t *testing.T) {
 }
 
 func Test_isMounted(t *testing.T) {
-	const mtabPath = "/proc/mounts"
+	const mtabPath = constants.DirProc + "/mounts"
 	testCases := []struct {
 		name         string
 		mountPoint   string

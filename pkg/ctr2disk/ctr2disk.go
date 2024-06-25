@@ -27,7 +27,6 @@ import (
 
 const (
 	devicePartRoot   = "/dev/sda2"
-	fileMetadata     = "metadata.json"
 	modeDirStd       = 0755
 	tarCodeMode      = 'Y'
 	tarCodeTimestamp = 'Z'
@@ -36,7 +35,7 @@ const (
 	dirMnt        = "/mnt"
 
 	pathPrefixKernel = "./boot/vmlinuz-"
-	pathProcNetPNP   = "/proc/net/pnp"
+	pathProcNetPNP   = constants.DirProc + "/net/pnp"
 
 	archiveBootloader = "boot.tar"
 	archiveChrony     = "chrony.tar"
@@ -260,7 +259,8 @@ func (b *Builder) MakeVMImage() (err error) {
 		return err
 	}
 
-	err = b.setupMetadata(ctrImage, filepath.Join(b.VMImageMount, constants.DirETRoot, fileMetadata))
+	err = b.setupMetadata(ctrImage, filepath.Join(b.VMImageMount, constants.DirETRoot,
+		constants.FileMetadata))
 	if err != nil {
 		return err
 	}

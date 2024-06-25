@@ -1,6 +1,7 @@
 package constants
 
 const (
+	DirRoot = "/"
 	DirProc = "/proc"
 	DirRun  = "/run"
 
@@ -8,6 +9,7 @@ const (
 	FileEtcShadow  = "/etc/shadow"
 	FileEtcGroup   = "/etc/group"
 	FileEtcGShadow = "/etc/gshadow"
+	FileMetadata   = "metadata.json"
 
 	GroupNameWheel = "wheel"
 

@@ -8,11 +8,12 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/cloudboss/easyto/pkg/constants"
 	"github.com/cloudboss/easyto/pkg/initial/vmspec"
 )
 
 func keyToPath(key string) string {
-	return filepath.Join("/proc/sys", strings.Replace(key, ".", "/", -1))
+	return filepath.Join(constants.DirProc, "sys", strings.Replace(key, ".", "/", -1))
 }
 
 func sysctl(key, value string) error {

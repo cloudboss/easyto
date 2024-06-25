@@ -27,11 +27,7 @@ import (
 
 const (
 	fileCACerts    = "amazon.pem"
-	filePasswd     = "/etc/passwd"
-	fileGroup      = "/etc/group"
-	fileMetadata   = "metadata.json"
-	fileMounts     = "/proc/mounts"
-	dirRoot        = "/"
+	fileMounts     = constants.DirProc + "/mounts"
 	execBits       = 0111
 	pathEnvDefault = "/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
 )
@@ -90,7 +86,7 @@ func mounts() error {
 			flags:  syscall.MS_NODEV | syscall.MS_NOEXEC | syscall.MS_NOSUID | syscall.MS_RELATIME,
 			fsType: "proc",
 			mode:   0555,
-			target: "/proc",
+			target: constants.DirProc,
 		},
 		{
 			source: "sys",
@@ -266,19 +262,19 @@ func mounts() error {
 func links() error {
 	ls := []link{
 		{
-			target: "/proc/self/fd",
+			target: filepath.Join(constants.DirProc, "self/fd"),
 			path:   "/dev/fd",
 		},
 		{
-			target: "/proc/self/fd/0",
+			target: filepath.Join(constants.DirProc, "self/fd/0"),
 			path:   "/dev/stdin",
 		},
 		{
-			target: "/proc/self/fd/1",
+			target: filepath.Join(constants.DirProc, "self/fd/1"),
 			path:   "/dev/stdout",
 		},
 		{
-			target: "/proc/self/fd/2",
+			target: filepath.Join(constants.DirProc, "self/fd/2"),
 			path:   "/dev/stderr",
 		},
 	}
@@ -306,12 +302,12 @@ func debug() {
 		{
 			"/bin/ls",
 			"-l",
-			dirRoot,
+			constants.DirRoot,
 		},
 		{
 			"/bin/ls",
 			"-l",
-			filepath.Join(dirRoot, "dev"),
+			filepath.Join(constants.DirRoot, "dev"),
 		},
 	}
 	for _, command := range commands {
@@ -350,7 +346,7 @@ func getenv(env []string, key string) string {
 
 func findExecutableInPath(executable, pathEnv string) (string, error) {
 	for _, dir := range filepath.SplitList(pathEnv) {
-		findPath := filepath.Join(dirRoot, dir, executable)
+		findPath := filepath.Join(constants.DirRoot, dir, executable)
 		fi, err := os.Stat(findPath)
 		if err != nil {
 			continue
@@ -389,7 +385,7 @@ func fullCommand(spec *vmspec.VMSpec) ([]string, error) {
 		pathEnv = pathVMSpec
 	}
 
-	if !strings.HasPrefix(ex[0], dirRoot) {
+	if !strings.HasPrefix(ex[0], constants.DirRoot) {
 		executablePath, err := findExecutableInPath(ex[0], pathEnv)
 		if err != nil {
 			return nil, err
@@ -431,7 +427,7 @@ func metadataToVMSpec(metadata *v1.ConfigFile) (*vmspec.VMSpec, error) {
 
 	spec.WorkingDir = metadata.Config.WorkingDir
 	if len(spec.WorkingDir) == 0 {
-		spec.WorkingDir = dirRoot
+		spec.WorkingDir = constants.DirRoot
 	}
 
 	uid, gid, err := getUserGroup(metadata.Config.User)
@@ -506,7 +502,7 @@ func getUserGroup(userEntry string) (int, int, error) {
 		group = userEntryFields[1]
 	}
 
-	uid, err = entryID(filePasswd, user)
+	uid, err = entryID(constants.FileEtcPasswd, user)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -515,7 +511,7 @@ func getUserGroup(userEntry string) (int, int, error) {
 		return uid, gid, nil
 	}
 
-	gid, err = entryID(fileGroup, group)
+	gid, err = entryID(constants.FileEtcGroup, group)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -683,7 +679,7 @@ func waitForShutdown(spec *vmspec.VMSpec, supervisor *service.Supervisor) {
 func unmountAll(fs afero.Fs, mountPoints []string) error {
 	var errs error
 
-	err := unix.Mount("", dirRoot, "", syscall.MS_REMOUNT|syscall.MS_RDONLY, "")
+	err := unix.Mount("", constants.DirRoot, "", syscall.MS_REMOUNT|syscall.MS_RDONLY, "")
 	if err != nil {
 		errs = errors.Join(errs, fmt.Errorf("unable to remount / as read-only: %w", err))
 	}
@@ -819,7 +815,8 @@ func Run() error {
 		linkEBSDevicesErrC <- linkEBSDevices()
 	}()
 
-	metadata, err := readMetadata(filepath.Join(constants.DirETRoot, fileMetadata))
+	metadata, err := readMetadata(filepath.Join(constants.DirETRoot,
+		constants.FileMetadata))
 	if err != nil {
 		return err
 	}
@@ -898,7 +895,7 @@ func Run() error {
 	}
 
 	if spec.Security.ReadonlyRootFS {
-		err = unix.Mount("", dirRoot, "", syscall.MS_REMOUNT|syscall.MS_RDONLY, "")
+		err = unix.Mount("", constants.DirRoot, "", syscall.MS_REMOUNT|syscall.MS_RDONLY, "")
 		if err != nil {
 			return fmt.Errorf("unable to remount root as readonly: %w", err)
 		}
