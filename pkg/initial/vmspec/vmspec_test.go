@@ -40,6 +40,35 @@ func Test_VMSpec_Merge(t *testing.T) {
 			},
 		},
 		{
+			description: "Args and command overridden",
+			orig: &VMSpec{
+				Args:    []string{"abc"},
+				Command: []string{"/usr/bin/xyz"},
+			},
+			other: &VMSpec{
+				Args:    []string{"xyz"},
+				Command: []string{"/usr/bin/abc"},
+			},
+			expected: &VMSpec{
+				Args:    []string{"xyz"},
+				Command: []string{"/usr/bin/abc"},
+			},
+		},
+		{
+			description: "Args removed if command overridden",
+			orig: &VMSpec{
+				Args:    []string{"abc"},
+				Command: []string{"/usr/bin/xyz"},
+			},
+			other: &VMSpec{
+				Command: []string{"/usr/bin/abc"},
+			},
+			expected: &VMSpec{
+				Args:    nil,
+				Command: []string{"/usr/bin/abc"},
+			},
+		},
+		{
 			description: "Security merged",
 			orig: &VMSpec{
 				Security: SecurityContext{
@@ -67,8 +96,140 @@ func Test_VMSpec_Merge(t *testing.T) {
 			},
 		},
 		{
+			description: "NameValue null test case",
+			orig: &VMSpec{
+				Env: NameValueSource{},
+			},
+			other: &VMSpec{
+				Env: NameValueSource{},
+			},
+			expected: &VMSpec{
+				Env: NameValueSource{},
+			},
+		},
+		{
+			description: "NameValue overridden",
+			orig: &VMSpec{
+				Env: NameValueSource{
+					{
+						Name:  "abc",
+						Value: "xyz",
+					},
+				},
+			},
+			other: &VMSpec{
+				Env: NameValueSource{
+					{
+						Name:  "abc",
+						Value: "yxz",
+					},
+				},
+			},
+			expected: &VMSpec{
+				Env: NameValueSource{
+					{
+						Name:  "abc",
+						Value: "yxz",
+					},
+				},
+			},
+		},
+		{
+			description: "NameValue empty merged into original",
+			orig: &VMSpec{
+				Env: NameValueSource{
+					{
+						Name:  "abc",
+						Value: "xyz",
+					},
+				},
+			},
+			other: &VMSpec{
+				Env: NameValueSource{},
+			},
+			expected: &VMSpec{
+				Env: NameValueSource{
+					{
+						Name:  "abc",
+						Value: "xyz",
+					},
+				},
+			},
+		},
+		{
+			description: "NameValue original merged into empty",
+			orig: &VMSpec{
+				Env: NameValueSource{},
+			},
+			other: &VMSpec{
+				Env: NameValueSource{
+					{
+						Name:  "abc",
+						Value: "xyz",
+					},
+				},
+			},
+			expected: &VMSpec{
+				Env: NameValueSource{
+					{
+						Name:  "abc",
+						Value: "xyz",
+					},
+				},
+			},
+		},
+		{
+			description: "NameValue overridden and appended",
+			orig: &VMSpec{
+				Env: NameValueSource{
+					{
+						Name:  "abc",
+						Value: "xyz",
+					},
+					{
+						Name:  "foo",
+						Value: "bar",
+					},
+				},
+			},
+			other: &VMSpec{
+				Env: NameValueSource{
+					{
+						Name:  "abc",
+						Value: "yxz",
+					},
+					{
+						Name:  "bar",
+						Value: "foo",
+					},
+				},
+			},
+			expected: &VMSpec{
+				Env: NameValueSource{
+					{
+						Name:  "abc",
+						Value: "yxz",
+					},
+					{
+						Name:  "foo",
+						Value: "bar",
+					},
+					{
+						Name:  "bar",
+						Value: "foo",
+					},
+				},
+			},
+		},
+		{
 			description: "Overall merge",
 			orig: &VMSpec{
+				Env: NameValueSource{
+					{
+						Name:  "abc",
+						Value: "xyz",
+					},
+				},
 				Security: SecurityContext{
 					ReadonlyRootFS: true,
 				},
@@ -84,6 +245,16 @@ func Test_VMSpec_Merge(t *testing.T) {
 				},
 			},
 			other: &VMSpec{
+				Env: NameValueSource{
+					{
+						Name:  "abc",
+						Value: "zyx",
+					},
+					{
+						Name:  "xyz",
+						Value: "123",
+					},
+				},
 				Security: SecurityContext{
 					RunAsGroupID: 4321,
 					RunAsUserID:  1234,
@@ -110,6 +281,16 @@ func Test_VMSpec_Merge(t *testing.T) {
 				WorkingDir: "/tmp",
 			},
 			expected: &VMSpec{
+				Env: NameValueSource{
+					{
+						Name:  "abc",
+						Value: "zyx",
+					},
+					{
+						Name:  "xyz",
+						Value: "123",
+					},
+				},
 				Security: SecurityContext{
 					ReadonlyRootFS: true,
 					RunAsGroupID:   4321,
@@ -140,134 +321,9 @@ func Test_VMSpec_Merge(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
-			newVMSpec := tc.orig.Merge(tc.other)
-			assert.Equal(t, tc.expected, newVMSpec)
+			err := tc.orig.Merge(tc.other)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expected, tc.orig)
 		})
-	}
-}
-
-func Test_NameValueSource_Merge(t *testing.T) {
-	testCases := []struct {
-		orig     NameValueSource
-		other    NameValueSource
-		expected NameValueSource
-	}{
-		{
-			orig:     NameValueSource{},
-			other:    NameValueSource{},
-			expected: NameValueSource{},
-		},
-		{
-			orig: NameValueSource{
-				{
-					Name:  "abc",
-					Value: "xyz",
-				},
-			},
-			other: nil,
-			expected: NameValueSource{
-				{
-					Name:  "abc",
-					Value: "xyz",
-				},
-			},
-		},
-		{
-			orig: nil,
-			other: NameValueSource{
-				{
-					Name:  "abc",
-					Value: "xyz",
-				},
-			},
-			expected: NameValueSource{
-				{
-					Name:  "abc",
-					Value: "xyz",
-				},
-			},
-		},
-		{
-			orig: NameValueSource{
-				{
-					Name:  "abc",
-					Value: "xyz",
-				},
-			},
-			other: NameValueSource{},
-			expected: NameValueSource{
-				{
-					Name:  "abc",
-					Value: "xyz",
-				},
-			},
-		},
-		{
-			orig: NameValueSource{},
-			other: NameValueSource{
-				{
-					Name:  "abc",
-					Value: "xyz",
-				},
-			},
-			expected: NameValueSource{
-				{
-					Name:  "abc",
-					Value: "xyz",
-				},
-			},
-		},
-		{
-			orig: NameValueSource{
-				{
-					Name:  "abc",
-					Value: "xyz",
-				},
-			},
-			other: NameValueSource{
-				{
-					Name:  "abc",
-					Value: "yxz",
-				},
-			},
-			expected: NameValueSource{
-				{
-					Name:  "abc",
-					Value: "yxz",
-				},
-			},
-		},
-		{
-			orig: NameValueSource{
-				{
-					Name:  "abc",
-					Value: "xyz",
-				},
-				{
-					Name:  "xyz",
-					Value: "xyz",
-				},
-			},
-			other: NameValueSource{
-				{
-					Name:  "abc",
-					Value: "yxz",
-				},
-			},
-			expected: NameValueSource{
-				{
-					Name:  "abc",
-					Value: "yxz",
-				},
-				{
-					Name:  "xyz",
-					Value: "xyz",
-				},
-			},
-		},
-	}
-	for _, tc := range testCases {
-		newEnvVars := tc.orig.Merge(tc.other)
-		assert.ElementsMatch(t, tc.expected, newEnvVars)
 	}
 }

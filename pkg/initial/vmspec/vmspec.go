@@ -3,8 +3,11 @@ package vmspec
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
+
+	"dario.cat/mergo"
 )
 
 type VMSpec struct {
@@ -21,52 +24,17 @@ type VMSpec struct {
 	WorkingDir          string          `json:"working-dir,omitempty"`
 }
 
-func (v *VMSpec) Merge(other *VMSpec) *VMSpec {
-	newVMSpec := v
-
-	if other.Args != nil {
-		newVMSpec.Args = other.Args
+func (v *VMSpec) Merge(other *VMSpec) error {
+	err := mergo.Merge(v, other, mergo.WithOverride,
+		mergo.WithTransformers(nameValueTransformer{}))
+	if err != nil {
+		return err
 	}
-
 	if other.Command != nil {
-		newVMSpec.Command = other.Command
-		// Always wipe the args from the image if the command is overridden.
-		newVMSpec.Args = other.Args
+		// Override args if command is set, even if zero value.
+		v.Args = other.Args
 	}
-
-	if other.ShutdownGracePeriod != 0 {
-		newVMSpec.ShutdownGracePeriod = other.ShutdownGracePeriod
-	}
-
-	if other.Debug {
-		newVMSpec.Debug = other.Debug
-	}
-
-	if other.ReplaceInit {
-		newVMSpec.ReplaceInit = other.ReplaceInit
-	}
-
-	newVMSpec.Env = newVMSpec.Env.Merge(other.Env)
-
-	newVMSpec.Security = newVMSpec.Security.Merge(other.Security)
-
-	if len(other.WorkingDir) != 0 {
-		newVMSpec.WorkingDir = other.WorkingDir
-	}
-
-	if other.Volumes != nil {
-		newVMSpec.Volumes = other.Volumes
-	}
-
-	if other.EnvFrom != nil {
-		newVMSpec.EnvFrom = other.EnvFrom
-	}
-
-	if other.Sysctls != nil {
-		newVMSpec.Sysctls = other.Sysctls
-	}
-
-	return newVMSpec
+	return nil
 }
 
 func (v *VMSpec) Validate() error {
@@ -97,23 +65,45 @@ func (n NameValueSource) Find(key string) (string, int) {
 	return "", -1
 }
 
-// Merge will merge NameValues from other with its own NameValues, returning a new
-// copy. Overridden values will come first in the returned copy.
-func (n NameValueSource) Merge(other NameValueSource) NameValueSource {
-	if other == nil {
-		cp := n
-		return cp
+type nameValueTransformer struct{}
+
+// Transformer merges NameValueSource types. Values from src override values from dst if
+// both have the same Name. Items in src with Name not existing in dst are appended to dst.
+func (n nameValueTransformer) Transformer(typ reflect.Type) func(dst, src reflect.Value) error {
+	nvType := reflect.TypeOf(NameValueSource{})
+	if typ != nvType {
+		return nil
 	}
-	newItems := NameValueSource{}
-	for _, item := range n {
-		if _, j := other.Find(item.Name); j < 0 {
-			newItems = append(newItems, NameValue{
-				Name:  item.Name,
-				Value: item.Value,
-			})
+
+	return func(dst, src reflect.Value) error {
+		if !src.CanSet() {
+			return nil
 		}
+		if !(src.Type() == nvType && dst.Type() == nvType) {
+			return fmt.Errorf("expected to merge %s types, got %s and %s",
+				nvType, src.Type(), dst.Type())
+		}
+		for i := 0; i < src.Len(); i++ {
+			srcNV := src.Index(i)
+			srcName := srcNV.FieldByName("Name")
+			var overrideValue reflect.Value
+			var dstValue reflect.Value
+			for j := 0; j < dst.Len(); j++ {
+				dstName := dst.Index(j).FieldByName("Name")
+				if srcName.Equal(dstName) {
+					dstValue = dst.Index(j).FieldByName("Value")
+					overrideValue = srcNV.FieldByName("Value")
+					break
+				}
+			}
+			if overrideValue.IsValid() {
+				dstValue.Set(overrideValue)
+				continue
+			}
+			dst.Set(reflect.Append(dst, srcNV))
+		}
+		return nil
 	}
-	return append(newItems, other...)
 }
 
 func (n NameValueSource) ToStrings() []string {
@@ -260,22 +250,6 @@ type SecurityContext struct {
 	RunAsGroupID   int  `json:"run-as-group-id,omitempty"`
 	RunAsUserID    int  `json:"run-as-user-id,omitempty"`
 	SSHD           SSHD `json:"sshd,omitempty"`
-}
-
-func (s SecurityContext) Merge(other SecurityContext) SecurityContext {
-	if other.ReadonlyRootFS {
-		s.ReadonlyRootFS = other.ReadonlyRootFS
-	}
-	if other.RunAsGroupID != 0 {
-		s.RunAsGroupID = other.RunAsGroupID
-	}
-	if other.RunAsUserID != 0 {
-		s.RunAsUserID = other.RunAsUserID
-	}
-	if other.SSHD.Enable {
-		s.SSHD.Enable = other.SSHD.Enable
-	}
-	return s
 }
 
 type SSHD struct {

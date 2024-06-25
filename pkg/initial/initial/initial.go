@@ -840,7 +840,11 @@ func Run() error {
 		return fmt.Errorf("unable to get user data: %w", err)
 	}
 
-	spec = spec.Merge(userData)
+	err = spec.Merge(userData)
+	if err != nil {
+		return fmt.Errorf("unable to merge VMSpec with user data: %w", err)
+	}
+
 	if spec.Debug {
 		slog.SetLogLoggerLevel(slog.LevelDebug)
 	}
