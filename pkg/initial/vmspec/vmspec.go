@@ -25,7 +25,7 @@ type VMSpec struct {
 }
 
 func (v *VMSpec) Merge(other *VMSpec) error {
-	err := mergo.Merge(v, other, mergo.WithOverride,
+	err := mergo.Merge(v, other, mergo.WithOverride, mergo.WithoutDereference,
 		mergo.WithTransformers(nameValueTransformer{}))
 	if err != nil {
 		return err
@@ -34,7 +34,51 @@ func (v *VMSpec) Merge(other *VMSpec) error {
 		// Override args if command is set, even if zero value.
 		v.Args = other.Args
 	}
+	v.SetDefaults()
 	return nil
+}
+
+func (v *VMSpec) SetDefaults() {
+	if v.Security.RunAsGroupID == nil {
+		v.Security.RunAsGroupID = p(0)
+	}
+	if v.Security.RunAsUserID == nil {
+		v.Security.RunAsUserID = p(0)
+	}
+	for _, volume := range v.Volumes {
+		if volume.EBS != nil {
+			if volume.EBS.Mount.GroupID == nil {
+				volume.EBS.Mount.GroupID = v.Security.RunAsGroupID
+			}
+			if volume.EBS.Mount.UserID == nil {
+				volume.EBS.Mount.UserID = v.Security.RunAsUserID
+			}
+		}
+		if volume.SecretsManager != nil {
+			if volume.SecretsManager.Mount.GroupID == nil {
+				volume.SecretsManager.Mount.GroupID = v.Security.RunAsGroupID
+			}
+			if volume.SecretsManager.Mount.UserID == nil {
+				volume.SecretsManager.Mount.UserID = v.Security.RunAsUserID
+			}
+		}
+		if volume.SSMParameter != nil {
+			if volume.SSMParameter.Mount.GroupID == nil {
+				volume.SSMParameter.Mount.GroupID = v.Security.RunAsGroupID
+			}
+			if volume.SSMParameter.Mount.UserID == nil {
+				volume.SSMParameter.Mount.UserID = v.Security.RunAsUserID
+			}
+		}
+		if volume.S3 != nil {
+			if volume.S3.Mount.GroupID == nil {
+				volume.S3.Mount.GroupID = v.Security.RunAsGroupID
+			}
+			if volume.S3.Mount.UserID == nil {
+				volume.S3.Mount.UserID = v.Security.RunAsUserID
+			}
+		}
+	}
 }
 
 func (v *VMSpec) Validate() error {
@@ -239,19 +283,23 @@ type S3VolumeSource struct {
 
 type Mount struct {
 	Directory string   `json:"directory,omitempty"`
-	GroupID   int      `json:"group-id,omitempty"`
+	GroupID   *int     `json:"group-id,omitempty"`
 	Mode      string   `json:"mode,omitempty"`
 	Options   []string `json:"options,omitempty"`
-	UserID    int      `json:"user-id,omitempty"`
+	UserID    *int     `json:"user-id,omitempty"`
 }
 
 type SecurityContext struct {
 	ReadonlyRootFS bool `json:"readonly-root-fs,omitempty"`
-	RunAsGroupID   int  `json:"run-as-group-id,omitempty"`
-	RunAsUserID    int  `json:"run-as-user-id,omitempty"`
+	RunAsGroupID   *int `json:"run-as-group-id,omitempty"`
+	RunAsUserID    *int `json:"run-as-user-id,omitempty"`
 	SSHD           SSHD `json:"sshd,omitempty"`
 }
 
 type SSHD struct {
 	Enable bool `json:"enable,omitempty"`
+}
+
+func p[T any](v T) *T {
+	return &v
 }

@@ -438,8 +438,8 @@ func metadataToVMSpec(metadata *v1.ConfigFile) (*vmspec.VMSpec, error) {
 	if err != nil {
 		return nil, err
 	}
-	spec.Security.RunAsUserID = uid
-	spec.Security.RunAsGroupID = gid
+	spec.Security.RunAsUserID = &uid
+	spec.Security.RunAsGroupID = &gid
 
 	return spec, nil
 }
@@ -565,8 +565,7 @@ func handleVolumeEBS(volume *vmspec.EBSVolumeSource, index int) error {
 	}
 	slog.Debug("Created mount point", "directory", volume.Mount.Directory)
 
-	err = os.Chown(volume.Mount.Directory, volume.Mount.UserID,
-		volume.Mount.GroupID)
+	err = os.Chown(volume.Mount.Directory, *volume.Mount.UserID, *volume.Mount.GroupID)
 	if err != nil {
 		return fmt.Errorf("unable to change ownership of mount point: %w", err)
 	}
@@ -599,19 +598,14 @@ func handleVolumeEBS(volume *vmspec.EBSVolumeSource, index int) error {
 	return nil
 }
 
-func handleVolumeSSMParameter(volume *vmspec.SSMParameterVolumeSource, uid, gid int, conn aws.Connection) error {
+func handleVolumeSSMParameter(volume *vmspec.SSMParameterVolumeSource, conn aws.Connection) error {
 	parameters, err := conn.SSMClient().GetParameters(volume.Path)
 	if !(err == nil || volume.Optional) {
 		return err
 	}
-	if volume.Mount.UserID != 0 {
-		uid = volume.Mount.UserID
-	}
-	if volume.Mount.GroupID != 0 {
-		gid = volume.Mount.GroupID
-	}
 	if err == nil {
-		return parameters.Write(volume.Mount.Directory, "", uid, gid)
+		return parameters.Write(volume.Mount.Directory, "", *volume.Mount.UserID,
+			*volume.Mount.GroupID)
 	}
 	return nil
 }
@@ -623,8 +617,8 @@ func handleVolumeS3(volume *vmspec.S3VolumeSource, conn aws.Connection) error {
 		return err
 	}
 	if err == nil {
-		return s3Client.CopyObjects(objects, volume.Mount.Directory, "", volume.Mount.UserID,
-			volume.Mount.GroupID)
+		return s3Client.CopyObjects(objects, volume.Mount.Directory, "", *volume.Mount.UserID,
+			*volume.Mount.GroupID)
 	}
 	return nil
 }
@@ -636,12 +630,12 @@ func doExec(spec *vmspec.VMSpec, command []string, env vmspec.NameValueSource) e
 			spec.WorkingDir, err)
 	}
 
-	err = syscall.Setgid(spec.Security.RunAsGroupID)
+	err = syscall.Setgid(*spec.Security.RunAsGroupID)
 	if err != nil {
 		return fmt.Errorf("unable to set GID: %w", err)
 	}
 
-	err = syscall.Setuid(spec.Security.RunAsUserID)
+	err = syscall.Setuid(*spec.Security.RunAsUserID)
 	if err != nil {
 		return fmt.Errorf("unable to set UID: %w", err)
 	}
@@ -655,8 +649,8 @@ func doForkExec(spec *vmspec.VMSpec, command []string, env vmspec.NameValueSourc
 			command,
 			env.ToStrings(),
 			spec.WorkingDir,
-			uint32(spec.Security.RunAsGroupID),
-			uint32(spec.Security.RunAsUserID),
+			uint32(*spec.Security.RunAsGroupID),
+			uint32(*spec.Security.RunAsUserID),
 		),
 		Timeout: time.Duration(spec.ShutdownGracePeriod) * time.Second,
 	}
@@ -849,6 +843,8 @@ func Run() error {
 		slog.SetLogLoggerLevel(slog.LevelDebug)
 	}
 
+	slog.Debug("Instance configuration", "spec", spec)
+
 	err = spec.Validate()
 	if err != nil {
 		return fmt.Errorf("user data failed to validate: %w", err)
@@ -888,8 +884,7 @@ func Run() error {
 			}
 		}
 		if volume.SSMParameter != nil {
-			err = handleVolumeSSMParameter(volume.SSMParameter, spec.Security.RunAsUserID,
-				spec.Security.RunAsGroupID, conn)
+			err = handleVolumeSSMParameter(volume.SSMParameter, conn)
 			if err != nil {
 				return err
 			}

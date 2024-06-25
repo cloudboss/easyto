@@ -17,9 +17,15 @@ func Test_VMSpec_Merge(t *testing.T) {
 			description: "Null test case",
 			orig:        &VMSpec{},
 			other:       &VMSpec{},
-			expected:    &VMSpec{},
+			expected: &VMSpec{
+				Security: SecurityContext{
+					RunAsGroupID: p(0),
+					RunAsUserID:  p(0),
+				},
+			},
 		},
 		{
+
 			description: "Debug enabled",
 			orig:        &VMSpec{},
 			other: &VMSpec{
@@ -27,6 +33,10 @@ func Test_VMSpec_Merge(t *testing.T) {
 			},
 			expected: &VMSpec{
 				Debug: true,
+				Security: SecurityContext{
+					RunAsGroupID: p(0),
+					RunAsUserID:  p(0),
+				},
 			},
 		},
 		{
@@ -37,6 +47,10 @@ func Test_VMSpec_Merge(t *testing.T) {
 			},
 			expected: &VMSpec{
 				ReplaceInit: true,
+				Security: SecurityContext{
+					RunAsGroupID: p(0),
+					RunAsUserID:  p(0),
+				},
 			},
 		},
 		{
@@ -52,6 +66,10 @@ func Test_VMSpec_Merge(t *testing.T) {
 			expected: &VMSpec{
 				Args:    []string{"xyz"},
 				Command: []string{"/usr/bin/abc"},
+				Security: SecurityContext{
+					RunAsGroupID: p(0),
+					RunAsUserID:  p(0),
+				},
 			},
 		},
 		{
@@ -66,6 +84,10 @@ func Test_VMSpec_Merge(t *testing.T) {
 			expected: &VMSpec{
 				Args:    nil,
 				Command: []string{"/usr/bin/abc"},
+				Security: SecurityContext{
+					RunAsGroupID: p(0),
+					RunAsUserID:  p(0),
+				},
 			},
 		},
 		{
@@ -77,8 +99,8 @@ func Test_VMSpec_Merge(t *testing.T) {
 			},
 			other: &VMSpec{
 				Security: SecurityContext{
-					RunAsGroupID: 1234,
-					RunAsUserID:  1234,
+					RunAsGroupID: p(1234),
+					RunAsUserID:  p(1234),
 					SSHD: SSHD{
 						Enable: true,
 					},
@@ -87,11 +109,154 @@ func Test_VMSpec_Merge(t *testing.T) {
 			expected: &VMSpec{
 				Security: SecurityContext{
 					ReadonlyRootFS: true,
-					RunAsGroupID:   1234,
-					RunAsUserID:    1234,
+					RunAsGroupID:   p(1234),
+					RunAsUserID:    p(1234),
 					SSHD: SSHD{
 						Enable: true,
 					},
+				},
+			},
+		},
+		{
+			description: "Security overriding with zero values",
+			orig: &VMSpec{
+				Security: SecurityContext{
+					ReadonlyRootFS: true,
+					RunAsGroupID:   p(1234),
+					RunAsUserID:    p(1234),
+				},
+			},
+			other: &VMSpec{
+				Security: SecurityContext{
+					RunAsGroupID: p(0),
+					RunAsUserID:  p(0),
+				},
+			},
+			expected: &VMSpec{
+				Security: SecurityContext{
+					ReadonlyRootFS: true,
+					RunAsGroupID:   p(0),
+					RunAsUserID:    p(0),
+				},
+			},
+		},
+		{
+			description: "Mount overriding with zero values",
+			orig: &VMSpec{
+				Volumes: Volumes{
+					{
+						SSMParameter: &SSMParameterVolumeSource{
+							Mount: Mount{
+								Directory: "/abc",
+								GroupID:   p(1234),
+								UserID:    p(1234),
+							},
+						},
+					},
+				},
+			},
+			other: &VMSpec{
+				Volumes: Volumes{
+					{
+						SSMParameter: &SSMParameterVolumeSource{
+							Mount: Mount{
+								Directory: "/xyz",
+								GroupID:   p(0),
+								UserID:    p(0),
+							},
+						},
+					},
+				},
+			},
+			expected: &VMSpec{
+				Volumes: Volumes{
+					{
+						SSMParameter: &SSMParameterVolumeSource{
+							Mount: Mount{
+								Directory: "/xyz",
+								GroupID:   p(0),
+								UserID:    p(0),
+							},
+						},
+					},
+				},
+				Security: SecurityContext{
+					RunAsGroupID: p(0),
+					RunAsUserID:  p(0),
+				},
+			},
+		},
+		{
+			description: "Mount ownership defaults to command user and group",
+			orig: &VMSpec{
+				Security: SecurityContext{
+					RunAsGroupID: p(1234),
+					RunAsUserID:  p(1234),
+				},
+				Volumes: Volumes{
+					{
+						SSMParameter: &SSMParameterVolumeSource{
+							Mount: Mount{
+								Directory: "/abc",
+							},
+						},
+					},
+				},
+			},
+			other: &VMSpec{},
+			expected: &VMSpec{
+				Volumes: Volumes{
+					{
+						SSMParameter: &SSMParameterVolumeSource{
+							Mount: Mount{
+								Directory: "/abc",
+								GroupID:   p(1234),
+								UserID:    p(1234),
+							},
+						},
+					},
+				},
+				Security: SecurityContext{
+					RunAsGroupID: p(1234),
+					RunAsUserID:  p(1234),
+				},
+			},
+		},
+		{
+			description: "Mount ownership can be explicitly set",
+			orig: &VMSpec{
+				Security: SecurityContext{
+					RunAsGroupID: p(1234),
+					RunAsUserID:  p(1234),
+				},
+				Volumes: Volumes{
+					{
+						SSMParameter: &SSMParameterVolumeSource{
+							Mount: Mount{
+								Directory: "/abc",
+								GroupID:   p(4321),
+								UserID:    p(4321),
+							},
+						},
+					},
+				},
+			},
+			other: &VMSpec{},
+			expected: &VMSpec{
+				Volumes: Volumes{
+					{
+						SSMParameter: &SSMParameterVolumeSource{
+							Mount: Mount{
+								Directory: "/abc",
+								GroupID:   p(4321),
+								UserID:    p(4321),
+							},
+						},
+					},
+				},
+				Security: SecurityContext{
+					RunAsGroupID: p(1234),
+					RunAsUserID:  p(1234),
 				},
 			},
 		},
@@ -105,6 +270,10 @@ func Test_VMSpec_Merge(t *testing.T) {
 			},
 			expected: &VMSpec{
 				Env: NameValueSource{},
+				Security: SecurityContext{
+					RunAsGroupID: p(0),
+					RunAsUserID:  p(0),
+				},
 			},
 		},
 		{
@@ -132,6 +301,10 @@ func Test_VMSpec_Merge(t *testing.T) {
 						Value: "yxz",
 					},
 				},
+				Security: SecurityContext{
+					RunAsGroupID: p(0),
+					RunAsUserID:  p(0),
+				},
 			},
 		},
 		{
@@ -154,6 +327,10 @@ func Test_VMSpec_Merge(t *testing.T) {
 						Value: "xyz",
 					},
 				},
+				Security: SecurityContext{
+					RunAsGroupID: p(0),
+					RunAsUserID:  p(0),
+				},
 			},
 		},
 		{
@@ -175,6 +352,10 @@ func Test_VMSpec_Merge(t *testing.T) {
 						Name:  "abc",
 						Value: "xyz",
 					},
+				},
+				Security: SecurityContext{
+					RunAsGroupID: p(0),
+					RunAsUserID:  p(0),
 				},
 			},
 		},
@@ -219,6 +400,10 @@ func Test_VMSpec_Merge(t *testing.T) {
 						Value: "foo",
 					},
 				},
+				Security: SecurityContext{
+					RunAsGroupID: p(0),
+					RunAsUserID:  p(0),
+				},
 			},
 		},
 		{
@@ -256,8 +441,8 @@ func Test_VMSpec_Merge(t *testing.T) {
 					},
 				},
 				Security: SecurityContext{
-					RunAsGroupID: 4321,
-					RunAsUserID:  1234,
+					RunAsGroupID: p(4321),
+					RunAsUserID:  p(1234),
 					SSHD: SSHD{
 						Enable: true,
 					},
@@ -293,8 +478,8 @@ func Test_VMSpec_Merge(t *testing.T) {
 				},
 				Security: SecurityContext{
 					ReadonlyRootFS: true,
-					RunAsGroupID:   4321,
-					RunAsUserID:    1234,
+					RunAsGroupID:   p(4321),
+					RunAsUserID:    p(1234),
 					SSHD: SSHD{
 						Enable: true,
 					},
@@ -304,12 +489,18 @@ func Test_VMSpec_Merge(t *testing.T) {
 						EBS: &EBSVolumeSource{
 							Device: "/dev/sda1",
 							FSType: "ext4",
+							Mount: Mount{
+								GroupID: p(4321),
+								UserID:  p(1234),
+							},
 						},
 					},
 					{
 						SSMParameter: &SSMParameterVolumeSource{
 							Mount: Mount{
 								Directory: "/secret",
+								GroupID:   p(4321),
+								UserID:    p(1234),
 							},
 							Path: "/ssm/path",
 						},
