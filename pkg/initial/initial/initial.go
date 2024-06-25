@@ -49,6 +49,13 @@ type mount struct {
 func mounts() error {
 	ms := []mount{
 		{
+			source: "devtmpfs",
+			flags:  syscall.MS_NOSUID,
+			fsType: "devtmpfs",
+			mode:   0755,
+			target: "/dev",
+		},
+		{
 			source: "devpts",
 			flags:  syscall.MS_NOATIME | syscall.MS_NOEXEC | syscall.MS_NOSUID,
 			fsType: "devpts",
