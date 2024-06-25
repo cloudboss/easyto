@@ -6,17 +6,24 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/cloudboss/easyto/pkg/constants"
 	"github.com/spf13/afero"
+	"golang.org/x/sys/unix"
 )
 
 const (
 	// Signal sent by the "ACPI tiny power button" kernel driver.
 	// It is assumed the kernel will be compiled to use it.
 	SIGPWRBTN = syscall.Signal(0x26)
+
+	// Flag indicating process is a kernel thread, from include/linux/sched.h.
+	PF_KTHREAD = 0x00200000
 )
 
 type Supervisor struct {
@@ -58,17 +65,25 @@ func (s *Supervisor) Start() error {
 }
 
 func (s *Supervisor) Stop() {
-	for _, service := range s.Services {
-		service.Stop()
-	}
-	s.Main.Stop()
+	s.signal(syscall.SIGTERM)
 }
 
 func (s *Supervisor) Kill() {
+	s.signal(syscall.SIGKILL)
+}
+
+func (s *Supervisor) signal(signal syscall.Signal) {
+	// Ensure services know it is shutdown time so they don't restart.
 	for _, service := range s.Services {
-		service.Kill()
+		service.Stop()
 	}
-	s.Main.Kill()
+	pids := s.pids()
+	for _, pid := range pids {
+		if pid == 1 {
+			continue
+		}
+		unix.Kill(pid, signal)
+	}
 }
 
 func (s *Supervisor) Wait() {
@@ -92,10 +107,10 @@ func (s *Supervisor) Wait() {
 
 		slog.Info("Shutting down all processes")
 
-		// Set the timer in case services do not exit.
+		// Set the timer in case processes do not exit.
 		timeout.Reset(s.Timeout)
 
-		// Send a SIGTERM to all services.
+		// Send a SIGTERM to all running processes.
 		s.Stop()
 	}
 
@@ -137,4 +152,69 @@ func (s *Supervisor) Wait() {
 			stopped = true
 		}
 	}
+}
+
+// pids returns all current userspace PIDs. If there is an error reading /proc, the
+// PIDs of the known services are returned so a best effort shutdown can be done.
+func (s *Supervisor) pids() []int {
+	pids := []int{}
+	dirEntries, err := os.ReadDir(constants.DirProc)
+	if err != nil {
+		slog.Error("Unable to read directory", "directory", constants.DirProc, "error", err)
+		return s.svcPIDs()
+	}
+	for _, dirEntry := range dirEntries {
+		if !dirEntry.IsDir() {
+			continue
+		}
+		pid, err := strconv.Atoi(dirEntry.Name())
+		if err != nil {
+			continue
+		}
+		statFile := filepath.Join(constants.DirProc, dirEntry.Name(), "stat")
+		kt, err := isKernelThread(statFile)
+		if err != nil {
+			slog.Error("Unable to filter kernel thread", "pid", pid, "error", err)
+			return s.svcPIDs()
+		}
+		if !kt {
+			pids = append(pids, pid)
+		}
+	}
+	return pids
+}
+
+// svcPIDs returns the PIDs of known services.
+func (s *Supervisor) svcPIDs() []int {
+	pids := []int{}
+	for _, svc := range s.Services {
+		pid := svc.PID()
+		if pid != 0 {
+			pids = append(pids, pid)
+		}
+	}
+	return pids
+}
+
+func isKernelThread(statFile string) (bool, error) {
+	const (
+		flagsField  = 8
+		nStatFields = 52
+	)
+	st, err := os.ReadFile(statFile)
+	if err != nil {
+		return false, fmt.Errorf("unable to read %s: %w", statFile, err)
+	}
+	fields := strings.Fields(string(st))
+	if len(fields) != nStatFields {
+		err = fmt.Errorf("expected %d fields in %s, got %d", nStatFields,
+			statFile, len(fields))
+		return false, err
+	}
+	statField := fields[flagsField]
+	flags, err := strconv.Atoi(statField)
+	if err != nil {
+		return false, fmt.Errorf("unable to parse %s: %w", statFile, err)
+	}
+	return flags&PF_KTHREAD != 0, nil
 }

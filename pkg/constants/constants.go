@@ -1,7 +1,8 @@
 package constants
 
 const (
-	DirRun = "/run"
+	DirProc = "/proc"
+	DirRun  = "/run"
 
 	FileEtcPasswd  = "/etc/passwd"
 	FileEtcShadow  = "/etc/shadow"

@@ -18,8 +18,8 @@ type Service interface {
 	Start() error
 	Wait() error
 	Stop()
-	Kill()
 	Optional() bool
+	PID() int
 }
 
 type InitFunc func() error
@@ -52,18 +52,17 @@ func (s *svc) Start() error {
 	go func() {
 		for {
 			err := s.cmd.Run()
-			if !s.shutdown {
-				if err != nil {
-					slog.Error("Process errored, will restart", "process", s.Args[0], "error", err)
-				} else {
-					slog.Warn("Process exited, will restart", "process", s.Args[0])
-				}
-				s.init()
-				time.Sleep(5 * time.Second)
-			} else {
+			if s.shutdown {
 				s.C <- err
 				break
 			}
+			if err != nil {
+				slog.Error("Process errored, will restart", "process", s.Args[0], "error", err)
+			} else {
+				slog.Warn("Process exited, will restart", "process", s.Args[0])
+			}
+			s.init()
+			time.Sleep(5 * time.Second)
 		}
 	}()
 
@@ -75,25 +74,18 @@ func (s *svc) Wait() error {
 }
 
 func (s *svc) Stop() {
-	s.signal(syscall.SIGTERM)
-}
-
-func (s *svc) Kill() {
-	s.signal(syscall.SIGKILL)
+	s.shutdown = true
 }
 
 func (s *svc) Optional() bool {
 	return s.optional
 }
 
-func (s *svc) signal(signal os.Signal) {
+func (s *svc) PID() int {
 	if s.cmd.Process != nil {
-		slog.Debug("Sending signal", "signal", signal, "command", s.Args[0])
-		s.shutdown = true
-		s.cmd.Process.Signal(signal)
-	} else {
-		s.C <- nil
+		return s.cmd.Process.Pid
 	}
+	return 0
 }
 
 func (s *svc) init() {
