@@ -24,7 +24,7 @@ func NewMainService(command, env []string, workingDir string, uid, gid uint32) S
 func (m *Main) Start() error {
 	m.init()
 
-	slog.Info("Starting main command", "command", m.cmd)
+	slog.Info("Starting main command", "command", m.cmd.Args)
 
 	go func() {
 		m.C <- m.cmd.Run()

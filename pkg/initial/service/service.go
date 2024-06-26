@@ -47,7 +47,7 @@ func (s *svc) Start() error {
 
 	s.init()
 
-	slog.Info("Starting service", "service", s.cmd)
+	slog.Info("Starting service", "service", s.cmd.Args)
 
 	go func() {
 		for {

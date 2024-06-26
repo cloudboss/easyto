@@ -918,9 +918,8 @@ func Run() error {
 		return fmt.Errorf("unable to resolve all environment variables: %w", err)
 	}
 
-	slog.Debug("About to run entrypoint", "command", command, "env", env)
-
 	if spec.ReplaceInit {
+		slog.Debug("Replacing init with command", "command", command)
 		err = doExec(spec, command, env)
 	} else {
 		err = doForkExec(spec, command, env)
