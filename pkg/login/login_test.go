@@ -156,6 +156,7 @@ xyz:!!:0:0:99999:7:::
 			gshadowResult: p("xyz:!!::xyz\n"),
 			username:      "xyz",
 			groupname:     "xyz",
+			err:           ErrUsernameExists,
 		},
 	}
 	for _, tc := range testCases {
@@ -348,12 +349,97 @@ xyz:*:0:0:99999:7:::
 			gshadowResult: p("wheel:::xyz\nrpc:!::\nabc:!!::\nxyz:!!::xyz\n"),
 			username:      "xyz",
 			groupname:     "xyz",
+			err:           ErrUsernameExists,
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
 			fs := loginSetup(tc.passwd, tc.shadow, tc.group, tc.gshadow, tc.baseDir)
 			_, _, err := AddLoginUser(fs, tc.username, tc.groupname, tc.homeDir, tc.shell, tc.baseDir)
+			assert.Equal(t, tc.err, err)
+			if err == nil {
+				fileEtcPasswd := filepath.Join(tc.baseDir, constants.FileEtcPasswd)
+				fileEtcShadow := filepath.Join(tc.baseDir, constants.FileEtcShadow)
+				fileEtcGroup := filepath.Join(tc.baseDir, constants.FileEtcGroup)
+				fileEtcGShadow := filepath.Join(tc.baseDir, constants.FileEtcGShadow)
+				if tc.passwdResult != nil {
+					assert.Equal(t, *tc.passwdResult, *loginRead(fs, fileEtcPasswd))
+				} else {
+					assert.False(t, loginExists(fs, fileEtcPasswd))
+				}
+				if tc.shadowResult != nil {
+					assert.Equal(t, *tc.shadowResult, *loginRead(fs, fileEtcShadow))
+				} else {
+					assert.False(t, loginExists(fs, constants.FileEtcShadow))
+				}
+				if tc.groupResult != nil {
+					assert.Equal(t, *tc.groupResult, *loginRead(fs, fileEtcGroup))
+				} else {
+					assert.False(t, loginExists(fs, constants.FileEtcGroup))
+				}
+				if tc.gshadowResult != nil {
+					assert.Equal(t, *tc.gshadowResult, *loginRead(fs, fileEtcGShadow))
+				} else {
+					assert.Equal(t, "", *loginRead(fs, fileEtcGShadow))
+					assert.False(t, loginExists(fs, fileEtcGShadow))
+				}
+			}
+		})
+	}
+}
+
+func TestAddRootUser(t *testing.T) {
+	testCases := []struct {
+		baseDir       string
+		shell         string
+		description   string
+		passwd        *string
+		passwdResult  *string
+		shadow        *string
+		shadowResult  *string
+		group         *string
+		groupResult   *string
+		gshadow       *string
+		gshadowResult *string
+		err           error
+	}{
+		{
+			description:  "No root user exists",
+			shell:        "/bin/sh",
+			passwd:       p("bin:x:1:1:bin:/bin:/sbin/nologin\n"),
+			passwdResult: p("bin:x:1:1:bin:/bin:/sbin/nologin\nroot:x:0:0:root:/root:/bin/sh\n"),
+			shadow:       p("bin:!::0:::::\n"),
+			shadowResult: p("bin:!::0:::::\nroot:*:0:0:99999:7:::\n"),
+			group:        p("bin:x:1:root,bin,daemon\n"),
+			groupResult:  p("bin:x:1:root,bin,daemon\nroot:x:0:root\n"),
+		},
+		{
+			description:  "Root user exists",
+			shell:        "/bin/abc", // Shell not written because user exists.
+			passwd:       p("bin:x:1:1:bin:/bin:/sbin/nologin\nroot:x:0:0:root:/root:/bin/sh\n"),
+			passwdResult: p("bin:x:1:1:bin:/bin:/sbin/nologin\nroot:x:0:0:root:/root:/bin/sh\n"),
+			shadow:       p("bin:!::0:::::\nroot:*:0:0:99999:7:::\n"),
+			shadowResult: p("bin:!::0:::::\nroot:*:0:0:99999:7:::\n"),
+			group:        p("bin:x:1:root,bin,daemon\nroot:x:0:root\n"),
+			groupResult:  p("bin:x:1:root,bin,daemon\nroot:x:0:root\n"),
+			err:          ErrUsernameExists,
+		},
+		{
+			description:  "UID 0 exists under another username",
+			shell:        "/bin/sh",
+			passwd:       p("bin:x:1:1:bin:/bin:/sbin/nologin\ntoor:x:0:0:toor:/toor:/bin/sh\n"),
+			passwdResult: p("bin:x:1:1:bin:/bin:/sbin/nologin\ntoor:x:0:0:toor:/toor:/bin/sh\n"),
+			shadow:       p("bin:!::0:::::\ntoor:*:0:0:99999:7:::\n"),
+			shadowResult: p("bin:!::0:::::\ntoor:*:0:0:99999:7:::\n"),
+			group:        p("bin:x:1:root,bin,daemon\ntoor:x:0:toor\n"),
+			groupResult:  p("bin:x:1:root,bin,daemon\ntoor:x:0:toor\n"),
+			err:          ErrNoAvailableIDs,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			fs := loginSetup(tc.passwd, tc.shadow, tc.group, tc.gshadow, tc.baseDir)
+			_, _, err := AddRootUser(fs, tc.shell, tc.baseDir)
 			assert.Equal(t, tc.err, err)
 			if err == nil {
 				fileEtcPasswd := filepath.Join(tc.baseDir, constants.FileEtcPasswd)

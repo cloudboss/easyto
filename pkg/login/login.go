@@ -15,8 +15,17 @@ import (
 )
 
 var (
+	ErrNoAvailableIDs  = errors.New("no available IDs")
+	ErrUsernameExists  = errors.New("username exists")
 	ErrUsernameLength  = errors.New("username must be longer than 0")
 	ErrGroupnameLength = errors.New("group name must be longer than 0")
+)
+
+const (
+	UID_GID_MIN            = 1000
+	UID_GID_MAX     uint16 = 1<<15 - 1
+	UID_GID_MIN_SYS        = 100
+	UID_GID_MAX_SYS        = 999
 )
 
 type PasswdEntry struct {
@@ -343,15 +352,14 @@ func ParseGShadow(fs afero.Fs, shadowFile string) (map[string]*GShadowEntry, []*
 	return entryMap, entryList, nil
 }
 
-func nextID[T any](entries map[uint16]T, start uint16) (uint16, error) {
-	const max uint16 = 1<<15 - 1
-	id := start
+func nextID[T any](entries map[uint16]T, min, max uint16) (uint16, error) {
+	id := min
 	for {
 		if _, ok := entries[id]; !ok {
 			return id, nil
 		}
 		if id >= max {
-			return 0, fmt.Errorf("no available IDs")
+			return 0, ErrNoAvailableIDs
 		}
 		id++
 	}
@@ -436,23 +444,29 @@ func createHomeDir(fs afero.Fs, homeDir string, uid, gid uint16) error {
 
 // AddSystemUser adds a system user with no password or valid shell.
 func AddSystemUser(fs afero.Fs, username, groupname, homeDir, baseDir string) (uint16, uint16, error) {
-	return AddUser(fs, username, groupname, homeDir, "/bin/false", baseDir, 100, false, true)
+	return AddUser(fs, username, groupname, homeDir, "/bin/false", baseDir, UID_GID_MIN_SYS,
+		UID_GID_MAX_SYS, false, false, true)
 }
 
 // AddLoginUser adds a user that can log in with a valid shell and home directory.
 func AddLoginUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir string) (uint16, uint16, error) {
-	return AddUser(fs, username, groupname, homeDir, shell, baseDir, 1000, true, false)
+	return AddUser(fs, username, groupname, homeDir, shell, baseDir, UID_GID_MIN, UID_GID_MAX,
+		true, true, false)
+}
+
+// AddRootUser adds the root user.
+func AddRootUser(fs afero.Fs, shell, baseDir string) (uint16, uint16, error) {
+	homeDir := filepath.Join(constants.DirETRoot, "/root")
+	return AddUser(fs, "root", "root", homeDir, shell, baseDir, 0, 0, true, false, false)
 }
 
 // AddUser adds a user to the system.
 func AddUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir string,
-	idStart uint16, isLoginUser, locked bool) (uint16, uint16, error) {
+	idMin, idMax uint16, createHome, isLoginUser, locked bool) (uint16, uint16, error) {
 	var (
-		createPasswdEntry  = true
 		createShadowEntry  = true
 		createGroupEntry   = true
 		createGShadowEntry = true
-		modifiedPasswd     = false
 		modifiedGroup      = false
 		modifiedShadow     = false
 		modifiedGShadow    = false
@@ -466,8 +480,8 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir string,
 		groupList          []*GroupEntry
 		gShadowByName      map[string]*GShadowEntry
 		gShadowList        []*GShadowEntry
-		uid                uint16 = idStart
-		gid                uint16 = idStart
+		uid                uint16 = idMin
+		gid                uint16 = idMin
 		idStartWheel       uint16 = 10
 	)
 
@@ -508,9 +522,9 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir string,
 		}
 
 		if _, ok := passwdByName[username]; ok {
-			createPasswdEntry = false
+			return 0, 0, ErrUsernameExists
 		} else {
-			uid, err = nextID(passwdByUID, uid)
+			uid, err = nextID(passwdByUID, uid, idMax)
 			if err != nil {
 				return 0, 0, err
 			}
@@ -538,7 +552,7 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir string,
 		if _, ok := groupByName[groupname]; ok {
 			createGroupEntry = false
 		} else {
-			gid, err = nextID(groupByGID, gid)
+			gid, err = nextID(groupByGID, gid, idMax)
 			if err != nil {
 				return 0, 0, err
 			}
@@ -566,7 +580,7 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir string,
 				modifiedGroup = true
 			}
 		} else {
-			wheelGID, err := nextID(groupByGID, idStartWheel)
+			wheelGID, err := nextID(groupByGID, idStartWheel, UID_GID_MAX_SYS)
 			if err != nil {
 				return 0, 0, fmt.Errorf("unable to get next GID for %s: %w",
 					constants.GroupNameWheel, err)
@@ -600,18 +614,20 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir string,
 		}
 	}
 
-	if createPasswdEntry {
-		passwdEntry := &PasswdEntry{
-			Username: username,
-			Password: "x",
-			UID:      uid,
-			GID:      gid,
-			Comment:  username,
-			HomeDir:  homeDir,
-			Shell:    shell,
-		}
-		passwdList = append(passwdList, passwdEntry)
-		modifiedPasswd = true
+	passwdEntry := &PasswdEntry{
+		Username: username,
+		Password: "x",
+		UID:      uid,
+		GID:      gid,
+		Comment:  username,
+		HomeDir:  homeDir,
+		Shell:    shell,
+	}
+	passwdList = append(passwdList, passwdEntry)
+
+	err = writeLines(fs, fileEtcPasswd, passwdList, constants.ModeEtcPasswd)
+	if err != nil {
+		return 0, 0, err
 	}
 
 	if createGroupEntry {
@@ -657,13 +673,6 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir string,
 		modifiedGShadow = true
 	}
 
-	if modifiedPasswd {
-		err := writeLines(fs, fileEtcPasswd, passwdList, constants.ModeEtcPasswd)
-		if err != nil {
-			return 0, 0, err
-		}
-	}
-
 	if modifiedGroup {
 		err := writeLines(fs, fileEtcGroup, groupList, constants.ModeEtcGroup)
 		if err != nil {
@@ -685,7 +694,7 @@ func AddUser(fs afero.Fs, username, groupname, homeDir, shell, baseDir string,
 		}
 	}
 
-	if isLoginUser {
+	if createHome {
 		err := createHomeDir(fs, filepath.Join(baseDir, homeDir), uid, gid)
 		if err != nil {
 			return 0, 0, err

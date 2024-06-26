@@ -447,6 +447,14 @@ func (b *Builder) setupSSH() error {
 		return err
 	}
 
+	// Root user is required in /etc/passwd for ssh-keygen to work on boot.
+	_, _, err = login.AddRootUser(fs, b.LoginShell, b.VMImageMount)
+	// ErrUsernameExists - root user exists.
+	// ErrNoAvailableIDs - UID 0 exists under a different username.
+	if !(err == nil || err == login.ErrUsernameExists || err == login.ErrNoAvailableIDs) {
+		return fmt.Errorf("unable to add root user: %w", err)
+	}
+
 	_, _, err = login.AddSystemUser(fs, constants.SSHPrivsepUser, constants.SSHPrivsepUser,
 		"/nonexistent", b.VMImageMount)
 	if err != nil {
