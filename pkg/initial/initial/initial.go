@@ -584,7 +584,7 @@ func handleVolumeEBS(volume *vmspec.EBSVolumeSource, index int) error {
 	}
 	slog.Debug("Changed ownership of mount point", "directory", volume.Mount.Directory)
 
-	hasFS, err := deviceHasFS(filepath.Join(constants.DirETSbin, "blkid"), volume.Device)
+	hasFS, err := deviceHasFS(volume.Device)
 	if err != nil {
 		return fmt.Errorf("unable to determine if %s has a filesystem: %w", volume.Device, err)
 	}

@@ -112,8 +112,6 @@ default: release
 
 bootloader: $(DIR_BOOTLOADER_STG)/boot/EFI/BOOT/BOOTX64.EFI
 
-blkid: $(DIR_INIT_STG)/$(DIR_ET)/sbin/blkid
-
 btrfsprogs: $(DIR_INIT_STG)/$(DIR_ET)/sbin/mkfs.btrfs
 
 ctr2disk: $(DIR_OUT)/ctr2disk
@@ -267,9 +265,14 @@ $(DIR_INIT_STG)/$(DIR_ET)/etc/amazon.pem: assets/amazon.pem $(VAR_DIR_ET)
 	@$(MAKE) $(DIR_INIT_STG)/$(DIR_ET)/etc/
 	@install -m 0644 assets/amazon.pem $(DIR_INIT_STG)/$(DIR_ET)/etc/amazon.pem
 
-$(DIR_INIT_STG)/$(DIR_ET)/sbin/blkid: $(DIR_OUT)/$(DIR_BTRFS_DEPS)/sbin/blkid.static $(VAR_DIR_ET)
+$(DIR_INIT_STG)/$(DIR_ET)/sbin/blkid: $(DIR_INIT_STG)/$(DIR_ET)/libexec/blkid assets/blkid
 	@$(MAKE) $(DIR_INIT_STG)/$(DIR_ET)/sbin/
-	@install -m 0755 $(DIR_OUT)/$(DIR_BTRFS_DEPS)/sbin/blkid.static $(DIR_INIT_STG)/$(DIR_ET)/sbin/blkid
+	@sed "s|__ROOT_DIR__|${DIR_ET}|g" assets/blkid > $(DIR_INIT_STG)/$(DIR_ET)/sbin/blkid
+	@chmod 0755 $(DIR_INIT_STG)/$(DIR_ET)/sbin/blkid
+
+$(DIR_INIT_STG)/$(DIR_ET)/libexec/blkid: $(DIR_OUT)/$(DIR_BTRFS_DEPS)/sbin/blkid.static $(VAR_DIR_ET)
+	@$(MAKE) $(DIR_INIT_STG)/$(DIR_ET)/libexec/
+	@install -m 0755 $(DIR_OUT)/$(DIR_BTRFS_DEPS)/sbin/blkid.static $(DIR_INIT_STG)/$(DIR_ET)/libexec/blkid
 
 $(DIR_OUT)/$(DIR_BTRFS_DEPS)/sbin/blkid.static $(DIR_OUT)/$(DIR_BTRFS_DEPS)/lib/libblkid.a &: \
 		$(HAS_IMAGE_LOCAL) \
@@ -319,14 +322,13 @@ $(DIR_SSH_STG)/$(DIR_ET)/libexec/sftp-server: $(DIR_OUT)/$(OPENSSH_SRC)/sshd $(V
 	@$(MAKE) $(DIR_SSH_STG)/$(DIR_ET)/libexec/
 	@install -m 0755 $(DIR_OUT)/$(OPENSSH_SRC)/sftp-server $(DIR_SSH_STG)/$(DIR_ET)/libexec/sftp-server
 
-$(DIR_SSH_STG)/$(DIR_ET)/bin/busybox: $(DIR_OUT)/$(BUSYBOX_BIN) $(VAR_DIR_ET)
-	@$(MAKE) $(DIR_SSH_STG)/$(DIR_ET)/bin/
-	@install -m 0755 $(DIR_OUT)/$(BUSYBOX_BIN) $(DIR_SSH_STG)/$(DIR_ET)/bin/busybox
+$(DIR_INIT_STG)/$(DIR_ET)/bin/busybox: $(DIR_OUT)/$(BUSYBOX_BIN) $(VAR_DIR_ET)
+	@$(MAKE) $(DIR_INIT_STG)/$(DIR_ET)/bin/
+	@install -m 0755 $(DIR_OUT)/$(BUSYBOX_BIN) $(DIR_INIT_STG)/$(DIR_ET)/bin/busybox
 
-$(DIR_SSH_STG)/$(DIR_ET)/bin/sh: assets/sh $(DIR_SSH_STG)/$(DIR_ET)/bin/busybox $(VAR_DIR_ET)
-	$(MAKE) $(DIR_SSH_STG)/$(DIR_ET)/bin/
-	@sed "s|__ROOT_DIR__|${DIR_ET}|g" assets/sh > $(DIR_SSH_STG)/$(DIR_ET)/bin/sh
-	@chmod 0755 $(DIR_SSH_STG)/$(DIR_ET)/bin/sh
+$(DIR_INIT_STG)/$(DIR_ET)/bin/sh: assets/sh $(DIR_INIT_STG)/$(DIR_ET)/bin/busybox $(VAR_DIR_ET)
+	@sed "s|__ROOT_DIR__|${DIR_ET}|g" assets/sh > $(DIR_INIT_STG)/$(DIR_ET)/bin/sh
+	@chmod 0755 $(DIR_INIT_STG)/$(DIR_ET)/bin/sh
 
 $(DIR_SSH_STG)/$(DIR_ET)/bin/ssh-keygen: $(DIR_OUT)/$(OPENSSH_SRC)/sshd $(VAR_DIR_ET)
 	@$(MAKE) $(DIR_SSH_STG)/$(DIR_ET)/bin/
@@ -480,7 +482,10 @@ $(DIR_RELEASE_ASSETS)/kernel.tar: $(HAS_COMMAND_FAKEROOT) \
 
 $(DIR_RELEASE_ASSETS)/init.tar: \
 		$(HAS_COMMAND_FAKEROOT) \
+		$(DIR_INIT_STG)/$(DIR_ET)/bin/busybox \
+		$(DIR_INIT_STG)/$(DIR_ET)/bin/sh \
 		$(DIR_INIT_STG)/$(DIR_ET)/etc/amazon.pem \
+		$(DIR_INIT_STG)/$(DIR_ET)/libexec/blkid \
 		$(DIR_INIT_STG)/$(DIR_ET)/sbin/blkid \
 		$(DIR_INIT_STG)/$(DIR_ET)/sbin/init \
 		$(DIR_INIT_STG)/$(DIR_ET)/sbin/mke2fs \
@@ -503,9 +508,7 @@ $(DIR_RELEASE_ASSETS)/chrony.tar: \
 
 $(DIR_RELEASE_ASSETS)/ssh.tar: \
 		$(HAS_COMMAND_FAKEROOT) \
-		$(DIR_SSH_STG)/$(DIR_ET)/bin/busybox \
 		$(DIR_SSH_STG)/$(DIR_ET)/libexec/sftp-server \
-		$(DIR_SSH_STG)/$(DIR_ET)/bin/sh \
 		$(DIR_SSH_STG)/$(DIR_ET)/bin/ssh-keygen \
 		$(DIR_SSH_STG)/$(DIR_ET)/sbin/sshd \
 		$(DIR_SSH_STG)/$(DIR_ET)/etc/ssh/sshd_config \
@@ -616,6 +619,7 @@ clean-ctr2disk:
 
 clean-blkid:
 	@rm -f $(DIR_OUT)/$(UTIL_LINUX_ARCHIVE)
+	@rm -f $(DIR_INIT_STG)/$(DIR_ET)/libexec/blkid
 	@rm -f $(DIR_INIT_STG)/$(DIR_ET)/sbin/blkid
 	@rm -rf $(DIR_OUT)/$(UTIL_LINUX_SRC)
 

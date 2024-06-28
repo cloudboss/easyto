@@ -1,0 +1,10 @@
+#!/__ROOT_DIR__/bin/busybox sh
+
+# Wrapper around blkid to override the default cache directory.
+
+BB=/__ROOT_DIR__/bin/busybox
+BLKID_BIN=/__ROOT_DIR__/libexec/blkid
+BLKID_FILE=${BLKID_FILE:-/__ROOT_DIR__/run/blkid/blkid.tab}
+[ -n "${BLKID_FILE}" ] && BLKID_DIR=$(${BB} dirname ${BLKID_FILE})
+[ -n "${BLKID_DIR}" -a ! -d "${BLKID_DIR}" ] && ${BB} mkdir -p ${BLKID_DIR} 2>/dev/null
+BLKID_FILE=${BLKID_FILE} exec ${BLKID_BIN} ${@}

@@ -112,8 +112,8 @@ func deviceHasNumericSuffix(device string) bool {
 	return len(device) > 0 && device[len(device)-1] >= '0' && device[len(device)-1] <= '9'
 }
 
-func deviceHasFS(blkidPath, devicePath string) (bool, error) {
-	cmd := exec.Command(blkidPath, devicePath)
+func deviceHasFS(devicePath string) (bool, error) {
+	cmd := blkid(devicePath)
 	err := cmd.Run()
 	switch cmd.ProcessState.ExitCode() {
 	case 0:
@@ -141,9 +141,7 @@ func resizeRootVolume() error {
 
 // findRootDevice returns the disk device and partition device for the root partition.
 func findRootDevice() (string, string, error) {
-	blkidPath := filepath.Join(constants.DirETSbin, "blkid")
-
-	cmd := exec.Command(blkidPath, "-t", "PARTLABEL=root", "-o", "device")
+	cmd := blkid("-t", "PARTLABEL=root", "-o", "device")
 	out, err := cmd.Output()
 	if err != nil {
 		return "", "", fmt.Errorf("unable to find partition with root label: %w", err)
@@ -294,4 +292,9 @@ func growFilesystem(devicePath string) error {
 		return fmt.Errorf("unable to resize filesystem: %w", err)
 	}
 	return nil
+}
+
+func blkid(args ...string) *exec.Cmd {
+	blkidPath := filepath.Join(constants.DirETSbin, "blkid")
+	return exec.Command(blkidPath, args...)
 }
