@@ -41,7 +41,7 @@ func chronyInit() error {
 		return fmt.Errorf("user %s not found", constants.ChronyUser)
 	}
 
-	chronyRunPath := filepath.Join(constants.DirRun, "chrony")
+	chronyRunPath := filepath.Join(constants.DirETRun, "chrony")
 	err = os.Mkdir(chronyRunPath, 0750)
 	if err != nil && !os.IsExist(err) {
 		return fmt.Errorf("unable to create %s: %w", chronyRunPath, err)

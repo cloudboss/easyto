@@ -4,5 +4,10 @@ set -e
 
 export CFLAGS=-static
 export LDFLAGS=-s
-./configure --sysconfdir=${SYSCONFDIR} --with-user=${CHRONY_USER}
+./configure \
+    --chronyrundir=${CHRONYRUNDIR} \
+    --localstatedir=${LOCALSTATEDIR} \
+    --sysconfdir=${SYSCONFDIR} \
+    --with-pidfile=${CHRONYRUNDIR}/chronyd.pid \
+    --with-user=${CHRONY_USER}
 make -j$(nproc)

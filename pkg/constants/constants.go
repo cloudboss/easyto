@@ -30,5 +30,6 @@ var (
 	DirETSbin     = DirETRoot + "/sbin"
 	DirETEtc      = DirETRoot + "/etc"
 	DirETHome     = DirETRoot + "/home"
+	DirETRun      = DirETRoot + "/run"
 	DirETServices = DirETRoot + "/services"
 )

@@ -118,6 +118,16 @@ func mounts() error {
 		},
 		{
 			source: "tmpfs",
+			flags:  syscall.MS_NODEV | syscall.MS_NOSUID,
+			fsType: "tmpfs",
+			mode:   0755,
+			options: []string{
+				"mode=0755",
+			},
+			target: constants.DirETRun,
+		},
+		{
+			source: "tmpfs",
 			flags:  syscall.MS_NODEV | syscall.MS_NOEXEC | syscall.MS_NOSUID,
 			fsType: "tmpfs",
 			options: []string{

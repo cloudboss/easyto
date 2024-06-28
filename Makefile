@@ -299,6 +299,8 @@ $(DIR_OUT)/$(CHRONY_SRC)/chronyd: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(CHRONY_SRC) $(
 	@docker run -it \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(CHRONY_SRC):/code \
 		-e CHRONY_USER=$(CHRONY_USER) \
+		-e CHRONYRUNDIR=/$(DIR_ET)/run/chrony \
+		-e LOCALSTATEDIR=/$(DIR_ET)/var \
 		-e SYSCONFDIR=/$(DIR_ET)/etc \
 		-w /code \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-chrony-ctr)"
@@ -306,7 +308,8 @@ $(DIR_OUT)/$(CHRONY_SRC)/chronyd: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(CHRONY_SRC) $(
 
 $(DIR_CHRONY_STG)/$(DIR_ET)/etc/chrony.conf: assets/chrony.conf $(VAR_DIR_ET)
 	@$(MAKE) $(DIR_CHRONY_STG)/$(DIR_ET)/etc/
-	@install -m 0644 assets/chrony.conf $(DIR_CHRONY_STG)/$(DIR_ET)/etc/chrony.conf
+	@sed "s|__ROOT_DIR__|${DIR_ET}|g" assets/chrony.conf > $(DIR_CHRONY_STG)/$(DIR_ET)/etc/chrony.conf
+	@chmod 0644 $(DIR_CHRONY_STG)/$(DIR_ET)/etc/chrony.conf
 
 $(DIR_CHRONY_STG)/$(DIR_ET)/services/chrony: $(VAR_DIR_ET)
 	@$(MAKE) $(DIR_CHRONY_STG)/$(DIR_ET)/services/
