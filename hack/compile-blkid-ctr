@@ -2,4 +2,16 @@
 
 set -e
 
-./configure --enable-static-programs=blkid && make blkid.static
+./configure \
+    --prefix=${DIR_BTRFS_DEPS} \
+    --localstatedir=${LOCALSTATEDIR} \
+    --runstatedir=${RUNSTATEDIR} \
+    --disable-all-programs \
+    --disable-shared \
+    --enable-blkid \
+    --enable-libblkid \
+    --enable-libuuid \
+    --enable-static-programs=blkid
+
+make -j$(nproc)
+make -j$(nproc) install

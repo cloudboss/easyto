@@ -19,6 +19,7 @@ DIR_RELEASE_PACKER := $(DIR_RELEASE)/packer
 DIR_RELEASE_PACKER_PLUGIN := $(DIR_RELEASE_PACKER)/plugins/github.com/hashicorp/amazon
 DIR_OSARCH_BUILD := $(DIR_OUT)/osarch/$(OS)/$(ARCH)
 DIR_OPENSSH_DEPS := openssh-deps
+DIR_BTRFS_DEPS := btrfs-deps
 
 # $(DIR_BOOTLOADER_STG) not included here as it does not have a $(DIR_ET) subdirectory.
 DIRS_STG := $(DIR_CHRONY_STG) $(DIR_INIT_STG) $(DIR_KERNEL_STG) $(DIR_SSH_STG)
@@ -170,10 +171,14 @@ $(DIR_INIT_STG)/$(DIR_ET)/sbin/mkfs.btrfs: $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btr
 	@install -m 0755 $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static $(DIR_INIT_STG)/$(DIR_ET)/sbin/mkfs.btrfs
 
 $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(BTRFSPROGS_SRC) \
+		$(DIR_OUT)/$(DIR_BTRFS_DEPS)/lib/libblkid.a \
 		hack/compile-btrfsprogs-ctr
 	@docker run -it \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(BTRFSPROGS_SRC):/code \
-		-e LDFLAGS=-s \
+		-v $(DIR_ROOT)/$(DIR_OUT)/$(DIR_BTRFS_DEPS):/$(DIR_BTRFS_DEPS) \
+		-v $(DIR_ROOT)/hack/functions:/functions \
+		-e DIR_BTRFS_DEPS=/$(DIR_BTRFS_DEPS) \
+		-e PKG_CONFIG_PATH=/$(DIR_BTRFS_DEPS)/lib/pkgconfig \
 		-w /code \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-btrfsprogs-ctr)"
 	@touch $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static
@@ -262,18 +267,24 @@ $(DIR_INIT_STG)/$(DIR_ET)/etc/amazon.pem: assets/amazon.pem $(VAR_DIR_ET)
 	@$(MAKE) $(DIR_INIT_STG)/$(DIR_ET)/etc/
 	@install -m 0644 assets/amazon.pem $(DIR_INIT_STG)/$(DIR_ET)/etc/amazon.pem
 
-$(DIR_INIT_STG)/$(DIR_ET)/sbin/blkid: $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static $(VAR_DIR_ET)
+$(DIR_INIT_STG)/$(DIR_ET)/sbin/blkid: $(DIR_OUT)/$(DIR_BTRFS_DEPS)/sbin/blkid.static $(VAR_DIR_ET)
 	@$(MAKE) $(DIR_INIT_STG)/$(DIR_ET)/sbin/
-	@install -m 0755 $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static $(DIR_INIT_STG)/$(DIR_ET)/sbin/blkid
+	@install -m 0755 $(DIR_OUT)/$(DIR_BTRFS_DEPS)/sbin/blkid.static $(DIR_INIT_STG)/$(DIR_ET)/sbin/blkid
 
-$(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(UTIL_LINUX_SRC) \
+$(DIR_OUT)/$(DIR_BTRFS_DEPS)/sbin/blkid.static $(DIR_OUT)/$(DIR_BTRFS_DEPS)/lib/libblkid.a &: \
+		$(HAS_IMAGE_LOCAL) \
+		$(DIR_OUT)/$(UTIL_LINUX_SRC) \
 		hack/compile-blkid-ctr
+	@$(MAKE) $(DIR_OUT)/$(DIR_BTRFS_DEPS)/
 	@docker run -it \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(UTIL_LINUX_SRC):/code \
+		-v $(DIR_ROOT)/$(DIR_OUT)/$(DIR_BTRFS_DEPS):/$(DIR_BTRFS_DEPS) \
+		-e DIR_BTRFS_DEPS=/$(DIR_BTRFS_DEPS) \
 		-e CFLAGS=-s \
+		-e LOCALSTATEDIR=/$(DIR_ET)/var \
+		-e RUNSTATEDIR=/$(DIR_ET)/run \
 		-w /code \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-blkid-ctr)"
-	@touch $(DIR_OUT)/$(UTIL_LINUX_SRC)/blkid.static
 
 $(DIR_CHRONY_STG)/$(DIR_ET)/sbin/chronyd: $(DIR_OUT)/$(CHRONY_SRC)/chronyd $(VAR_DIR_ET)
 	@$(MAKE) $(DIR_CHRONY_STG)/$(DIR_ET)/sbin/

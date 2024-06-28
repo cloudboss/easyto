@@ -2,11 +2,21 @@
 
 set -e
 
+. /functions
+
+# Get the default CFLAGS so we can append to them.
+. <(grep ^CFLAGS= ./configure)
+[ -n "${CFLAGS}" ] || fail "CFLAGS not found in btrfsprogs configure script"
+
+export CFLAGS="${CFLAGS} -I${DIR_BTRFS_DEPS}/include"
+
 ./configure \
     --disable-documentation \
     --disable-convert \
     --disable-libudev \
     --disable-python \
+    --disable-shared \
+    --disable-libudev \
     --disable-backtrace
 
 make -j$(nproc) mkfs.btrfs.static
