@@ -177,6 +177,39 @@ func Test_S3Client_CopyObjects(t *testing.T) {
 				"jjj/m2/o2": []byte("o2-value"),
 			},
 		},
+		{
+			dest:   "jjj",
+			dirs:   []string{"jjj", "jjj/m1", "jjj/m2"},
+			prefix: "k1/l1",
+			objects: []types.Object{
+				{
+					// Item is filtered out because
+					// it has children n1 & n2.
+					Key: p("k1/l1/m1"),
+				},
+				{
+					Key: p("k1/l1/m1/n1"),
+				},
+				{
+					Key: p("k1/l1/m1/n2"),
+				},
+				{
+					Key: p("k1/l1/m2/o1"),
+				},
+				{
+					Key: p("k1/l1/m2/o2"),
+				},
+				{
+					Key: p("x/y"),
+				},
+			},
+			result: map[string][]byte{
+				"jjj/m1/n1": []byte("n1-value"),
+				"jjj/m1/n2": []byte("n2-value"),
+				"jjj/m2/o1": []byte("o1-value"),
+				"jjj/m2/o2": []byte("o2-value"),
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -202,7 +235,7 @@ func Test_S3Client_CopyObjects(t *testing.T) {
 			t.Run(fmt.Sprintf("file %s", tc.dest), func(t *testing.T) {
 				fileContainsBytes, err := afero.FileContainsBytes(fs, pth, contents)
 				assert.True(t, fileContainsBytes,
-					"file %s does not contain expected contents", tc.dest)
+					"file %s does not contain expected contents", pth)
 				assert.Nil(t, err, "error was not nil: %s", err)
 			})
 		}
