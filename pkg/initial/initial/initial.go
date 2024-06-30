@@ -702,7 +702,7 @@ func doForkExec(fs afero.Fs, spec *vmspec.VMSpec, command []string, env []string
 		return fmt.Errorf("unable to start supervisor: %w", err)
 	}
 
-	waitForShutdown(spec, supervisor)
+	waitForShutdown(fs, spec, supervisor)
 	return nil
 }
 
@@ -732,11 +732,10 @@ func disableServices(fs afero.Fs, specServices []string) error {
 	return nil
 }
 
-func waitForShutdown(spec *vmspec.VMSpec, supervisor *service.Supervisor) {
+func waitForShutdown(fs afero.Fs, spec *vmspec.VMSpec, supervisor *service.Supervisor) {
 	supervisor.Wait()
 
 	mountPoints := spec.Volumes.MountPoints()
-	osFS := afero.NewOsFs()
 
 	err := unmountAll(mountPoints)
 	if err != nil {
@@ -745,7 +744,7 @@ func waitForShutdown(spec *vmspec.VMSpec, supervisor *service.Supervisor) {
 
 	// Best-effort wait, even if there were unmount errors. This can be improved
 	// so it doesn't wait unnecessarily if no calls to unmount succeeded.
-	waitForUnmounts(osFS, fileMounts, mountPoints, 10*time.Second)
+	waitForUnmounts(fs, fileMounts, mountPoints, 10*time.Second)
 }
 
 // unmountAll remounts / as readonly and lazily unmounts all the volumes in the list of mount points.
