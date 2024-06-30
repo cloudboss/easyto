@@ -648,7 +648,7 @@ func handleVolumeS3(volume *vmspec.S3VolumeSource, conn aws.Connection) error {
 	return nil
 }
 
-func doExec(spec *vmspec.VMSpec, command []string, env vmspec.NameValueSource) error {
+func doExec(spec *vmspec.VMSpec, command []string, env vmspec.NameValueSource, readonlyRootFS bool) error {
 	err := os.Chdir(spec.WorkingDir)
 	if err != nil {
 		return fmt.Errorf("unable to change working directory to %s: %w",
@@ -665,10 +665,17 @@ func doExec(spec *vmspec.VMSpec, command []string, env vmspec.NameValueSource) e
 		return fmt.Errorf("unable to set UID: %w", err)
 	}
 
+	if readonlyRootFS {
+		err = unix.Mount("", constants.DirRoot, "", syscall.MS_REMOUNT|syscall.MS_RDONLY, "")
+		if err != nil {
+			return fmt.Errorf("unable to remount root as readonly: %w", err)
+		}
+	}
+
 	return syscall.Exec(command[0], command, env.ToStrings())
 }
 
-func doForkExec(spec *vmspec.VMSpec, command []string, env vmspec.NameValueSource) error {
+func doForkExec(spec *vmspec.VMSpec, command []string, env vmspec.NameValueSource, readonlyRootFS bool) error {
 	supervisor := &service.Supervisor{
 		Main: service.NewMainService(
 			command,
@@ -677,7 +684,8 @@ func doForkExec(spec *vmspec.VMSpec, command []string, env vmspec.NameValueSourc
 			uint32(*spec.Security.RunAsGroupID),
 			uint32(*spec.Security.RunAsUserID),
 		),
-		Timeout: time.Duration(spec.ShutdownGracePeriod) * time.Second,
+		ReadonlyRootFS: readonlyRootFS,
+		Timeout:        time.Duration(spec.ShutdownGracePeriod) * time.Second,
 	}
 	err := supervisor.Start()
 	if err != nil {
@@ -940,13 +948,6 @@ func Run() error {
 		}
 	}
 
-	if spec.Security.ReadonlyRootFS {
-		err = unix.Mount("", constants.DirRoot, "", syscall.MS_REMOUNT|syscall.MS_RDONLY, "")
-		if err != nil {
-			return fmt.Errorf("unable to remount root as readonly: %w", err)
-		}
-	}
-
 	command, err := fullCommand(spec)
 	if err != nil {
 		return err
@@ -959,9 +960,9 @@ func Run() error {
 
 	if spec.ReplaceInit {
 		slog.Debug("Replacing init with command", "command", command)
-		err = doExec(spec, command, env)
+		err = doExec(spec, command, env, spec.Security.ReadonlyRootFS)
 	} else {
-		err = doForkExec(spec, command, env)
+		err = doForkExec(spec, command, env, spec.Security.ReadonlyRootFS)
 	}
 
 	return err

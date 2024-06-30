@@ -27,9 +27,10 @@ const (
 )
 
 type Supervisor struct {
-	Main     Service
-	Services []Service
-	Timeout  time.Duration
+	Main           Service
+	ReadonlyRootFS bool
+	Services       []Service
+	Timeout        time.Duration
 }
 
 func (s *Supervisor) Start() error {
@@ -58,6 +59,14 @@ func (s *Supervisor) Start() error {
 				continue
 			}
 			return err
+		}
+	}
+
+	// This needs to be done after services are started so that e.g. ssh-keygen can run.
+	if s.ReadonlyRootFS {
+		err = unix.Mount("", constants.DirRoot, "", syscall.MS_REMOUNT|syscall.MS_RDONLY, "")
+		if err != nil {
+			return fmt.Errorf("unable to remount root filesystem read-only: %w", err)
 		}
 	}
 
