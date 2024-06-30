@@ -653,7 +653,7 @@ func handleVolumeS3(volume *vmspec.S3VolumeSource, conn aws.Connection) error {
 	return nil
 }
 
-func doExec(spec *vmspec.VMSpec, command []string, env []string, readonlyRootFS bool) error {
+func replaceInit(spec *vmspec.VMSpec, command []string, env []string, readonlyRootFS bool) error {
 	err := os.Chdir(spec.WorkingDir)
 	if err != nil {
 		return fmt.Errorf("unable to change working directory to %s: %w",
@@ -680,7 +680,7 @@ func doExec(spec *vmspec.VMSpec, command []string, env []string, readonlyRootFS 
 	return syscall.Exec(command[0], command, env)
 }
 
-func doForkExec(fs afero.Fs, spec *vmspec.VMSpec, command []string, env []string, readonlyRootFS bool) error {
+func supervise(fs afero.Fs, spec *vmspec.VMSpec, command []string, env []string, readonlyRootFS bool) error {
 	err := disableServices(fs, spec.DisableServices)
 	if err != nil {
 		return err
@@ -1055,9 +1055,9 @@ func Run() error {
 
 	if spec.ReplaceInit {
 		slog.Debug("Replacing init with command", "command", command)
-		err = doExec(spec, command, env, spec.Security.ReadonlyRootFS)
+		err = replaceInit(spec, command, env, spec.Security.ReadonlyRootFS)
 	} else {
-		err = doForkExec(osFS, spec, command, env, spec.Security.ReadonlyRootFS)
+		err = supervise(osFS, spec, command, env, spec.Security.ReadonlyRootFS)
 	}
 
 	return err
