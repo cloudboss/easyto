@@ -141,6 +141,23 @@ func Test_VMSpec_Merge(t *testing.T) {
 			},
 		},
 		{
+
+			description: "Override disabled services",
+			orig: &VMSpec{
+				DisableServices: []string{"chrony", "ssh"},
+			},
+			other: &VMSpec{
+				DisableServices: []string{"ssh"},
+			},
+			expected: &VMSpec{
+				DisableServices: []string{"ssh"},
+				Security: SecurityContext{
+					RunAsGroupID: p(0),
+					RunAsUserID:  p(0),
+				},
+			},
+		},
+		{
 			description: "Mount overriding with zero values",
 			orig: &VMSpec{
 				Volumes: Volumes{

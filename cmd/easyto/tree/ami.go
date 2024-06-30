@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/cloudboss/easyto/pkg/constants"
+	"github.com/cloudboss/easyto/pkg/initial/vmspec"
 	"github.com/spf13/cobra"
 )
 
@@ -28,7 +29,7 @@ var (
 			}
 			amiCfg.assetDir = assetDir
 
-			return validateServices(amiCfg.services)
+			return vmspec.ValidateServices(amiCfg.services)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			quotedServices := bytes.NewBufferString("")
@@ -144,19 +145,6 @@ func init() {
 		"Comma separated list of services to enable [chrony,ssh]. Use an empty string to disable all services.")
 
 	amiCmd.Flags().BoolVar(&amiCfg.debug, "debug", false, "Enable debug output.")
-}
-
-func validateServices(services []string) error {
-	for _, svc := range services {
-		switch svc {
-		case "chrony", "ssh":
-			continue
-		default:
-			return fmt.Errorf("invalid service %s", svc)
-		}
-	}
-
-	return nil
 }
 
 func expandPath(pth string) (string, error) {

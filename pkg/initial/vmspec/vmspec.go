@@ -10,10 +10,13 @@ import (
 	"dario.cat/mergo"
 )
 
+var DefaultServices = []string{"chrony", "ssh"}
+
 type VMSpec struct {
 	Args                []string        `json:"args,omitempty"`
 	Command             []string        `json:"command,omitempty"`
 	Debug               bool            `json:"debug,omitempty"`
+	DisableServices     []string        `json:"disable-services,omitempty"`
 	Env                 NameValueSource `json:"env,omitempty"`
 	EnvFrom             EnvFromSource   `json:"env-from,omitempty"`
 	InitScripts         []string        `json:"init-scripts,omitempty"`
@@ -84,6 +87,7 @@ func (v *VMSpec) SetDefaults() {
 
 func (v *VMSpec) Validate() error {
 	var errs error
+	errs = errors.Join(errs, ValidateServices(v.DisableServices))
 	for _, ef := range v.EnvFrom {
 		errs = errors.Join(errs, ef.Validate())
 	}
@@ -307,6 +311,18 @@ type SecurityContext struct {
 
 type SSHD struct {
 	Enable bool `json:"enable,omitempty"`
+}
+
+func ValidateServices(services []string) error {
+	for _, svc := range services {
+		switch svc {
+		case "chrony", "ssh":
+			continue
+		default:
+			return fmt.Errorf("invalid service %s", svc)
+		}
+	}
+	return nil
 }
 
 func p[T any](v T) *T {

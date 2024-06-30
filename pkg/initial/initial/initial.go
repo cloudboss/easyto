@@ -680,7 +680,12 @@ func doExec(spec *vmspec.VMSpec, command []string, env []string, readonlyRootFS 
 	return syscall.Exec(command[0], command, env)
 }
 
-func doForkExec(spec *vmspec.VMSpec, command []string, env []string, readonlyRootFS bool) error {
+func doForkExec(fs afero.Fs, spec *vmspec.VMSpec, command []string, env []string, readonlyRootFS bool) error {
+	err := disableServices(fs, spec.DisableServices)
+	if err != nil {
+		return err
+	}
+
 	supervisor := &service.Supervisor{
 		Main: service.NewMainService(
 			command,
@@ -692,12 +697,38 @@ func doForkExec(spec *vmspec.VMSpec, command []string, env []string, readonlyRoo
 		ReadonlyRootFS: readonlyRootFS,
 		Timeout:        time.Duration(spec.ShutdownGracePeriod) * time.Second,
 	}
-	err := supervisor.Start()
+	err = supervisor.Start()
 	if err != nil {
 		return fmt.Errorf("unable to start supervisor: %w", err)
 	}
 
 	waitForShutdown(spec, supervisor)
+	return nil
+}
+
+// disableServices removes services files from the image that are not disabled in the spec.
+func disableServices(fs afero.Fs, specServices []string) error {
+	serviceFiles, err := afero.ReadDir(fs, constants.DirETServices)
+	if !(err == nil || errors.Is(err, os.ErrNotExist)) {
+		return fmt.Errorf("unable to read directory %s: %w", constants.DirETServices, err)
+	}
+	for _, serviceFile := range serviceFiles {
+		amiService := serviceFile.Name()
+		found := false
+		for _, specService := range specServices {
+			if specService == amiService {
+				found = true
+				break
+			}
+		}
+		if found {
+			slog.Debug("Disabling service", "service", amiService)
+			err := fs.Remove(filepath.Join(constants.DirETServices, amiService))
+			if err != nil {
+				return fmt.Errorf("unable to disable service %s: %w", amiService, err)
+			}
+		}
+	}
 	return nil
 }
 
@@ -707,7 +738,7 @@ func waitForShutdown(spec *vmspec.VMSpec, supervisor *service.Supervisor) {
 	mountPoints := spec.Volumes.MountPoints()
 	osFS := afero.NewOsFs()
 
-	err := unmountAll(osFS, mountPoints)
+	err := unmountAll(mountPoints)
 	if err != nil {
 		slog.Error("Error unmounting volumes", "error", err)
 	}
@@ -718,7 +749,7 @@ func waitForShutdown(spec *vmspec.VMSpec, supervisor *service.Supervisor) {
 }
 
 // unmountAll remounts / as readonly and lazily unmounts all the volumes in the list of mount points.
-func unmountAll(fs afero.Fs, mountPoints []string) error {
+func unmountAll(mountPoints []string) error {
 	var errs error
 
 	err := unix.Mount("", constants.DirRoot, "", syscall.MS_REMOUNT|syscall.MS_RDONLY, "")
@@ -1027,7 +1058,7 @@ func Run() error {
 		slog.Debug("Replacing init with command", "command", command)
 		err = doExec(spec, command, env, spec.Security.ReadonlyRootFS)
 	} else {
-		err = doForkExec(spec, command, env, spec.Security.ReadonlyRootFS)
+		err = doForkExec(osFS, spec, command, env, spec.Security.ReadonlyRootFS)
 	}
 
 	return err
