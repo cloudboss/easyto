@@ -11,12 +11,13 @@ type Main struct {
 func NewMainService(command, env []string, workingDir string, uid, gid uint32) Service {
 	return &Main{
 		svc: svc{
-			Args: command,
-			Dir:  workingDir,
-			Env:  env,
-			GID:  gid,
-			UID:  uid,
-			C:    make(chan error, 1),
+			Args:   command,
+			Dir:    workingDir,
+			Env:    env,
+			GID:    gid,
+			UID:    uid,
+			ErrC:   make(chan error, 1),
+			StartC: make(chan struct{}, 1),
 		},
 	}
 }
@@ -27,7 +28,9 @@ func (m *Main) Start() error {
 	slog.Info("Starting main command", "command", m.cmd.Args)
 
 	go func() {
-		m.C <- m.cmd.Run()
+		m.cmd.Start()
+		m.StartC <- struct{}{}
+		m.ErrC <- m.cmd.Wait()
 	}()
 
 	return nil

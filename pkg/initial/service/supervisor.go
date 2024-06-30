@@ -134,6 +134,10 @@ func (s *Supervisor) Wait() {
 	}()
 
 	go func() {
+		// Don't start reaping processes until the main process has started,
+		// otherwise the system may shut down before it starts, especially
+		// in cases where there are no services besides the main process.
+		s.Main.WaitStart()
 		for {
 			pid, err := syscall.Wait4(-1, nil, 0, nil)
 			slog.Debug("Reaped process", "pid", pid, "error", err)

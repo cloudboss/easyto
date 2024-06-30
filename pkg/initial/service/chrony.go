@@ -21,10 +21,11 @@ func NewChronyService() Service {
 				filepath.Join(constants.DirETSbin, "chronyd"),
 				"-d",
 			},
-			Dir:  "/",
-			Env:  []string{},
-			Init: chronyInit,
-			C:    make(chan error, 1),
+			Dir:    "/",
+			Env:    []string{},
+			Init:   chronyInit,
+			ErrC:   make(chan error, 1),
+			StartC: make(chan struct{}, 1),
 		},
 	}
 }

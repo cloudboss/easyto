@@ -31,7 +31,8 @@ func NewSSHDService() Service {
 			Dir:      "/",
 			Env:      []string{},
 			Init:     sshdInit,
-			C:        make(chan error, 1),
+			ErrC:     make(chan error, 1),
+			StartC:   make(chan struct{}, 1),
 			optional: true,
 		},
 	}

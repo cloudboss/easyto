@@ -17,6 +17,7 @@ var (
 type Service interface {
 	Start() error
 	Wait() error
+	WaitStart()
 	Stop()
 	Optional() bool
 	PID() int
@@ -31,7 +32,8 @@ type svc struct {
 	GID      uint32
 	UID      uint32
 	Init     InitFunc
-	C        chan error
+	ErrC     chan error
+	StartC   chan struct{}
 	optional bool
 	shutdown bool
 	cmd      exec.Cmd
@@ -45,15 +47,22 @@ func (s *svc) Start() error {
 		}
 	}
 
-	s.init()
-
-	slog.Info("Starting service", "service", s.cmd.Args)
-
 	go func() {
+		firstTime := true
 		for {
-			err := s.cmd.Run()
+			s.init()
+
+			if firstTime {
+				slog.Info("Starting service", "service", s.cmd.Args)
+				firstTime = false
+			}
+
+			s.cmd.Start()
+			s.StartC <- struct{}{}
+
+			err := s.cmd.Wait()
 			if s.shutdown {
-				s.C <- err
+				s.ErrC <- err
 				break
 			}
 			if err != nil {
@@ -61,7 +70,7 @@ func (s *svc) Start() error {
 			} else {
 				slog.Warn("Process exited, will restart", "process", s.Args[0])
 			}
-			s.init()
+
 			time.Sleep(5 * time.Second)
 		}
 	}()
@@ -70,7 +79,11 @@ func (s *svc) Start() error {
 }
 
 func (s *svc) Wait() error {
-	return <-s.C
+	return <-s.ErrC
+}
+
+func (s *svc) WaitStart() {
+	<-s.StartC
 }
 
 func (s *svc) Stop() {
