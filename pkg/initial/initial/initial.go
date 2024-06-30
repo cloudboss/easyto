@@ -623,6 +623,18 @@ func handleVolumeSSMParameter(volume *vmspec.SSMParameterVolumeSource, conn aws.
 	return nil
 }
 
+func handleVolumeSecretsManager(volume *vmspec.SecretsManagerVolumeSource, conn aws.Connection) error {
+	secret, err := conn.ASMClient().GetSecret(volume.SecretID, volume.IsMap)
+	if !(err == nil || volume.Optional) {
+		return err
+	}
+	if err == nil {
+		return secret.Write(volume.Mount.Directory, "", *volume.Mount.UserID,
+			*volume.Mount.GroupID)
+	}
+	return nil
+}
+
 func handleVolumeS3(volume *vmspec.S3VolumeSource, conn aws.Connection) error {
 	s3Client := conn.S3Client()
 	objects, err := s3Client.ListObjects(volume.Bucket, volume.KeyPrefix)
@@ -777,6 +789,17 @@ func resolveAllEnvs(conn aws.Connection, env vmspec.NameValueSource,
 	)
 
 	for _, e := range envFrom {
+		if e.SecretsManager != nil {
+			secret, err := conn.ASMClient().GetSecret(e.SecretsManager.SecretID,
+				e.SecretsManager.IsMap)
+			if !(err == nil || e.SecretsManager.Optional) {
+				errs = errors.Join(errs, err)
+			}
+			for k, v := range secret.ToMapString() {
+				ev := vmspec.NameValue{Name: k, Value: v}
+				resolvedEnv = append(resolvedEnv, ev)
+			}
+		}
 		if e.SSMParameter != nil {
 			parameters, err := conn.SSMClient().GetParameters(e.SSMParameter.Path)
 			if !(err == nil || e.SSMParameter.Optional) {
@@ -893,6 +916,12 @@ func Run() error {
 	for i, volume := range spec.Volumes {
 		if volume.EBS != nil {
 			err = handleVolumeEBS(volume.EBS, i)
+			if err != nil {
+				return err
+			}
+		}
+		if volume.SecretsManager != nil {
+			err = handleVolumeSecretsManager(volume.SecretsManager, conn)
 			if err != nil {
 				return err
 			}

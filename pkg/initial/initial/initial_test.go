@@ -99,6 +99,10 @@ func newMockConnection(fail bool) *mockConnection {
 	}
 }
 
+func (c *mockConnection) ASMClient() aws.ASMClient {
+	return nil
+}
+
 func (c *mockConnection) SSMClient() aws.SSMClient {
 	return c.ssmClient
 }

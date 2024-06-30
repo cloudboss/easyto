@@ -9,11 +9,13 @@ import (
 )
 
 type Connection interface {
+	ASMClient() ASMClient
 	SSMClient() SSMClient
 	S3Client() S3Client
 }
 
 type connection struct {
+	asmClient ASMClient
 	cfg       aws.Config
 	ssmClient SSMClient
 	s3Client  S3Client
@@ -25,6 +27,13 @@ func NewConnection(region string) (*connection, error) {
 		return nil, fmt.Errorf("unable to load AWS config: %w", err)
 	}
 	return &connection{cfg: cfg}, nil
+}
+
+func (c *connection) ASMClient() ASMClient {
+	if c.asmClient == nil {
+		c.asmClient = NewASMClient(c.cfg)
+	}
+	return c.asmClient
 }
 
 func (c *connection) SSMClient() SSMClient {

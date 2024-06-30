@@ -89,6 +89,11 @@ func (v *VMSpec) Validate() error {
 	for _, ef := range v.Volumes {
 		errs = errors.Join(errs, ef.Validate())
 	}
+	for _, env := range v.EnvFrom {
+		if env.SecretsManager != nil {
+			errs = errors.Join(errs, env.SecretsManager.Validate())
+		}
+	}
 	return errs
 }
 
@@ -193,8 +198,17 @@ type S3ObjectEnvSource struct {
 }
 
 type SecretsManagerEnvSource struct {
+	SecretID string `json:"secret-id,omitempty"`
+	IsMap    bool   `json:"is-map,omitempty"`
 	Name     string `json:"name,omitempty"`
 	Optional bool   `json:"optional,omitempty"`
+}
+
+func (s *SecretsManagerEnvSource) Validate() error {
+	if !s.IsMap && len(s.Name) == 0 {
+		return errors.New("name is required when is-map is false")
+	}
+	return nil
 }
 
 type SSMParameterEnvSource struct {
@@ -256,8 +270,10 @@ type EBSVolumeSource struct {
 }
 
 type SecretsManagerVolumeSource struct {
-	Name  string `json:"name,omitempty"`
-	Mount Mount  `json:"mount,omitempty"`
+	IsMap    bool   `json:"is-map,omitempty"`
+	Mount    Mount  `json:"mount,omitempty"`
+	SecretID string `json:"secret-id,omitempty"`
+	Optional bool   `json:"optional,omitempty"`
 }
 
 type SSMParameterVolumeSource struct {
