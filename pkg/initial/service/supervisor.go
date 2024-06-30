@@ -34,13 +34,13 @@ type Supervisor struct {
 }
 
 func (s *Supervisor) Start() error {
-	dirs, err := afero.ReadDir(fs, constants.DirETServices)
+	entries, err := afero.ReadDir(fs, constants.DirETServices)
 	if !(err == nil || errors.Is(err, os.ErrNotExist)) {
 		return fmt.Errorf("unable to read directory %s: %w", constants.DirETServices, err)
 	}
 
-	for _, dir := range dirs {
-		svc := dir.Name()
+	for _, entry := range entries {
+		svc := entry.Name()
 		switch svc {
 		case "chrony":
 			s.Services = append(s.Services, NewChronyService())
