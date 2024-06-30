@@ -342,10 +342,15 @@ func debug() {
 }
 
 func runCommand(executable string, args ...string) error {
+	return runCommandWithEnv(executable, nil, args...)
+}
+
+func runCommandWithEnv(executable string, env []string, args ...string) error {
 	cmd := exec.Command(executable, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.Env = env
 	return cmd.Run()
 }
 
@@ -648,7 +653,7 @@ func handleVolumeS3(volume *vmspec.S3VolumeSource, conn aws.Connection) error {
 	return nil
 }
 
-func doExec(spec *vmspec.VMSpec, command []string, env vmspec.NameValueSource, readonlyRootFS bool) error {
+func doExec(spec *vmspec.VMSpec, command []string, env []string, readonlyRootFS bool) error {
 	err := os.Chdir(spec.WorkingDir)
 	if err != nil {
 		return fmt.Errorf("unable to change working directory to %s: %w",
@@ -672,14 +677,14 @@ func doExec(spec *vmspec.VMSpec, command []string, env vmspec.NameValueSource, r
 		}
 	}
 
-	return syscall.Exec(command[0], command, env.ToStrings())
+	return syscall.Exec(command[0], command, env)
 }
 
-func doForkExec(spec *vmspec.VMSpec, command []string, env vmspec.NameValueSource, readonlyRootFS bool) error {
+func doForkExec(spec *vmspec.VMSpec, command []string, env []string, readonlyRootFS bool) error {
 	supervisor := &service.Supervisor{
 		Main: service.NewMainService(
 			command,
-			env.ToStrings(),
+			env,
 			spec.WorkingDir,
 			uint32(*spec.Security.RunAsGroupID),
 			uint32(*spec.Security.RunAsUserID),
@@ -841,6 +846,46 @@ func resolveAllEnvs(conn aws.Connection, env vmspec.NameValueSource,
 	return allEnv, nil
 }
 
+func writeInitScripts(fs afero.Fs, scripts []string) ([]string, error) {
+	written := make([]string, len(scripts))
+	for i, script := range scripts {
+		tf, err := afero.TempFile(fs, constants.DirETRun, "init-script")
+		if err != nil {
+			return nil, fmt.Errorf("unable to create temp file for init script: %w", err)
+		}
+		_, err = tf.Write([]byte(script))
+		if err != nil {
+			return nil, fmt.Errorf("unable to write init script %s: %w", script, err)
+		}
+		err = tf.Close()
+		if err != nil {
+			return nil, fmt.Errorf("unable to close temp file for init script: %w", err)
+		}
+		err = fs.Chmod(tf.Name(), 0755)
+		if err != nil {
+			return nil, fmt.Errorf("unable to set mode on init script %s: %w", tf.Name(), err)
+		}
+		written[i] = tf.Name()
+	}
+	return written, nil
+}
+
+func runInitScripts(fs afero.Fs, scripts, env []string) error {
+	for _, script := range scripts {
+		slog.Debug("Running init script", "script", script)
+		err := runCommandWithEnv(script, env)
+		if err != nil {
+			return fmt.Errorf("unable to run init script %s: %w", script, err)
+		}
+		err = fs.Remove(script)
+		if err != nil {
+			return fmt.Errorf("unable to remove init script %s after executing: %w",
+				script, err)
+		}
+	}
+	return nil
+}
+
 func Run() error {
 	slog.Info("Starting init")
 
@@ -894,6 +939,15 @@ func Run() error {
 	if err != nil {
 		return fmt.Errorf("user data failed to validate: %w", err)
 	}
+
+	osFS := afero.NewOsFs()
+	writeInitScriptsErrC := make(chan error, 1)
+	var initScripts []string
+	go func() {
+		var e error
+		initScripts, e = writeInitScripts(osFS, spec.InitScripts)
+		writeInitScriptsErrC <- e
+	}()
 
 	err = SetSysctls(spec.Sysctls)
 	if err != nil {
@@ -953,9 +1007,20 @@ func Run() error {
 		return err
 	}
 
-	env, err := resolveAllEnvs(conn, spec.Env, spec.EnvFrom)
+	resolvedEnv, err := resolveAllEnvs(conn, spec.Env, spec.EnvFrom)
 	if err != nil {
 		return fmt.Errorf("unable to resolve all environment variables: %w", err)
+	}
+	env := resolvedEnv.ToStrings()
+
+	err = <-writeInitScriptsErrC
+	if err != nil {
+		return err
+	}
+
+	err = runInitScripts(osFS, initScripts, env)
+	if err != nil {
+		return err
 	}
 
 	if spec.ReplaceInit {

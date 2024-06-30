@@ -16,6 +16,7 @@ type VMSpec struct {
 	Debug               bool            `json:"debug,omitempty"`
 	Env                 NameValueSource `json:"env,omitempty"`
 	EnvFrom             EnvFromSource   `json:"env-from,omitempty"`
+	InitScripts         []string        `json:"init-scripts,omitempty"`
 	ReplaceInit         bool            `json:"replace-init,omitempty"`
 	Security            SecurityContext `json:"security,omitempty"`
 	ShutdownGracePeriod int             `json:"shutdown-grace-period,omitempty"`

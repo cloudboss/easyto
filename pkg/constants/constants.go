@@ -4,6 +4,7 @@ const (
 	DirRoot = "/"
 	DirProc = "/proc"
 	DirRun  = "/run"
+	DirTmp  = "/tmp"
 
 	FileEtcPasswd  = "/etc/passwd"
 	FileEtcShadow  = "/etc/shadow"
