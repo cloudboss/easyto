@@ -110,20 +110,6 @@ func mounts() error {
 			options: []string{
 				"mode=0755",
 			},
-			target: constants.DirRun,
-		},
-		{
-			mode:   0777 | fs.ModeSticky,
-			target: filepath.Join(constants.DirRun, "lock"),
-		},
-		{
-			source: "tmpfs",
-			flags:  syscall.MS_NODEV | syscall.MS_NOSUID,
-			fsType: "tmpfs",
-			mode:   0755,
-			options: []string{
-				"mode=0755",
-			},
 			target: constants.DirETRun,
 		},
 		{
