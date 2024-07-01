@@ -19,23 +19,18 @@ type SSHDService struct {
 }
 
 func NewSSHDService() Service {
-	return &SSHDService{
-		svc: svc{
-			Args: []string{
-				filepath.Join(constants.DirETSbin, "sshd"),
-				"-D",
-				"-f",
-				filepath.Join(constants.DirETEtc, "ssh", "sshd_config"),
-				"-e",
-			},
-			Dir:      "/",
-			Env:      []string{},
-			Init:     sshdInit,
-			ErrC:     make(chan error, 1),
-			StartC:   make(chan struct{}, 1),
-			optional: true,
-		},
+	svc := newSvc()
+	svc.Args = []string{
+		filepath.Join(constants.DirETSbin, "sshd"),
+		"-D",
+		"-f",
+		filepath.Join(constants.DirETEtc, "ssh", "sshd_config"),
+		"-e",
 	}
+	svc.Init = sshdInit
+	svc.optional = true
+
+	return &SSHDService{svc: svc}
 }
 
 func sshdInit() error {

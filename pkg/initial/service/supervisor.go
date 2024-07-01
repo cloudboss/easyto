@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -62,8 +63,9 @@ func (s *Supervisor) Start() error {
 		}
 	}
 
-	// This needs to be done after services are started so that e.g. ssh-keygen can run.
 	if s.ReadonlyRootFS {
+		// This needs to be done after services have initialized so that e.g. ssh-keygen can run.
+		s.waitServicesInit()
 		err = unix.Mount("", constants.DirRoot, "", syscall.MS_REMOUNT|syscall.MS_RDONLY, "")
 		if err != nil {
 			return fmt.Errorf("unable to remount root filesystem read-only: %w", err)
@@ -124,7 +126,7 @@ func (s *Supervisor) Wait() {
 	}
 
 	go func() {
-		err := s.Main.Wait()
+		err := s.Main.WaitStop()
 		if !(err == nil || errors.Is(err, syscall.ECHILD)) {
 			slog.Error("Main process exited", "error", err)
 		} else {
@@ -165,6 +167,15 @@ func (s *Supervisor) Wait() {
 			stopped = true
 		}
 	}
+}
+
+func (s *Supervisor) waitServicesInit() {
+	wg := sync.WaitGroup{}
+	wg.Add(len(s.Services))
+	for _, svc := range s.Services {
+		go func() { svc.WaitInit(); wg.Done() }()
+	}
+	wg.Wait()
 }
 
 // pids returns all current userspace PIDs. If there is an error reading /proc, the

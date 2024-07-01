@@ -15,19 +15,14 @@ type ChronyService struct {
 }
 
 func NewChronyService() Service {
-	return &ChronyService{
-		svc: svc{
-			Args: []string{
-				filepath.Join(constants.DirETSbin, "chronyd"),
-				"-d",
-			},
-			Dir:    "/",
-			Env:    []string{},
-			Init:   chronyInit,
-			ErrC:   make(chan error, 1),
-			StartC: make(chan struct{}, 1),
-		},
+	svc := newSvc()
+	svc.Args = []string{
+		filepath.Join(constants.DirETSbin, "chronyd"),
+		"-d",
 	}
+	svc.Init = chronyInit
+
+	return &ChronyService{svc: svc}
 }
 
 func chronyInit() error {

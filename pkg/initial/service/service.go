@@ -16,8 +16,9 @@ var (
 
 type Service interface {
 	Start() error
-	Wait() error
+	WaitInit()
 	WaitStart()
+	WaitStop() error
 	Stop()
 	Optional() bool
 	PID() int
@@ -33,6 +34,7 @@ type svc struct {
 	UID      uint32
 	Init     InitFunc
 	ErrC     chan error
+	InitC    chan struct{}
 	StartC   chan struct{}
 	optional bool
 	shutdown bool
@@ -40,8 +42,11 @@ type svc struct {
 }
 
 func (s *svc) Start() error {
-	if s.Init != nil {
+	if s.Init == nil {
+		s.InitC <- struct{}{}
+	} else {
 		err := s.Init()
+		s.InitC <- struct{}{}
 		if err != nil {
 			return err
 		}
@@ -50,7 +55,7 @@ func (s *svc) Start() error {
 	go func() {
 		firstTime := true
 		for {
-			s.init()
+			s.setCmd()
 
 			if firstTime {
 				slog.Info("Starting service", "service", s.cmd.Args)
@@ -78,8 +83,12 @@ func (s *svc) Start() error {
 	return nil
 }
 
-func (s *svc) Wait() error {
+func (s *svc) WaitStop() error {
 	return <-s.ErrC
+}
+
+func (s *svc) WaitInit() {
+	<-s.InitC
 }
 
 func (s *svc) WaitStart() {
@@ -101,7 +110,17 @@ func (s *svc) PID() int {
 	return 0
 }
 
-func (s *svc) init() {
+func newSvc() svc {
+	return svc{
+		Dir:    "/",
+		Env:    []string{},
+		ErrC:   make(chan error, 1),
+		InitC:  make(chan struct{}, 1),
+		StartC: make(chan struct{}, 1),
+	}
+}
+
+func (s *svc) setCmd() {
 	s.cmd = exec.Cmd{
 		Args:   s.Args,
 		Dir:    s.Dir,
