@@ -49,12 +49,12 @@ mountpoint -q /mnt/boot || mount ${ROOT_DEVICE}p1 /mnt/boot
 [ "${DEBUG}" = "true" ] && debug_arg=--debug
 
 ${EXEC_CTR2DISK} \
-    --asset-dir ${ASSET_DIR} \
-    --container-image ${CONTAINER_IMAGE} \
-    --login-user ${LOGIN_USER} \
-    --login-shell ${LOGIN_SHELL} \
-    --services ${SERVICES} \
-    --vm-image-device ${ROOT_DEVICE} \
+    --asset-dir=${ASSET_DIR} \
+    --container-image=${CONTAINER_IMAGE} \
+    --login-user=${LOGIN_USER} \
+    --login-shell=${LOGIN_SHELL} \
+    --services=${SERVICES} \
+    --vm-image-device=${ROOT_DEVICE} \
     ${debug_arg}
 
 if [ "${DEBUG}" = "true" ]; then
