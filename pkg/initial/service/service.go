@@ -53,30 +53,39 @@ func (s *svc) Start() error {
 	}
 
 	go func() {
-		firstTime := true
+		s.setCmd()
+		slog.Info("Starting service", "service", s.cmd.Args)
+		firstStart := true
+
 		for {
-			s.setCmd()
+			err := s.cmd.Start()
 
-			if firstTime {
-				slog.Info("Starting service", "service", s.cmd.Args)
-				firstTime = false
-			}
-
-			s.cmd.Start()
-			s.StartC <- struct{}{}
-
-			err := s.cmd.Wait()
-			if s.shutdown {
-				s.ErrC <- err
-				break
-			}
 			if err != nil {
-				slog.Error("Process errored, will restart", "process", s.Args[0], "error", err)
+				if s.shutdown {
+					s.ErrC <- err
+					break
+				}
 			} else {
-				slog.Warn("Process exited, will restart", "process", s.Args[0])
+				if firstStart {
+					s.StartC <- struct{}{}
+					firstStart = false
+				}
+				err = s.cmd.Wait()
+				if s.shutdown {
+					s.ErrC <- err
+					break
+				}
+			}
+
+			if err != nil {
+				slog.Error("Service errored, will restart", "process", s.Args[0],
+					"error", err)
+			} else {
+				slog.Warn("Service exited, will restart", "process", s.Args[0])
 			}
 
 			time.Sleep(5 * time.Second)
+			s.setCmd()
 		}
 	}()
 

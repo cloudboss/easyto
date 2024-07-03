@@ -26,8 +26,12 @@ func (m *Main) Start() error {
 	slog.Info("Starting main command", "command", m.cmd.Args)
 
 	go func() {
-		m.cmd.Start()
+		err := m.cmd.Start()
 		m.StartC <- struct{}{}
+		if err != nil {
+			m.ErrC <- err
+			return
+		}
 		m.ErrC <- m.cmd.Wait()
 	}()
 
