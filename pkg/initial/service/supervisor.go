@@ -197,6 +197,9 @@ func (s *Supervisor) pids() []int {
 		}
 		statFile := filepath.Join(constants.DirProc, dirEntry.Name(), "stat")
 		kt, err := isKernelThread(statFile)
+		if err != nil && errors.Is(err, os.ErrNotExist) {
+			continue
+		}
 		if err != nil {
 			slog.Error("Unable to filter kernel thread", "pid", pid, "error", err)
 			return s.svcPIDs()
