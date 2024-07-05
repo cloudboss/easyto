@@ -162,11 +162,11 @@ func Test_VMSpec_Merge(t *testing.T) {
 			orig: &VMSpec{
 				Volumes: Volumes{
 					{
-						SSMParameter: &SSMParameterVolumeSource{
+						SSM: &SSMVolumeSource{
 							Mount: Mount{
-								Directory: "/abc",
-								GroupID:   p(1234),
-								UserID:    p(1234),
+								Destination: "/abc",
+								GroupID:     p(1234),
+								UserID:      p(1234),
 							},
 						},
 					},
@@ -175,11 +175,11 @@ func Test_VMSpec_Merge(t *testing.T) {
 			other: &VMSpec{
 				Volumes: Volumes{
 					{
-						SSMParameter: &SSMParameterVolumeSource{
+						SSM: &SSMVolumeSource{
 							Mount: Mount{
-								Directory: "/xyz",
-								GroupID:   p(0),
-								UserID:    p(0),
+								Destination: "/xyz",
+								GroupID:     p(0),
+								UserID:      p(0),
 							},
 						},
 					},
@@ -188,11 +188,11 @@ func Test_VMSpec_Merge(t *testing.T) {
 			expected: &VMSpec{
 				Volumes: Volumes{
 					{
-						SSMParameter: &SSMParameterVolumeSource{
+						SSM: &SSMVolumeSource{
 							Mount: Mount{
-								Directory: "/xyz",
-								GroupID:   p(0),
-								UserID:    p(0),
+								Destination: "/xyz",
+								GroupID:     p(0),
+								UserID:      p(0),
 							},
 						},
 					},
@@ -212,9 +212,9 @@ func Test_VMSpec_Merge(t *testing.T) {
 				},
 				Volumes: Volumes{
 					{
-						SSMParameter: &SSMParameterVolumeSource{
+						SSM: &SSMVolumeSource{
 							Mount: Mount{
-								Directory: "/abc",
+								Destination: "/abc",
 							},
 						},
 					},
@@ -224,11 +224,11 @@ func Test_VMSpec_Merge(t *testing.T) {
 			expected: &VMSpec{
 				Volumes: Volumes{
 					{
-						SSMParameter: &SSMParameterVolumeSource{
+						SSM: &SSMVolumeSource{
 							Mount: Mount{
-								Directory: "/abc",
-								GroupID:   p(1234),
-								UserID:    p(1234),
+								Destination: "/abc",
+								GroupID:     p(1234),
+								UserID:      p(1234),
 							},
 						},
 					},
@@ -248,11 +248,11 @@ func Test_VMSpec_Merge(t *testing.T) {
 				},
 				Volumes: Volumes{
 					{
-						SSMParameter: &SSMParameterVolumeSource{
+						SSM: &SSMVolumeSource{
 							Mount: Mount{
-								Directory: "/abc",
-								GroupID:   p(4321),
-								UserID:    p(4321),
+								Destination: "/abc",
+								GroupID:     p(4321),
+								UserID:      p(4321),
 							},
 						},
 					},
@@ -262,11 +262,11 @@ func Test_VMSpec_Merge(t *testing.T) {
 			expected: &VMSpec{
 				Volumes: Volumes{
 					{
-						SSMParameter: &SSMParameterVolumeSource{
+						SSM: &SSMVolumeSource{
 							Mount: Mount{
-								Directory: "/abc",
-								GroupID:   p(4321),
-								UserID:    p(4321),
+								Destination: "/abc",
+								GroupID:     p(4321),
+								UserID:      p(4321),
 							},
 						},
 					},
@@ -437,9 +437,9 @@ func Test_VMSpec_Merge(t *testing.T) {
 				},
 				Volumes: Volumes{
 					{
-						SSMParameter: &SSMParameterVolumeSource{
+						SSM: &SSMVolumeSource{
 							Mount: Mount{
-								Directory: "/secret",
+								Destination: "/secret",
 							},
 							Path: "/ssm/path",
 						},
@@ -472,9 +472,9 @@ func Test_VMSpec_Merge(t *testing.T) {
 						},
 					},
 					{
-						SSMParameter: &SSMParameterVolumeSource{
+						SSM: &SSMVolumeSource{
 							Mount: Mount{
-								Directory: "/secret",
+								Destination: "/secret",
 							},
 							Path: "/ssm/path",
 						},
@@ -513,11 +513,11 @@ func Test_VMSpec_Merge(t *testing.T) {
 						},
 					},
 					{
-						SSMParameter: &SSMParameterVolumeSource{
+						SSM: &SSMVolumeSource{
 							Mount: Mount{
-								Directory: "/secret",
-								GroupID:   p(4321),
-								UserID:    p(1234),
+								Destination: "/secret",
+								GroupID:     p(4321),
+								UserID:      p(1234),
 							},
 							Path: "/ssm/path",
 						},

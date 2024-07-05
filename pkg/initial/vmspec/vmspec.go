@@ -66,12 +66,12 @@ func (v *VMSpec) SetDefaults() {
 				volume.SecretsManager.Mount.UserID = v.Security.RunAsUserID
 			}
 		}
-		if volume.SSMParameter != nil {
-			if volume.SSMParameter.Mount.GroupID == nil {
-				volume.SSMParameter.Mount.GroupID = v.Security.RunAsGroupID
+		if volume.SSM != nil {
+			if volume.SSM.Mount.GroupID == nil {
+				volume.SSM.Mount.GroupID = v.Security.RunAsGroupID
 			}
-			if volume.SSMParameter.Mount.UserID == nil {
-				volume.SSMParameter.Mount.UserID = v.Security.RunAsUserID
+			if volume.SSM.Mount.UserID == nil {
+				volume.SSM.Mount.UserID = v.Security.RunAsUserID
 			}
 		}
 		if volume.S3 != nil {
@@ -93,11 +93,6 @@ func (v *VMSpec) Validate() error {
 	}
 	for _, ef := range v.Volumes {
 		errs = errors.Join(errs, ef.Validate())
-	}
-	for _, env := range v.EnvFrom {
-		if env.SecretsManager != nil {
-			errs = errors.Join(errs, env.SecretsManager.Validate())
-		}
 	}
 	return errs
 }
@@ -172,21 +167,21 @@ type EnvFromSource []EnvFrom
 
 type EnvFrom struct {
 	Prefix         string                   `json:"prefix,omitempty"`
-	S3Object       *S3ObjectEnvSource       `json:"s3-object,omitempty"`
+	S3             *S3EnvSource             `json:"s3,omitempty"`
 	SecretsManager *SecretsManagerEnvSource `json:"secrets-manager,omitempty"`
-	SSMParameter   *SSMParameterEnvSource   `json:"ssm-parameter,omitempty"`
+	SSM            *SSMEnvSource            `json:"ssm,omitempty"`
 }
 
 func (e *EnvFrom) Validate() error {
 	envNames := []string{}
-	if e.S3Object != nil {
+	if e.S3 != nil {
 		envNames = append(envNames, "s3-object")
 	}
 	if e.SecretsManager != nil {
 		envNames = append(envNames, "secrets-manager")
 	}
-	if e.SSMParameter != nil {
-		envNames = append(envNames, "ssm-parameter")
+	if e.SSM != nil {
+		envNames = append(envNames, "ssm")
 	}
 	lenEnvNames := len(envNames)
 	if lenEnvNames > 1 {
@@ -196,35 +191,32 @@ func (e *EnvFrom) Validate() error {
 	return nil
 }
 
-type S3ObjectEnvSource struct {
-	Bucket   string `json:"bucket,omitempty"`
-	Object   string `json:"object,omitempty"`
-	Optional bool   `json:"optional,omitempty"`
+type S3EnvSource struct {
+	Base64Encode bool   `json:"base64-encode,omitempty"`
+	Bucket       string `json:"bucket,omitempty"`
+	Key          string `json:"key,omitempty"`
+	Name         string `json:"name,omitempty"`
+	Optional     bool   `json:"optional,omitempty"`
 }
 
 type SecretsManagerEnvSource struct {
-	SecretID string `json:"secret-id,omitempty"`
-	IsMap    bool   `json:"is-map,omitempty"`
-	Name     string `json:"name,omitempty"`
-	Optional bool   `json:"optional,omitempty"`
+	Base64Encode bool   `json:"base64-encode,omitempty"`
+	Name         string `json:"name,omitempty"`
+	Optional     bool   `json:"optional,omitempty"`
+	SecretID     string `json:"secret-id,omitempty"`
 }
 
-func (s *SecretsManagerEnvSource) Validate() error {
-	if !s.IsMap && len(s.Name) == 0 {
-		return errors.New("name is required when is-map is false")
-	}
-	return nil
-}
-
-type SSMParameterEnvSource struct {
-	Path     string `json:"path,omitempty"`
-	Optional bool   `json:"optional,omitempty"`
+type SSMEnvSource struct {
+	Base64Encode bool   `json:"base64-encode,omitempty"`
+	Name         string `json:"name,omitempty"`
+	Optional     bool   `json:"optional,omitempty"`
+	Path         string `json:"path,omitempty"`
 }
 
 type Volume struct {
 	EBS            *EBSVolumeSource            `json:"ebs,omitempty"`
 	SecretsManager *SecretsManagerVolumeSource `json:"secrets-manager,omitempty"`
-	SSMParameter   *SSMParameterVolumeSource   `json:"ssm-parameter,omitempty"`
+	SSM            *SSMVolumeSource            `json:"ssm,omitempty"`
 	S3             *S3VolumeSource             `json:"s3,omitempty"`
 }
 
@@ -236,8 +228,8 @@ func (v *Volume) Validate() error {
 	if v.SecretsManager != nil {
 		volumeNames = append(volumeNames, "secrets-manager")
 	}
-	if v.SSMParameter != nil {
-		volumeNames = append(volumeNames, "ssm-parameter")
+	if v.SSM != nil {
+		volumeNames = append(volumeNames, "ssm")
 	}
 	if v.S3 != nil {
 		volumeNames = append(volumeNames, "s3")
@@ -257,7 +249,7 @@ func (v Volumes) MountPoints() []string {
 	for _, v := range v {
 		// Only EBS volumes have actual mount points, so ignore the rest.
 		if v.EBS != nil {
-			mountPoints = append(mountPoints, v.EBS.Mount.Directory)
+			mountPoints = append(mountPoints, v.EBS.Mount.Destination)
 		}
 	}
 	// Reverse sort the mountpoints so children are listed before their
@@ -275,13 +267,12 @@ type EBSVolumeSource struct {
 }
 
 type SecretsManagerVolumeSource struct {
-	IsMap    bool   `json:"is-map,omitempty"`
 	Mount    Mount  `json:"mount,omitempty"`
 	SecretID string `json:"secret-id,omitempty"`
 	Optional bool   `json:"optional,omitempty"`
 }
 
-type SSMParameterVolumeSource struct {
+type SSMVolumeSource struct {
 	Mount    Mount  `json:"mount,omitempty"`
 	Optional bool   `json:"optional,omitempty"`
 	Path     string `json:"path,omitempty"`
@@ -295,11 +286,11 @@ type S3VolumeSource struct {
 }
 
 type Mount struct {
-	Directory string   `json:"directory,omitempty"`
-	GroupID   *int     `json:"group-id,omitempty"`
-	Mode      string   `json:"mode,omitempty"`
-	Options   []string `json:"options,omitempty"`
-	UserID    *int     `json:"user-id,omitempty"`
+	Destination string   `json:"destination,omitempty"`
+	GroupID     *int     `json:"group-id,omitempty"`
+	Mode        string   `json:"mode,omitempty"`
+	Options     []string `json:"options,omitempty"`
+	UserID      *int     `json:"user-id,omitempty"`
 }
 
 type SecurityContext struct {

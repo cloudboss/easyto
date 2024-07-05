@@ -3,6 +3,7 @@ package initial
 import (
 	"bufio"
 	_ "crypto/sha256" // For JSON decoder.
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -552,7 +553,7 @@ func handleVolumeEBS(volume *vmspec.EBSVolumeSource, index int) error {
 		return errors.New("volume must have filesystem type")
 	}
 
-	if len(volume.Mount.Directory) == 0 {
+	if len(volume.Mount.Destination) == 0 {
 		return errors.New("volume must have mount point")
 	}
 
@@ -562,18 +563,18 @@ func handleVolumeEBS(volume *vmspec.EBSVolumeSource, index int) error {
 	}
 	slog.Debug("Parsed mode", "before", volume.Mount.Mode, "mode", mode)
 
-	err = os.MkdirAll(volume.Mount.Directory, mode)
+	err = os.MkdirAll(volume.Mount.Destination, mode)
 	if err != nil {
 		return fmt.Errorf("unable to create mount point %s: %w",
-			volume.Mount.Directory, err)
+			volume.Mount.Destination, err)
 	}
-	slog.Debug("Created mount point", "directory", volume.Mount.Directory)
+	slog.Debug("Created mount point", "destination", volume.Mount.Destination)
 
-	err = os.Chown(volume.Mount.Directory, *volume.Mount.UserID, *volume.Mount.GroupID)
+	err = os.Chown(volume.Mount.Destination, *volume.Mount.UserID, *volume.Mount.GroupID)
 	if err != nil {
 		return fmt.Errorf("unable to change ownership of mount point: %w", err)
 	}
-	slog.Debug("Changed ownership of mount point", "directory", volume.Mount.Directory)
+	slog.Debug("Changed ownership of mount point", "destination", volume.Mount.Destination)
 
 	hasFS, err := deviceHasFS(volume.Device)
 	if err != nil {
@@ -592,49 +593,49 @@ func handleVolumeEBS(volume *vmspec.EBSVolumeSource, index int) error {
 		slog.Debug("Created filesystem", "device", volume.Device, "fstype", volume.FSType)
 	}
 
-	err = unix.Mount(volume.Device, volume.Mount.Directory, volume.FSType, 0, "")
+	err = unix.Mount(volume.Device, volume.Mount.Destination, volume.FSType, 0, "")
 	if err != nil {
-		return fmt.Errorf("unable to mount %s on %s: %w", volume.Mount.Directory,
+		return fmt.Errorf("unable to mount %s on %s: %w", volume.Mount.Destination,
 			volume.FSType, err)
 	}
-	slog.Debug("Mounted volume", "device", volume.Device, "directory", volume.Mount.Directory)
+	slog.Debug("Mounted volume", "device", volume.Device, "destination", volume.Mount.Destination)
 
 	return nil
 }
 
-func handleVolumeSSMParameter(volume *vmspec.SSMParameterVolumeSource, conn aws.Connection) error {
-	parameters, err := conn.SSMClient().GetParameters(volume.Path)
+func handleVolumeSSM(fs afero.Fs, volume *vmspec.SSMVolumeSource, conn aws.Connection) error {
+	parameters, err := conn.SSMClient().GetParameterList(volume.Path)
 	if !(err == nil || volume.Optional) {
 		return err
 	}
 	if err == nil {
-		return parameters.Write(volume.Mount.Directory, "", *volume.Mount.UserID,
-			*volume.Mount.GroupID)
+		return parameters.Write(fs, volume.Mount.Destination, *volume.Mount.UserID,
+			*volume.Mount.GroupID, true)
 	}
 	return nil
 }
 
-func handleVolumeSecretsManager(volume *vmspec.SecretsManagerVolumeSource, conn aws.Connection) error {
-	secret, err := conn.ASMClient().GetSecret(volume.SecretID, volume.IsMap)
+func handleVolumeSecretsManager(fs afero.Fs, volume *vmspec.SecretsManagerVolumeSource, conn aws.Connection) error {
+	secret, err := conn.ASMClient().GetSecretList(volume.SecretID)
 	if !(err == nil || volume.Optional) {
 		return err
 	}
 	if err == nil {
-		return secret.Write(volume.Mount.Directory, "", *volume.Mount.UserID,
-			*volume.Mount.GroupID)
+		return secret.Write(fs, volume.Mount.Destination, *volume.Mount.UserID,
+			*volume.Mount.GroupID, true)
 	}
 	return nil
 }
 
-func handleVolumeS3(volume *vmspec.S3VolumeSource, conn aws.Connection) error {
+func handleVolumeS3(fs afero.Fs, volume *vmspec.S3VolumeSource, conn aws.Connection) error {
 	s3Client := conn.S3Client()
-	objects, err := s3Client.ListObjects(volume.Bucket, volume.KeyPrefix)
+	objects, err := s3Client.GetObjectList(volume.Bucket, volume.KeyPrefix)
 	if !(err == nil || volume.Optional) {
 		return err
 	}
 	if err == nil {
-		return s3Client.CopyObjects(objects, volume.Mount.Directory, "", *volume.Mount.UserID,
-			*volume.Mount.GroupID)
+		return objects.Write(fs, volume.Mount.Destination, *volume.Mount.UserID,
+			*volume.Mount.GroupID, false)
 	}
 	return nil
 }
@@ -810,6 +811,68 @@ func isMounted(fs afero.Fs, mountPoint, mtab string) (bool, error) {
 	return false, err
 }
 
+type bufGet func() ([]byte, error)
+type mapGet func() (map[string]string, error)
+
+func resolveEnvFrom(name string, b64encode bool, bg bufGet, mg mapGet) (vmspec.NameValueSource, error) {
+	if len(name) > 0 {
+		buf, err := bg()
+		if err != nil {
+			return nil, err
+		}
+		value := ""
+		if b64encode {
+			value = base64.StdEncoding.EncodeToString(buf)
+		} else {
+			value = string(buf)
+		}
+		ev := vmspec.NameValue{Name: name, Value: value}
+		return vmspec.NameValueSource{ev}, nil
+	}
+	m, err := mg()
+	if err != nil {
+		return nil, err
+	}
+	nvs := make(vmspec.NameValueSource, len(m))
+	i := 0
+	for k, v := range m {
+		nvs[i] = vmspec.NameValue{Name: k, Value: v}
+		i++
+	}
+	return nvs, nil
+}
+
+func resolveS3EnvFrom(conn aws.Connection, s3 *vmspec.S3EnvSource) (vmspec.NameValueSource, error) {
+	bg := func() ([]byte, error) {
+		return conn.S3Client().GetObjectValue(s3.Bucket, s3.Key)
+	}
+	mg := func() (map[string]string, error) {
+		return conn.S3Client().GetObjectMap(s3.Bucket, s3.Key)
+	}
+	return resolveEnvFrom(s3.Name, s3.Base64Encode, bg, mg)
+}
+
+func resolveSecretsManagerEnvFrom(conn aws.Connection,
+	asm *vmspec.SecretsManagerEnvSource) (vmspec.NameValueSource, error) {
+	bg := func() ([]byte, error) {
+		return conn.ASMClient().GetSecretValue(asm.SecretID)
+	}
+	mg := func() (map[string]string, error) {
+		return conn.ASMClient().GetSecretMap(asm.SecretID)
+	}
+	return resolveEnvFrom(asm.Name, asm.Base64Encode, bg, mg)
+}
+
+func resolveSSMEnvFrom(conn aws.Connection, ssm *vmspec.SSMEnvSource) (vmspec.NameValueSource, error) {
+	bg := func() ([]byte, error) {
+		return conn.SSMClient().GetParameterValue(ssm.Path)
+	}
+	mg := func() (map[string]string, error) {
+		return conn.SSMClient().GetParameterMap(ssm.Path)
+	}
+	return resolveEnvFrom(ssm.Name, ssm.Base64Encode, bg, mg)
+}
+
 func resolveAllEnvs(conn aws.Connection, env vmspec.NameValueSource,
 	envFrom vmspec.EnvFromSource) (vmspec.NameValueSource, error) {
 	var (
@@ -818,32 +881,35 @@ func resolveAllEnvs(conn aws.Connection, env vmspec.NameValueSource,
 	)
 
 	for _, e := range envFrom {
-		if e.SecretsManager != nil {
-			secret, err := conn.ASMClient().GetSecret(e.SecretsManager.SecretID,
-				e.SecretsManager.IsMap)
-			if !(err == nil || e.SecretsManager.Optional) {
-				errs = errors.Join(errs, err)
-			}
-			for k, v := range secret.ToMapString() {
-				ev := vmspec.NameValue{Name: k, Value: v}
-				resolvedEnv = append(resolvedEnv, ev)
-			}
-		}
-		if e.SSMParameter != nil {
-			parameters, err := conn.SSMClient().GetParameters(e.SSMParameter.Path)
-			if !(err == nil || e.SSMParameter.Optional) {
+		if e.S3 != nil {
+			s3Env, err := resolveS3EnvFrom(conn, e.S3)
+			if !(err == nil || e.S3.Optional) {
 				errs = errors.Join(errs, err)
 			}
 			if err == nil {
-				// Use ToMapString() to filter out any nested
-				// paths below e.SSMParameter.Path.
-				for k, v := range parameters.ToMapString() {
-					ev := vmspec.NameValue{Name: k, Value: v}
-					resolvedEnv = append(resolvedEnv, ev)
-				}
+				resolvedEnv = append(resolvedEnv, s3Env...)
+			}
+		}
+		if e.SecretsManager != nil {
+			asmEnv, err := resolveSecretsManagerEnvFrom(conn, e.SecretsManager)
+			if !(err == nil || e.SecretsManager.Optional) {
+				errs = errors.Join(errs, err)
+			}
+			if err == nil {
+				resolvedEnv = append(resolvedEnv, asmEnv...)
+			}
+		}
+		if e.SSM != nil {
+			ssmEnv, err := resolveSSMEnvFrom(conn, e.SSM)
+			if !(err == nil || e.SSM.Optional) {
+				errs = errors.Join(errs, err)
+			}
+			if err == nil {
+				resolvedEnv = append(resolvedEnv, ssmEnv...)
 			}
 		}
 	}
+
 	if errs != nil {
 		return nil, errs
 	}
@@ -999,19 +1065,19 @@ func Run() error {
 			}
 		}
 		if volume.SecretsManager != nil {
-			err = handleVolumeSecretsManager(volume.SecretsManager, conn)
+			err = handleVolumeSecretsManager(osFS, volume.SecretsManager, conn)
 			if err != nil {
 				return err
 			}
 		}
-		if volume.SSMParameter != nil {
-			err = handleVolumeSSMParameter(volume.SSMParameter, conn)
+		if volume.SSM != nil {
+			err = handleVolumeSSM(osFS, volume.SSM, conn)
 			if err != nil {
 				return err
 			}
 		}
 		if volume.S3 != nil {
-			err = handleVolumeS3(volume.S3, conn)
+			err = handleVolumeS3(osFS, volume.S3, conn)
 			if err != nil {
 				return err
 			}

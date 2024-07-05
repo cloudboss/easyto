@@ -1,108 +1,257 @@
 package aws
 
 import (
+	"context"
+	"errors"
+	"os"
+	"strings"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
-	"github.com/cloudboss/easyto/pkg/initial/maps"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_parametersToMap(t *testing.T) {
+var (
+	errParameterNotFound = errors.New("parameter not found")
+)
+
+type mockSSMAPI struct {
+	parameters map[string]string
+}
+
+func (s *mockSSMAPI) GetParametersByPath(ctx context.Context, in *ssm.GetParametersByPathInput,
+	opt ...func(*ssm.Options)) (*ssm.GetParametersByPathOutput, error) {
+	parameters := []types.Parameter{}
+	for k := range s.parameters {
+		if strings.HasPrefix(k, *in.Path) {
+			parameters = append(parameters, types.Parameter{
+				Name:  p(k),
+				Value: p(s.parameters[k]),
+			})
+		}
+	}
+	out := &ssm.GetParametersByPathOutput{
+		Parameters: parameters,
+	}
+	return out, nil
+}
+
+func (s *mockSSMAPI) GetParameter(ctx context.Context, in *ssm.GetParameterInput,
+	opt ...func(*ssm.Options)) (*ssm.GetParameterOutput, error) {
+	value, ok := s.parameters[*in.Name]
+	if !ok {
+		return nil, errParameterNotFound
+	}
+	out := &ssm.GetParameterOutput{
+		Parameter: &types.Parameter{
+			Name:  in.Name,
+			Value: &value,
+		},
+	}
+	return out, nil
+}
+
+func Test_SSMClient_GetParameterList(t *testing.T) {
 	testCases := []struct {
 		description string
-		parameters  []types.Parameter
-		result      maps.ParameterMap
-		prefix      string
+		dest        string
+		parameters  map[string]string
+		path        string
+		result      []file
+		secret      bool
+		err         error
 	}{
 		{
 			description: "Null test case",
-			parameters:  []types.Parameter{},
-			result:      maps.ParameterMap{},
-			prefix:      "/zzzzz",
+			path:        "/zzzzz",
+			err:         errParameterNotFound,
 		},
 		{
-			description: "Prefix elided",
-			parameters: []types.Parameter{
+			description: "Nonsecret parameters",
+			parameters: map[string]string{
+				"/easy/to/abc":         "abc-value",
+				"/easy/to/subpath/abc": "subpath-abc-value",
+				"/easy/to/xyz":         "xyz-value",
+			},
+			dest: "/abc",
+			path: "/easy/to",
+			result: []file{
 				{
-					Name:  p("/easy/to/abc"),
-					Value: p("abc-value"),
+					name:    "/abc/abc",
+					content: "abc-value",
+					mode:    0644,
 				},
 				{
-					Name:  p("/easy/to/subpath/abc"),
-					Value: p("subpath-abc-value"),
+					name: "/abc/subpath",
+					mode: 0755 | os.ModeDir,
 				},
 				{
-					Name:  p("/easy/to/xyz"),
-					Value: p("xyz-value"),
+					name:    "/abc/subpath/abc",
+					content: "subpath-abc-value",
+					mode:    0644,
+				},
+				{
+					name:    "/abc/xyz",
+					content: "xyz-value",
+					mode:    0644,
 				},
 			},
-			result: maps.ParameterMap{
-				"abc": "abc-value",
-				"subpath": maps.ParameterMap{
-					"abc": "subpath-abc-value",
-				},
-				"xyz": "xyz-value",
-			},
-			prefix: "/easy/to",
 		},
 		{
-			description: "Prefix not found",
-			parameters: []types.Parameter{
+			description: "Secret parameters",
+			parameters: map[string]string{
+				"/easy/to/abc":         "abc-value",
+				"/easy/to/subpath/abc": "subpath-abc-value",
+				"/easy/to/xyz":         "xyz-value",
+			},
+			dest:   "/abc",
+			path:   "/easy/to",
+			secret: true,
+			result: []file{
 				{
-					Name:  p("/easy/to/abc"),
-					Value: p("abc-value"),
+					name:    "/abc/abc",
+					content: "abc-value",
+					mode:    0600,
 				},
 				{
-					Name:  p("/easy/to/subpath/abc"),
-					Value: p("subpath-abc-value"),
+					name: "/abc/subpath",
+					mode: 0700 | os.ModeDir,
 				},
 				{
-					Name:  p("/easy/to/xyz"),
-					Value: p("xyz-value"),
+					name:    "/abc/subpath/abc",
+					content: "subpath-abc-value",
+					mode:    0600,
+				},
+				{
+					name:    "/abc/xyz",
+					content: "xyz-value",
+					mode:    0600,
 				},
 			},
-			result: maps.ParameterMap{},
-			prefix: "zzzzz",
-		},
-		{
-			description: "File and directory collision",
-			parameters: []types.Parameter{
-				{
-					Name:  p("/easy/to/abc"),
-					Value: p("abc-value"),
-				},
-				// Value is not included in map because there is
-				// an occurrence of /easy/to with a nested subpath.
-				{
-					Name:  p("/easy/to"),
-					Value: p("to-value"),
-				},
-				{
-					Name:  p("/easy/to/subpath/abc"),
-					Value: p("subpath-abc-value"),
-				},
-				{
-					Name:  p("/easy/to/xyz"),
-					Value: p("xyz-value"),
-				},
-			},
-			result: maps.ParameterMap{
-				"to": maps.ParameterMap{
-					"abc": "abc-value",
-					"subpath": maps.ParameterMap{
-						"abc": "subpath-abc-value",
-					},
-					"xyz": "xyz-value",
-				},
-			},
-			prefix: "/easy",
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
-			actual := parametersToMap(tc.parameters, tc.prefix)
-			assert.EqualValues(t, tc.result, actual)
+			fs := afero.NewMemMapFs()
+			client := ssmClient{
+				api: &mockSSMAPI{tc.parameters},
+			}
+			parameters, err := client.GetParameterList(tc.path)
+			assert.ErrorIs(t, err, tc.err)
+			err = parameters.Write(fs, tc.dest, 0, 0, tc.secret)
+			assert.NoError(t, err)
+			for _, file := range tc.result {
+				contents, stat, err := fileRead(fs, file.name)
+				assert.NoError(t, err)
+				assert.Equal(t, string(file.content), contents)
+				assert.Equal(t, file.mode, stat.Mode())
+			}
+		})
+	}
+}
+
+func Test_SSMClient_GetParameterMap(t *testing.T) {
+	testCases := []struct {
+		description string
+		parameters  map[string]string
+		path        string
+		result      map[string]string
+		err         bool
+	}{
+		{
+			description: "Parameter not found",
+			path:        "/zzzzz",
+			err:         true,
+		},
+		{
+			description: "Invalid parameter is not map",
+			parameters: map[string]string{
+				"/easy/to/abc":         "abc-value",
+				"/easy/to/subpath/abc": "subpath-abc-value",
+				"/easy/to/xyz":         `"abc": "123", "def": "456"}`,
+			},
+			path: "/easy/to/xyz",
+			err:  true,
+		},
+		{
+			description: "Valid parameter is map",
+			parameters: map[string]string{
+				"/easy/to/abc":         "abc-value",
+				"/easy/to/subpath/abc": "subpath-abc-value",
+				"/easy/to/xyz":         `{"abc": "123", "def": "456"}`,
+			},
+			path: "/easy/to/xyz",
+			result: map[string]string{
+				"abc": "123",
+				"def": "456",
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			client := ssmClient{
+				api: &mockSSMAPI{tc.parameters},
+			}
+			parameters, err := client.GetParameterMap(tc.path)
+			if tc.err {
+				assert.Error(t, err)
+			}
+			assert.Equal(t, tc.result, parameters)
+		})
+	}
+}
+
+func Test_SSMClient_GetParameterValue(t *testing.T) {
+	testCases := []struct {
+		description string
+		parameters  map[string]string
+		path        string
+		result      []byte
+		err         error
+	}{
+		{
+			description: "Parameter not found",
+			parameters: map[string]string{
+				"/easy/to/abc":         "abc-value",
+				"/easy/to/subpath/abc": "subpath-abc-value",
+				"/easy/to/xyz":         `{"abc": "123", "def": "456"}`,
+			},
+			path: "/easy/to/xyz/123",
+			err:  errParameterNotFound,
+		},
+		{
+			description: "Literal structured parameter value",
+			parameters: map[string]string{
+				"/easy/to/abc":         "abc-value",
+				"/easy/to/subpath/abc": "subpath-abc-value",
+				"/easy/to/xyz":         `{"abc": "123", "def": "456"}`,
+			},
+			path:   "/easy/to/xyz",
+			result: []byte(`{"abc": "123", "def": "456"}`),
+		},
+		{
+			description: "Literal unstructured parameter value",
+			parameters: map[string]string{
+				"/easy/to/abc":         "abc-value",
+				"/easy/to/subpath/abc": "subpath-abc-value",
+				"/easy/to/xyz":         `"abc": "123", "def": "456"}`,
+			},
+			path:   "/easy/to/subpath/abc",
+			result: []byte("subpath-abc-value"),
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			client := ssmClient{
+				api: &mockSSMAPI{
+					parameters: tc.parameters,
+				},
+			}
+			value, err := client.GetParameterValue(tc.path)
+			assert.ErrorIs(t, err, tc.err)
+			assert.Equal(t, tc.result, value)
 		})
 	}
 }

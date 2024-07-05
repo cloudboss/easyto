@@ -1,384 +1,217 @@
 package aws
 
 import (
-	"fmt"
-	"path/filepath"
-	"strings"
+	"context"
+	"errors"
+	"os"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/cloudboss/easyto/pkg/initial/maps"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 )
 
-type stringReadCloser struct {
-	strings.Reader
+var errObjectNotFound = errors.New("object not found")
+
+type mockS3API struct {
+	bucketObjects map[string]string
 }
 
-func NewStringReadCloser(s string) *stringReadCloser {
-	return &stringReadCloser{*strings.NewReader(s)}
+func (s *mockS3API) GetObject(ctx context.Context, in *s3.GetObjectInput,
+	opt ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
+	content, ok := s.bucketObjects[*in.Key]
+	if !ok {
+		return nil, errObjectNotFound
+	}
+	out := &s3.GetObjectOutput{
+		Body: stringRC(content),
+	}
+	return out, nil
 }
 
-func (s *stringReadCloser) Close() error {
-	return nil
+func (s *mockS3API) ListObjects(ctx context.Context, in *s3.ListObjectsInput,
+	opt ...func(*s3.Options)) (*s3.ListObjectsOutput, error) {
+	objects := []types.Object{}
+	for k := range s.bucketObjects {
+		objects = append(objects, types.Object{
+			Key: p(k),
+		})
+	}
+	out := &s3.ListObjectsOutput{
+		Contents: objects,
+	}
+	return out, nil
 }
 
-func (s *stringReadCloser) Read(b []byte) (n int, err error) {
-	return s.Read(b)
-}
-
-type mockS3Client struct {
-	fs afero.Fs
-}
-
-func (m *mockS3Client) ListObjects(bucket, keyPrefix string) (*s3ObjectList, error) {
-	return nil, nil
-}
-
-func (m *mockS3Client) CopyObjects(objects *s3ObjectList, dest, subPath string, uid, gid int) error {
-	w := func(dest string, value types.Object, uid, gid int) (err error) {
-		content := fmt.Sprintf("%s-value", filepath.Base(*value.Key))
-		out := &s3.GetObjectOutput{
-			Body: NewStringReadCloser(content),
-		}
-		defer func() {
-			closeErr := out.Body.Close()
-			if closeErr != nil && err == nil {
-				err = closeErr
+func Test_S3Client_GetObjectList(t *testing.T) {
+	testCases := []struct {
+		description   string
+		bucketObjects map[string]string
+		dest          string
+		keyPrefix     string
+		result        []file
+		err           error
+	}{
+		{
+			description: "Single object",
+			bucketObjects: map[string]string{
+				"b1/c1": "c1-value",
+			},
+			dest:      "/abc",
+			keyPrefix: "b1",
+			result: []file{
+				{
+					name:    "/abc/c1",
+					content: "c1-value",
+					mode:    0644,
+				},
+			},
+		},
+		{
+			description: "Nested objects",
+			bucketObjects: map[string]string{
+				"b1/c1":    "c1-value",
+				"b1/d1/e1": "e1-value",
+			},
+			dest:      "/abc",
+			keyPrefix: "b1",
+			result: []file{
+				{
+					name:    "/abc/c1",
+					content: "c1-value",
+					mode:    0644,
+				},
+				{
+					name: "/abc/d1",
+					mode: 0755 | os.ModeDir,
+				},
+				{
+					name:    "/abc/d1/e1",
+					content: "e1-value",
+					mode:    0644,
+				},
+			},
+		},
+		{
+			description: "Same key and prefix",
+			bucketObjects: map[string]string{
+				"b1/d1/e1": "e1-value",
+			},
+			dest:      "/abc",
+			keyPrefix: "b1/d1/e1",
+			result: []file{
+				{
+					name:    "/abc",
+					content: "e1-value",
+					mode:    0644,
+				},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			fs := afero.NewMemMapFs()
+			client := s3Client{
+				api: &mockS3API{tc.bucketObjects},
 			}
-		}()
-		return writeReader(m.fs, dest, out.Body, uid, gid)
-	}
-	return maps.Write(objects.Map(), w, dest, subPath, uid, gid)
-}
-
-func Test_S3Client_CopyObjects(t *testing.T) {
-	testCases := []struct {
-		dest    string
-		dirs    []string
-		err     error
-		objects []types.Object
-		prefix  string
-		result  map[string][]byte
-		subPath string
-	}{
-		{
-			dirs:    []string{},
-			objects: []types.Object{},
-			result:  map[string][]byte{},
-		},
-		{
-			dirs: []string{},
-			objects: []types.Object{
-				{
-					Key: p("a1"),
-				},
-			},
-			result: map[string][]byte{
-				"a1": []byte("a1-value"),
-			},
-		},
-		{
-			dest: "zzz",
-			dirs: []string{"zzz", "zzz/b1"},
-			objects: []types.Object{
-				{
-					Key: p("b1/c1"),
-				},
-			},
-			result: map[string][]byte{
-				"zzz/b1/c1": []byte("c1-value"),
-			},
-		},
-		{
-			dest:   "hhh",
-			dirs:   []string{"hhh"},
-			prefix: "e1/f1",
-			objects: []types.Object{
-				{
-					Key: p("e1/f1/g1"),
-				},
-				{
-					Key: p("e1/f1/g2"),
-				},
-				{
-					Key: p("e1/h1"),
-				},
-				{
-					Key: p("e1/h2"),
-				},
-			},
-			result: map[string][]byte{
-				"hhh/g1": []byte("g1-value"),
-				"hhh/g2": []byte("g2-value"),
-			},
-		},
-		{
-			dest: "jjj",
-			dirs: []string{
-				"jjj",
-				"jjj/k1",
-				"jjj/k1/l1",
-				"jjj/k1/l1/m1",
-				"jjj/k1/l1/m2",
-			},
-			prefix: "",
-			objects: []types.Object{
-				{
-					Key: p("k1/l1/m1/n1"),
-				},
-				{
-					Key: p("k1/l1/m1/n2"),
-				},
-				{
-					Key: p("k1/l1/m2/o1"),
-				},
-				{
-					Key: p("k1/l1/m2/o2"),
-				},
-				{
-					Key: p("x/y"),
-				},
-			},
-			result: map[string][]byte{
-				"jjj/k1/l1/m1/n1": []byte("n1-value"),
-				"jjj/k1/l1/m1/n2": []byte("n2-value"),
-				"jjj/k1/l1/m2/o1": []byte("o1-value"),
-				"jjj/k1/l1/m2/o2": []byte("o2-value"),
-			},
-		},
-		{
-			dest:   "jjj",
-			dirs:   []string{"jjj", "jjj/m1", "jjj/m2"},
-			prefix: "k1/l1",
-			objects: []types.Object{
-				{
-					Key: p("k1/l1/m1/n1"),
-				},
-				{
-					Key: p("k1/l1/m1/n2"),
-				},
-				{
-					Key: p("k1/l1/m2/o1"),
-				},
-				{
-					Key: p("k1/l1/m2/o2"),
-				},
-				{
-					Key: p("x/y"),
-				},
-			},
-			result: map[string][]byte{
-				"jjj/m1/n1": []byte("n1-value"),
-				"jjj/m1/n2": []byte("n2-value"),
-				"jjj/m2/o1": []byte("o1-value"),
-				"jjj/m2/o2": []byte("o2-value"),
-			},
-		},
-		{
-			dest:   "jjj",
-			dirs:   []string{"jjj", "jjj/m1", "jjj/m2"},
-			prefix: "k1/l1",
-			objects: []types.Object{
-				{
-					// Item is filtered out because
-					// it has children n1 & n2.
-					Key: p("k1/l1/m1"),
-				},
-				{
-					Key: p("k1/l1/m1/n1"),
-				},
-				{
-					Key: p("k1/l1/m1/n2"),
-				},
-				{
-					Key: p("k1/l1/m2/o1"),
-				},
-				{
-					Key: p("k1/l1/m2/o2"),
-				},
-				{
-					Key: p("x/y"),
-				},
-			},
-			result: map[string][]byte{
-				"jjj/m1/n1": []byte("n1-value"),
-				"jjj/m1/n2": []byte("n2-value"),
-				"jjj/m2/o1": []byte("o1-value"),
-				"jjj/m2/o2": []byte("o2-value"),
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		fs := afero.NewMemMapFs()
-		client := &mockS3Client{fs: fs}
-		objects := NewS3Objects(tc.objects, "abc", tc.prefix)
-		err := client.CopyObjects(objects, tc.dest, tc.subPath, -1, -1)
-		assert.Equal(t, tc.err, err)
-
-		for _, dir := range tc.dirs {
-			t.Run(fmt.Sprintf("directory %s", dir), func(t *testing.T) {
-				dirExists, err := afero.DirExists(fs, dir)
-				assert.True(t, dirExists, "directory %s does not exist", dir)
-				assert.Nil(t, err)
-			})
-		}
-
-		if len(tc.dest) == 0 {
-			continue
-		}
-
-		for pth, contents := range tc.result {
-			t.Run(fmt.Sprintf("file %s", tc.dest), func(t *testing.T) {
-				fileContainsBytes, err := afero.FileContainsBytes(fs, pth, contents)
-				assert.True(t, fileContainsBytes,
-					"file %s does not contain expected contents", pth)
-				assert.Nil(t, err, "error was not nil: %s", err)
-			})
-		}
+			m, err := client.GetObjectList("thebucket", tc.keyPrefix)
+			assert.NoError(t, err)
+			err = m.Write(fs, tc.dest, 0, 0, false)
+			assert.NoError(t, err)
+			for _, file := range tc.result {
+				contents, stat, err := fileRead(fs, file.name)
+				assert.NoError(t, err)
+				assert.Equal(t, string(file.content), contents)
+				assert.Equal(t, file.mode, stat.Mode())
+			}
+		})
 	}
 }
 
-func Test_objectsToMap(t *testing.T) {
+func Test_S3Client_GetObjectMap(t *testing.T) {
 	testCases := []struct {
-		objects []types.Object
-		prefix  string
-		result  map[string]any
-		err     error
+		description   string
+		bucketObjects map[string]string
+		key           string
+		result        map[string]string
+		err           bool
 	}{
 		{
-			objects: []types.Object{},
-			prefix:  "",
-			result:  map[string]any{},
-			err:     nil,
+			description: "Object is not map",
+			bucketObjects: map[string]string{
+				"a/b/c": "not-json",
+			},
+			key: "a/b/c",
+			err: true,
 		},
 		{
-			objects: []types.Object{
-				{
-					Key: p("x1"),
-				},
+			description: "Object is nested map",
+			bucketObjects: map[string]string{
+				"a/b": `{"abc": "123", "def": {"ghi": "789"}}`,
 			},
-			prefix: "x1",
-			result: map[string]any{},
-			err:    nil,
+			key: "a/b",
+			err: true,
 		},
 		{
-			objects: []types.Object{
-				{
-					Key: p("z1"),
-				},
+			description: "Object is valid map",
+			bucketObjects: map[string]string{
+				"a/b": `{"abc": "123", "def": "456"}`,
 			},
-			prefix: "x1",
-			result: map[string]any{},
-			err:    nil,
-		},
-		{
-			objects: []types.Object{
-				{
-					Key: p("a1"),
-				},
+			key: "a/b",
+			result: map[string]string{
+				"abc": "123",
+				"def": "456",
 			},
-			prefix: "",
-			result: map[string]any{
-				"a1": types.Object{Key: p("a1")},
-			},
-			err: nil,
-		},
-		{
-			objects: []types.Object{
-				{
-					Key: p("b1"),
-				},
-				{
-					Key: p("c1/d1"),
-				},
-				{
-					Key: p("c1/d2"),
-				},
-			},
-			prefix: "",
-			result: map[string]any{
-				"b1": types.Object{Key: p("b1")},
-				"c1": map[string]any{
-					"d1": types.Object{Key: p("c1/d1")},
-					"d2": types.Object{Key: p("c1/d2")},
-				},
-			},
-			err: nil,
-		},
-		{
-			objects: []types.Object{
-				{
-					Key: p("j1"),
-				},
-				{
-					Key: p("k1/l1"),
-				},
-				{
-
-					Key: p("k1/l2"),
-				},
-			},
-			prefix: "k1",
-			result: map[string]any{
-				"l1": types.Object{Key: p("k1/l1")},
-				"l2": types.Object{Key: p("k1/l2")},
-			},
-			err: nil,
 		},
 	}
-
 	for _, tc := range testCases {
-		actual := objectsToMap(tc.objects, tc.prefix)
-		assert.EqualValues(t, tc.result, actual)
+		t.Run(tc.description, func(t *testing.T) {
+			client := s3Client{
+				api: &mockS3API{tc.bucketObjects},
+			}
+			m, err := client.GetObjectMap("thebucket", tc.key)
+			if tc.err {
+				assert.Error(t, err)
+			}
+			assert.Equal(t, tc.result, m)
+		})
 	}
 }
 
-func Test_writeReader(t *testing.T) {
+func Test_S3Client_GetObjectValue(t *testing.T) {
 	testCases := []struct {
-		contents string
-		dest     string
-		dirs     []string
+		description   string
+		bucketObjects map[string]string
+		key           string
+		result        []byte
+		err           error
 	}{
 		{
-
-			contents: "a1-value",
-			dest:     "a1",
-			dirs:     []string{},
+			description: "Object not found",
+			bucketObjects: map[string]string{
+				"a/b": "Thirty for remove plenty regard you summer though",
+			},
+			key: "x/y/z",
+			err: errObjectNotFound,
 		},
 		{
-
-			contents: "d1-value",
-			dest:     "b1/c1/d1",
-			dirs:     []string{"b1", "b1/c1"},
+			description: "Single object",
+			bucketObjects: map[string]string{
+				"a/b": "Thirty for remove plenty regard you summer though",
+			},
+			key:    "a/b",
+			result: []byte("Thirty for remove plenty regard you summer though"),
 		},
 	}
 	for _, tc := range testCases {
-		fs := afero.NewMemMapFs()
-
-		err := writeReader(fs, tc.dest, strings.NewReader(tc.contents), 0, 0)
-		assert.Nil(t, err, "error was not nil: %s", err)
-
-		for _, dir := range tc.dirs {
-			t.Run(dir, func(t *testing.T) {
-				dirExists, err := afero.DirExists(fs, dir)
-				assert.True(t, dirExists, "directory %s does not exist", dir)
-				assert.Nil(t, err)
-			})
-		}
-
-		if len(tc.dest) == 0 {
-			continue
-		}
-
-		t.Run(tc.dest, func(t *testing.T) {
-			fileContainsBytes, err := afero.FileContainsBytes(fs, tc.dest, []byte(tc.contents))
-			assert.True(t, fileContainsBytes,
-				"file %s does not contain expected contents", tc.dest)
-			assert.Nil(t, err, "error was not nil: %s", err)
+		t.Run(tc.description, func(t *testing.T) {
+			client := s3Client{
+				api: &mockS3API{tc.bucketObjects},
+			}
+			b, err := client.GetObjectValue("thebucket", tc.key)
+			assert.ErrorIs(t, err, tc.err)
+			assert.Equal(t, tc.result, b)
 		})
 	}
 }

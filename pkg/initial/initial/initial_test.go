@@ -8,7 +8,7 @@ import (
 
 	"github.com/cloudboss/easyto/pkg/constants"
 	"github.com/cloudboss/easyto/pkg/initial/aws"
-	"github.com/cloudboss/easyto/pkg/initial/maps"
+	"github.com/cloudboss/easyto/pkg/initial/collections"
 	"github.com/cloudboss/easyto/pkg/initial/vmspec"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
@@ -90,17 +90,48 @@ func Test_parseMode(t *testing.T) {
 }
 
 type mockConnection struct {
+	asmClient *mockASMClient
+	s3Client  *mockS3Client
 	ssmClient *mockSSMClient
 }
 
 func newMockConnection(fail bool) *mockConnection {
 	return &mockConnection{
+		&mockASMClient{fail},
+		&mockS3Client{fail},
 		&mockSSMClient{fail},
 	}
 }
 
+type mockASMClient struct {
+	fail bool
+}
+
+func (m *mockASMClient) GetSecretList(secretID string) (collections.WritableList, error) {
+	return nil, nil
+}
+
+func (m *mockASMClient) GetSecretMap(secretID string) (map[string]string, error) {
+	if m.fail {
+		return nil, errors.New("fail")
+	}
+	mapp := map[string]string{
+		"JKL": "jkl-value",
+		"MNO": "mno-value",
+	}
+	return mapp, nil
+}
+
+func (m *mockASMClient) GetSecretValue(secretID string) ([]byte, error) {
+	if m.fail {
+		return nil, errors.New("fail")
+	}
+	b := []byte("Two before narrow not relied how except moment myself")
+	return b, nil
+}
+
 func (c *mockConnection) ASMClient() aws.ASMClient {
-	return nil
+	return c.asmClient
 }
 
 func (c *mockConnection) SSMClient() aws.SSMClient {
@@ -108,42 +139,81 @@ func (c *mockConnection) SSMClient() aws.SSMClient {
 }
 
 func (c *mockConnection) S3Client() aws.S3Client {
-	return nil
+	return c.s3Client
+}
+
+type mockS3Client struct {
+	fail bool
+}
+
+func (m *mockS3Client) GetObjectList(bucket, keyPrefix string) (collections.WritableList, error) {
+	return nil, nil
+}
+
+func (m *mockS3Client) GetObjectMap(bucket, keyPrefix string) (map[string]string, error) {
+	if m.fail {
+		return nil, errors.New("fail")
+	}
+	mapp := map[string]string{
+		"JKL": "jkl-value",
+		"MNO": "mno-value",
+	}
+	return mapp, nil
+}
+
+func (m *mockS3Client) GetObjectValue(bucket, keyPrefix string) ([]byte, error) {
+	if m.fail {
+		return nil, errors.New("fail")
+	}
+	b := []byte("Had denoting properly jointure you occasion directly raillery")
+	return b, nil
 }
 
 type mockSSMClient struct {
 	fail bool
 }
 
-func (s *mockSSMClient) GetParameters(ssmPath string) (maps.ParameterMap, error) {
-	if s.fail {
+func (m *mockSSMClient) GetParameterList(ssmPath string) (collections.WritableList, error) {
+	return nil, nil
+}
+
+func (m *mockSSMClient) GetParameterMap(ssmPath string) (map[string]string, error) {
+	if m.fail {
 		return nil, errors.New("fail")
 	}
-	pMap := maps.ParameterMap{
+	mapp := map[string]string{
 		"ABC": "abc-value",
 		"XYZ": "xyz-value",
-		"subpath": maps.ParameterMap{
-			"ABC": "subpath-abc-value",
-		},
 	}
-	return pMap, nil
+	return mapp, nil
+}
+
+func (m *mockSSMClient) GetParameterValue(ssmPath string) ([]byte, error) {
+	if m.fail {
+		return nil, errors.New("fail")
+	}
+	b := []byte("Occasional middletons everything so to")
+	return b, nil
 }
 
 func Test_resolveAllEnvs(t *testing.T) {
 	testCases := []struct {
-		env     vmspec.NameValueSource
-		envFrom vmspec.EnvFromSource
-		result  vmspec.NameValueSource
-		err     error
-		fail    bool
+		description string
+		env         vmspec.NameValueSource
+		envFrom     vmspec.EnvFromSource
+		result      vmspec.NameValueSource
+		err         error
+		fail        bool
 	}{
 		{
-			env:     vmspec.NameValueSource{},
-			envFrom: vmspec.EnvFromSource{},
-			result:  vmspec.NameValueSource{},
-			err:     nil,
+			description: "Null test case",
+			env:         vmspec.NameValueSource{},
+			envFrom:     vmspec.EnvFromSource{},
+			result:      vmspec.NameValueSource{},
+			err:         nil,
 		},
 		{
+			description: "Single env without EnvFrom",
 			env: vmspec.NameValueSource{
 				{
 					Name:  "ABC",
@@ -160,10 +230,11 @@ func Test_resolveAllEnvs(t *testing.T) {
 			err: nil,
 		},
 		{
-			env: vmspec.NameValueSource{},
+			description: "No env with single SSM EnvFrom",
+			env:         vmspec.NameValueSource{},
 			envFrom: vmspec.EnvFromSource{
 				{
-					SSMParameter: &vmspec.SSMParameterEnvSource{
+					SSM: &vmspec.SSMEnvSource{
 						Path: "/aaaaa",
 					},
 				},
@@ -181,6 +252,7 @@ func Test_resolveAllEnvs(t *testing.T) {
 			err: nil,
 		},
 		{
+			description: "Single env with single SSM EnvFrom",
 			env: vmspec.NameValueSource{
 				{
 					Name:  "CDE",
@@ -189,7 +261,7 @@ func Test_resolveAllEnvs(t *testing.T) {
 			},
 			envFrom: vmspec.EnvFromSource{
 				{
-					SSMParameter: &vmspec.SSMParameterEnvSource{
+					SSM: &vmspec.SSMEnvSource{
 						Path: "/aaaaa",
 					},
 				},
@@ -211,6 +283,7 @@ func Test_resolveAllEnvs(t *testing.T) {
 			err: nil,
 		},
 		{
+			description: "Single env and single SSM EnvFrom with duplicate",
 			// Environment variable names within the image metadata are overridden
 			// if they are defined in user data, but no check is done to ensure
 			// there are no duplicates in the user data itself. Let execve() be the
@@ -223,7 +296,7 @@ func Test_resolveAllEnvs(t *testing.T) {
 			},
 			envFrom: vmspec.EnvFromSource{
 				{
-					SSMParameter: &vmspec.SSMParameterEnvSource{
+					SSM: &vmspec.SSMEnvSource{
 						Path: "/aaaaa",
 					},
 				},
@@ -245,10 +318,11 @@ func Test_resolveAllEnvs(t *testing.T) {
 			err: nil,
 		},
 		{
-			env: vmspec.NameValueSource{},
+			description: "Failed optional SSM EnvFrom",
+			env:         vmspec.NameValueSource{},
 			envFrom: vmspec.EnvFromSource{
 				{
-					SSMParameter: &vmspec.SSMParameterEnvSource{
+					SSM: &vmspec.SSMEnvSource{
 						Path:     "/aaaaa",
 						Optional: true,
 					},
@@ -259,6 +333,7 @@ func Test_resolveAllEnvs(t *testing.T) {
 			fail:   true,
 		},
 		{
+			description: "Single env and failed optional SSM EnvFrom",
 			env: vmspec.NameValueSource{
 				{
 					Name:  "ABC",
@@ -267,7 +342,7 @@ func Test_resolveAllEnvs(t *testing.T) {
 			},
 			envFrom: vmspec.EnvFromSource{
 				{
-					SSMParameter: &vmspec.SSMParameterEnvSource{
+					SSM: &vmspec.SSMEnvSource{
 						Path:     "/aaaaa",
 						Optional: true,
 					},
@@ -283,10 +358,11 @@ func Test_resolveAllEnvs(t *testing.T) {
 			fail: true,
 		},
 		{
-			env: vmspec.NameValueSource{},
+			description: "Failed non-optional SSM EnvFrom",
+			env:         vmspec.NameValueSource{},
 			envFrom: vmspec.EnvFromSource{
 				{
-					SSMParameter: &vmspec.SSMParameterEnvSource{
+					SSM: &vmspec.SSMEnvSource{
 						Path:     "/aaaaa",
 						Optional: false,
 					},
@@ -296,12 +372,124 @@ func Test_resolveAllEnvs(t *testing.T) {
 			err:    errors.Join(errors.New("fail")),
 			fail:   true,
 		},
+		{
+			description: "Mixed SSM and S3 EnvFrom",
+			env:         vmspec.NameValueSource{},
+			envFrom: vmspec.EnvFromSource{
+				{
+					SSM: &vmspec.SSMEnvSource{
+						Path:     "/aaaaa",
+						Optional: true,
+					},
+				},
+				{
+					S3: &vmspec.S3EnvSource{
+						Bucket: "thebucket",
+						Key:    "/bbbbb",
+					},
+				},
+			},
+			result: vmspec.NameValueSource{
+				{
+					Name:  "ABC",
+					Value: "abc-value",
+				},
+				{
+					Name:  "XYZ",
+					Value: "xyz-value",
+				},
+				{
+					Name:  "JKL",
+					Value: "jkl-value",
+				},
+				{
+					Name:  "MNO",
+					Value: "mno-value",
+				},
+			},
+			err: nil,
+		},
+		{
+			description: "Raw SSM and S3 EnvFrom with Name defined",
+			env:         vmspec.NameValueSource{},
+			envFrom: vmspec.EnvFromSource{
+				{
+					S3: &vmspec.S3EnvSource{
+						Bucket: "thebucket",
+						Key:    "/aaaaa",
+						Name:   "S3",
+					},
+				},
+				{
+					SSM: &vmspec.SSMEnvSource{
+						Path: "/bbbbb",
+						Name: "SSM",
+					},
+				},
+			},
+			result: vmspec.NameValueSource{
+				{
+					Name:  "S3",
+					Value: "Had denoting properly jointure you occasion directly raillery",
+				},
+				{
+					Name:  "SSM",
+					Value: "Occasional middletons everything so to",
+				},
+			},
+			err: nil,
+		},
+		{
+			description: "Base64 encoded SSM and S3 EnvFrom with Name defined",
+			env:         vmspec.NameValueSource{},
+			envFrom: vmspec.EnvFromSource{
+				{
+					SecretsManager: &vmspec.SecretsManagerEnvSource{
+						Base64Encode: true,
+						SecretID:     "secret-id",
+						Name:         "ASM",
+					},
+				},
+				{
+					S3: &vmspec.S3EnvSource{
+						Base64Encode: true,
+						Bucket:       "thebucket",
+						Key:          "/aaaaa",
+						Name:         "S3",
+					},
+				},
+				{
+					SSM: &vmspec.SSMEnvSource{
+						Base64Encode: true,
+						Path:         "/bbbbb",
+						Name:         "SSM",
+					},
+				},
+			},
+			result: vmspec.NameValueSource{
+				{
+					Name:  "ASM",
+					Value: "VHdvIGJlZm9yZSBuYXJyb3cgbm90IHJlbGllZCBob3cgZXhjZXB0IG1vbWVudCBteXNlbGY=",
+				},
+				{
+					Name:  "S3",
+					Value: "SGFkIGRlbm90aW5nIHByb3Blcmx5IGpvaW50dXJlIHlvdSBvY2Nhc2lvbiBkaXJlY3RseSByYWlsbGVyeQ==",
+				},
+				{
+					Name:  "SSM",
+					Value: "T2NjYXNpb25hbCBtaWRkbGV0b25zIGV2ZXJ5dGhpbmcgc28gdG8=",
+				},
+			},
+			err: nil,
+		},
 	}
 	for _, tc := range testCases {
-		conn := newMockConnection(tc.fail)
-		actual, err := resolveAllEnvs(conn, tc.env, tc.envFrom)
-		assert.ElementsMatch(t, tc.result, actual)
-		assert.EqualValues(t, tc.err, err)
+		t.Run(tc.description, func(t *testing.T) {
+			conn := newMockConnection(tc.fail)
+			actual, err := resolveAllEnvs(conn, tc.env, tc.envFrom)
+			assert.ElementsMatch(t, tc.result, actual)
+			assert.EqualValues(t, tc.err, err)
+		})
 	}
 }
 

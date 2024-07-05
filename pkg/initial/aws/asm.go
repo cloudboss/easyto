@@ -4,94 +4,104 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	asm "github.com/aws/aws-sdk-go-v2/service/secretsmanager"
-	"github.com/cloudboss/easyto/pkg/initial/maps"
+	"github.com/cloudboss/easyto/pkg/initial/collections"
 )
 
-var (
-	ErrSecretNameRequired       = errors.New("secret name is required")
-	ErrSecretNameRequiredNotMap = errors.New("name is required when secret is not a map")
-)
+type asmAPI interface {
+	GetSecretValue(context.Context, *asm.GetSecretValueInput,
+		...func(*asm.Options)) (*asm.GetSecretValueOutput, error)
+}
 
 type ASMClient interface {
-	GetSecret(secretID string, isMap bool) (maps.ParameterMap, error)
+	// GetSecretList retrieves only one item but returns a
+	// WritableList, for consistency with the other AWS clients,
+	// and since it has the desired behavior for writing to disk.
+	GetSecretList(secretID string) (collections.WritableList, error)
+	GetSecretMap(secretID string) (map[string]string, error)
+	GetSecretValue(secretID string) ([]byte, error)
 }
 
 type asmClient struct {
-	client *asm.Client
+	api asmAPI
 }
 
 func NewASMClient(cfg aws.Config) ASMClient {
 	return &asmClient{
-		client: asm.NewFromConfig(cfg),
+		api: asm.NewFromConfig(cfg),
 	}
 }
 
-func (s *asmClient) GetSecret(secretID string, isMap bool) (maps.ParameterMap, error) {
-	out, err := s.client.GetSecretValue(context.Background(),
-		&asm.GetSecretValueInput{
-			SecretId: &secretID,
-		})
+func (a *asmClient) GetSecretList(secretID string) (collections.WritableList, error) {
+	secret, err := a.getSecret(secretID)
 	if err != nil {
-		return nil, fmt.Errorf("unable to get Secret with ID %s: %w", secretID, err)
+		return nil, err
 	}
-	if isMap {
-		return secretMapToMap(out)
-	}
-	return secretToMap(out)
+	return a.toList(secret)
 }
 
-func secretToMap(secret *asm.GetSecretValueOutput) (maps.ParameterMap, error) {
-	if secret == nil {
-		return nil, nil
+func (a *asmClient) GetSecretMap(secretID string) (map[string]string, error) {
+	secret, err := a.getSecret(secretID)
+	if err != nil {
+		return nil, err
 	}
-	if secret.Name == nil {
-		return nil, ErrSecretNameRequired
-	}
-	m := make(map[string]any)
+	var r io.Reader
 	if secret.SecretString != nil {
-		m["value"] = *secret.SecretString
+		r = strings.NewReader(*secret.SecretString)
 	} else if secret.SecretBinary != nil {
-		m["value"] = string(secret.SecretBinary)
-	} else {
-		return nil, fmt.Errorf("unable to get value of Secret with ID %s", *secret.Name)
+		r = bytes.NewReader(secret.SecretBinary)
+	}
+	m := make(map[string]string)
+	err = json.NewDecoder(r).Decode(&m)
+	if err != nil {
+		return nil, fmt.Errorf("unable to decode map from secret %s: %w", secretID, err)
 	}
 	return m, nil
 }
 
-func secretMapToMap(secret *asm.GetSecretValueOutput) (maps.ParameterMap, error) {
+func (a *asmClient) GetSecretValue(secretID string) ([]byte, error) {
+	secret, err := a.getSecret(secretID)
+	if err != nil {
+		return nil, err
+	}
+	var value []byte
+	if secret.SecretString != nil {
+		value = []byte(*secret.SecretString)
+	} else if secret.SecretBinary != nil {
+		value = secret.SecretBinary
+	}
+	return value, nil
+}
+
+func (a *asmClient) getSecret(secretID string) (*asm.GetSecretValueOutput, error) {
+	secret, err := a.api.GetSecretValue(context.Background(), &asm.GetSecretValueInput{
+		SecretId: &secretID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("unable to get secret %s: %w", secretID, err)
+	}
 	if secret == nil {
 		return nil, nil
 	}
-	if secret.Name == nil {
-		return nil, ErrSecretNameRequired
+	if secret.SecretString == nil && secret.SecretBinary == nil {
+		return nil, fmt.Errorf("secret %s has no value", secretID)
 	}
-	var reader io.Reader
-	if secret.SecretString != nil {
-		reader = strings.NewReader(*secret.SecretString)
-	} else if secret.SecretBinary != nil {
-		reader = bytes.NewReader(secret.SecretBinary)
-	} else {
-		return nil, fmt.Errorf("unable to get value of Secret with ID %s", *secret.Name)
-	}
-	m := make(map[string]any)
-	err := json.NewDecoder(reader).Decode(&m)
-	if err != nil {
-		return nil, fmt.Errorf("unable to decode Secret with ID %s: %w", *secret.Name, err)
-	}
-	return maps.ParameterMap(m), nil
+	return secret, nil
 }
 
-func mapStringToMapAny(ms map[string]string) map[string]any {
-	ma := make(map[string]any)
-	for k, v := range ms {
-		ma[k] = v
+func (a *asmClient) toList(secret *asm.GetSecretValueOutput) (collections.WritableList, error) {
+	value := &collections.WritableListEntry{}
+	if secret.SecretString != nil {
+		valueRC := io.NopCloser(strings.NewReader(*secret.SecretString))
+		value.Value = valueRC
+	} else if secret.SecretBinary != nil {
+		valueRC := io.NopCloser(bytes.NewReader(secret.SecretBinary))
+		value.Value = valueRC
 	}
-	return ma
+	return collections.WritableList{value}, nil
 }
