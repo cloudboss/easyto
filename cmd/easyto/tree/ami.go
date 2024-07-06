@@ -27,6 +27,9 @@ var (
 			if err != nil {
 				return fmt.Errorf("failed to expand asset directory path: %w", err)
 			}
+			if _, err = os.Stat(assetDir); os.IsNotExist(err) {
+				return fmt.Errorf("asset directory does not exist: %s", assetDir)
+			}
 			amiCfg.assetDir = assetDir
 
 			return vmspec.ValidateServices(amiCfg.services)
@@ -99,10 +102,10 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	assetDirRequired := false
 	assetDir, err := filepath.Abs(filepath.Join(filepath.Dir(this), "..", "assets"))
 	if err != nil {
-		assetDirRequired = true
+		fmt.Fprintf(os.Stderr, "Unable to get absolute path of asset directory: %s\n", err)
+		os.Exit(1)
 	}
 
 	packerDir, err := filepath.Abs(filepath.Join(filepath.Dir(this), "..", "packer"))
@@ -116,9 +119,6 @@ func init() {
 
 	amiCmd.Flags().StringVarP(&amiCfg.assetDir, "asset-directory", "A", assetDir,
 		"Path to a directory containing asset files.")
-	if assetDirRequired {
-		amiCmd.MarkFlagRequired("asset-directory")
-	}
 
 	amiCmd.Flags().StringVarP(&amiCfg.containerImage, "container-image", "c", "",
 		"Name of the container image.")
@@ -148,6 +148,7 @@ func init() {
 }
 
 func expandPath(pth string) (string, error) {
+	expanded := pth
 	if strings.HasPrefix(pth, "~/") {
 		me, err := user.Current()
 		if err != nil {
@@ -156,8 +157,8 @@ func expandPath(pth string) (string, error) {
 		fields := strings.Split(pth, string(filepath.Separator))
 		newFields := []string{me.HomeDir}
 		newFields = append(newFields, fields[1:]...)
-		return filepath.Join(newFields...), nil
+		expanded = filepath.Join(newFields...)
 	}
 
-	return pth, nil
+	return filepath.Abs(expanded)
 }
