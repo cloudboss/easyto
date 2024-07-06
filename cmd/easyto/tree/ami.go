@@ -116,19 +116,20 @@ func init() {
 		fmt.Fprintf(os.Stderr, "Unable to get absolute path of asset directory: %s\n", err)
 		os.Exit(1)
 	}
-
 	packerDir, err := filepath.Abs(filepath.Join(filepath.Dir(this), "..", "packer"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to get absolute path of packer directory: %s\n", err)
 		os.Exit(1)
 	}
-	amiCfg.packerDir = packerDir
 
 	amiCmd.Flags().StringVarP(&amiCfg.amiName, "ami-name", "a", "", "Name of the AMI.")
 	amiCmd.MarkFlagRequired("ami-name")
 
 	amiCmd.Flags().StringVarP(&amiCfg.assetDir, "asset-directory", "A", assetDir,
 		"Path to a directory containing asset files.")
+
+	amiCmd.Flags().StringVarP(&amiCfg.packerDir, "packer-directory", "P", packerDir,
+		"Path to a directory containing packer and its configuration.")
 
 	amiCmd.Flags().StringVarP(&amiCfg.containerImage, "container-image", "c", "",
 		"Name of the container image.")
