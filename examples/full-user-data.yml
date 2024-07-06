@@ -1,0 +1,64 @@
+args: []
+command:
+  - /application
+  - start
+debug: true
+disable-services:
+  - ssh
+env:
+  - name: ABC
+    value: XYZ
+env-from:
+  s3:
+    bucket: cherk-twirm-muttle
+    key: zomple.json
+  s3:
+    bucket: verk-bibe-boff
+    key: whirm/chix/jom
+    base64-encode: true
+    name: WHIRM_CHIX_JOM
+  ssm:
+    path: /thork/database/credentials
+  secrets-manager:
+    secret-id: pleam-license
+    name: PLEAM_LICENSE
+init-scripts:
+  - |
+    #!/.easyto/bin/busybox sh
+    bb=/.easyto/bin/busybox
+    ${bb} echo "Running init script A"
+  - |
+    #!/.easyto/bin/busybox sh
+    bb=/.easyto/bin/busybox
+    ${bb} echo "Running init script B"
+replace-init: false
+security:
+  readonly-root-fs: true
+  run-as-user-id: 123
+  run-as-group-id: 123
+shutdown-grace-period: 5
+sysctls:
+  - name: net.ipv4.ip_forward
+    value: "1"
+volumes:
+  - s3:
+      bucket: keam-flook-stowl
+      key-prefix: clow
+      mount:
+        destination: /clow
+  - secrets-manager:
+      secret-id: whep-blird
+      mount:
+        destination: /application/blird
+  - ssm:
+      path: /hangle/juffin
+      mount:
+        destination: /run/hangle/juffin
+        group-id: 4222
+        user-id: 4222
+  - ebs:
+      device: /dev/sdb
+      fs-type: btrfs
+      mount:
+        destination: /application/state
+working-dir: /application

@@ -1,0 +1,14 @@
+command:
+  - /application
+  - start
+env:
+  - name: A
+    value: B
+volumes:
+  - ebs:
+      # Assume a device with name /dev/sdb was added
+      # to the instance's block device mapping.
+      device: /dev/sdb
+      fs-type: btrfs
+      mount:
+        destination: /data
