@@ -32,6 +32,15 @@ var (
 			}
 			amiCfg.assetDir = assetDir
 
+			packerDir, err := expandPath(amiCfg.packerDir)
+			if err != nil {
+				return fmt.Errorf("failed to expand packer directory path: %w", err)
+			}
+			if _, err = os.Stat(packerDir); os.IsNotExist(err) {
+				return fmt.Errorf("packer directory does not exist: %s", packerDir)
+			}
+			amiCfg.packerDir = packerDir
+
 			return vmspec.ValidateServices(amiCfg.services)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -110,7 +119,8 @@ func init() {
 
 	packerDir, err := filepath.Abs(filepath.Join(filepath.Dir(this), "..", "packer"))
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "Unable to get absolute path of packer directory: %s\n", err)
+		os.Exit(1)
 	}
 	amiCfg.packerDir = packerDir
 
