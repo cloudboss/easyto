@@ -8,6 +8,8 @@ It creates a temporary EC2 AMI build instance[^1] with an EBS volume attached. T
 
 The `metadata.json` from the container image is written into the AMI so init will know what command to start on boot, and behave as specified in the Dockerfile. The command can be overridden, much like you can with docker or Kubernetes. This is accomplished with a custom [EC2 user data](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-add-user-data.html) format [defined below](#user-data) that is intended to be similar to a Kubernetes pod definition.
 
+[![Screencast](https://img.youtube.com/vi/lruK2WOWa-o/0.jpg)](https://www.youtube.com/watch?v=lruK2WOWa-o)
+
 ## Installing
 
 Download the release and unpack it. The `easyto` binary lives in the `bin` subdirectory and runs directly from there.
