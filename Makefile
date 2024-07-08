@@ -528,7 +528,9 @@ $(DIR_RELEASE)/easyto-$(VERSION)-$(OS)-$(ARCH).tar.gz: $(HAS_COMMAND_FAKEROOT) p
 		$(DIR_RELEASE_BIN)/easyto
 	@[ -n "$(VERSION)" ] || (echo "VERSION is required"; exit 1)
 	@cd $(DIR_RELEASE) && \
-		fakeroot tar czf $(DIR_ROOT)/$(DIR_RELEASE)/easyto-$(VERSION)-$(OS)-$(ARCH).tar.gz assets bin packer
+		fakeroot tar -cz \
+			--xform "s|^|easyto-$(VERSION)/|" \
+			-f $(DIR_ROOT)/$(DIR_RELEASE)/easyto-$(VERSION)-$(OS)-$(ARCH).tar.gz assets bin packer
 
 $(DIR_RELEASE_BIN)/easyto: $(DIR_OSARCH_BUILD)/easyto
 	@$(MAKE) $(DIR_RELEASE_BIN)/
