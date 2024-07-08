@@ -87,13 +87,13 @@ See the [examples](./examples) folder for more.
 
 The full specification is as follows:
 
-`args`: (Optional, type _list of string_, default is dependent on the image and the value of `command`) - Arguments to `command`. If `args` is not defined in user data, it defaults to the container image [cmd](https://docs.docker.com/reference/dockerfile/#cmd), unless `command` is defined in user data, in which case it defaults to an empty list.
+`args`: (Optional, type _list_ of _string_, default is dependent on the image and the value of `command`) - Arguments to `command`. If `args` is not defined in user data, it defaults to the container image [cmd](https://docs.docker.com/reference/dockerfile/#cmd), unless `command` is defined in user data, in which case it defaults to an empty list.
 
-`command`: (Optional, type _list of string_, default is the image [entrypoint](https://docs.docker.com/reference/dockerfile/#entrypoint), if defined) - Override of the image's entrypoint.
+`command`: (Optional, type _list_ of _string_, default is the image [entrypoint](https://docs.docker.com/reference/dockerfile/#entrypoint), if defined) - Override of the image's entrypoint.
 
 `debug`: (Optional, type _bool_, default `false`) - Whether or not to enable debug logging.
 
-`disable-services`: (Optional, type _list of _string_, default `[]`) - A list of services to disable at runtime if they were included in the image, e.g. with `easyto ami --services=[...]`.
+`disable-services`: (Optional, type _list_ of _string_, default `[]`) - A list of services to disable at runtime if they were included in the image, e.g. with `easyto ami --services=[...]`.
 
 `env`: (Optional, type _list_ of [_name-value_](#name-value-object) objects, default `[]`) - The names and values of environment variables to be passed to `command`.
 
@@ -220,7 +220,7 @@ The following sources are available for environment variables. Each can be speci
 > [!NOTE]
 > The EC2 instance must have an instance profile with permission to call `s3:GetObject` and  `s3:ListObjects`.
 
-An S3 volume is a pseudo-volume, as the parameters from S3 are copied as files to the object's `mount.destination` one time on boot. The owner and group of the files defaults to `security.run-as-user` and `security.run-as-group` unless explicitly specified in the volume's `mount.user-id` and `mount.group-id`.
+An S3 volume is a pseudo-volume, as the parameters from S3 are copied as files to the object's `mount.destination` one time on boot. The owner and group of the files defaults to `security.run-as-user-id` and `security.run-as-group-id` unless explicitly specified in the volume's `mount.user-id` and `mount.group-id`.
 
 `bucket`: (Required, type _string_) - Name of the S3 bucket.
 
@@ -238,7 +238,7 @@ An S3 volume is a pseudo-volume, as the parameters from S3 are copied as files t
 > [!NOTE]
 > The EC2 instance must have an instance profile with permission to call `ssm:GetParameter`, `ssm:GetParametersByPath`, and `kms:Decrypt` for the KMS key used to encrypt the parameter if they are of type `SecureString` and a customer-managed key was used.
 
-An SSM volume is a pseudo-volume, as the parameters from SSM Parameter Store are copied as files to the object's `mount.destination` one time on boot. Any updates to the parameters would require a reboot to get the new values. The files are always written with permissions of `0600`, even if the parameters are not of type `SecureString`. The owner and group of the files defaults to `security.run-as-user` and `security.run-as-group` unless explicitly specified in the volume's `mount.user-id` and `mount.group-id`.
+An SSM volume is a pseudo-volume, as the parameters from SSM Parameter Store are copied as files to the object's `mount.destination` one time on boot. Any updates to the parameters would require a reboot to get the new values. The files are always written with permissions of `0600`, even if the parameters are not of type `SecureString`. The owner and group of the files defaults to `security.run-as-user-id` and `security.run-as-group-id` unless explicitly specified in the volume's `mount.user-id` and `mount.group-id`.
 
 `path`: (Required, type _string_) - The SSM parameter path. If the path begins with `/` and has parameters below it, everything under it will be retrieved and stored in files named the same as the parameters under `mount.destination`, omitting the leading `path`. The SSM parameters can be nested, and those with child parameters will be used to create subdirectories below them. If `path` is the full path of a single parameter or does not begin with `/`, it must resolve to a single parameter, and `mount.destination` will be the file name on disk.
 
@@ -254,7 +254,7 @@ An SSM volume is a pseudo-volume, as the parameters from SSM Parameter Store are
 > [!NOTE]
 > The EC2 instance must have an instance profile with permission to call `secretsmanager:GetSecretValue`, and `kms:Decrypt` for the KMS key used to encrypt the secret if a customer-managed key was used.
 
-A Secrets Manager volume is a pseudo-volume, as the secret from Secrets Manager is copied as a file to the path defined in `mount.destination` one time on boot. Any updates to the secret would require a reboot to get the new value. The file is always written with a mode of `0600`. The owner and group of the file defaults to `security.run-as-user` and `security.run-as-group` unless explicitly specified in the volume's `mount.user-id` and `mount.group-id`.
+A Secrets Manager volume is a pseudo-volume, as the secret from Secrets Manager is copied as a file to the path defined in `mount.destination` one time on boot. Any updates to the secret would require a reboot to get the new value. The file is always written with a mode of `0600`. The owner and group of the file defaults to `security.run-as-user-id` and `security.run-as-group-id` unless explicitly specified in the volume's `mount.user-id` and `mount.group-id`.
 
 `mount`: (Required, type [_mount_](#mount-object) object) - Configuration of the destination for the secret.
 
@@ -266,13 +266,13 @@ A Secrets Manager volume is a pseudo-volume, as the secret from Secrets Manager 
 
 `destination`: (Required, type _string_) - The mount destination. This may be a file or a directory depending on the configuration of the volume.
 
-`group-id`: (Optional, type _int_, default `0`) - The group ID of the destination.
+`group-id`: (Optional, type _int_, default is the value of `security.run-as-group-id`) - The group ID of the destination.
 
 `mode`: (Optional, type _string_, default `0755`) - The mode of the destination.
 
 `options`: (Optional, type _list_ of _string_, default `[]`) - Options for filesystem mounting, dependent on the filesystem type. These are the options that would be passed to the `mount` command with `-o`.
 
-`user-id`: (Optional, type _int_, default `0`) - The user ID of the destination.
+`user-id`: (Optional, type _int_, default is the value of `security.run-as-user-id`) - The user ID of the destination.
 
 ## System services
 
