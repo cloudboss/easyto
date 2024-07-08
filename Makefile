@@ -175,7 +175,7 @@ $(DIR_INIT_STG)/$(DIR_ET)/sbin/mkfs.btrfs: $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btr
 $(DIR_OUT)/$(BTRFSPROGS_SRC)/mkfs.btrfs.static: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(BTRFSPROGS_SRC) \
 		$(DIR_OUT)/$(DIR_BTRFS_DEPS)/lib/libblkid.a \
 		hack/compile-btrfsprogs-ctr
-	@docker run -it \
+	@docker run --rm -t \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(BTRFSPROGS_SRC):/code \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(DIR_BTRFS_DEPS):/$(DIR_BTRFS_DEPS) \
 		-v $(DIR_ROOT)/hack/functions:/functions \
@@ -193,7 +193,7 @@ $(DIR_OUT)/$(BTRFSPROGS_ARCHIVE): $(HAS_COMMAND_CURL)
 
 $(DIR_OUT)/$(E2FSPROGS_SRC)/misc/mke2fs $(DIR_OUT)/$(E2FSPROGS_SRC)/resize/resize2fs &: $(HAS_IMAGE_LOCAL) \
 		$(DIR_OUT)/$(E2FSPROGS_SRC) hack/compile-e2fsprogs-ctr
-	@docker run -it \
+	@docker run --rm -t \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(E2FSPROGS_SRC):/code \
 		-e LDFLAGS="-s -static" \
 		-w /code \
@@ -224,7 +224,7 @@ $(DIR_INIT_STG)/$(DIR_ET)/sbin/init: $(HAS_IMAGE_LOCAL) \
 		$(shell find cmd/initial -type f -path '*.go' ! -path '*_test.go') \
 		$(shell find pkg -type f -path '*.go' ! -path '*_test.go')
 	@$(MAKE) $(DIR_INIT_STG)/$(DIR_ET)/sbin/
-	@docker run -it \
+	@docker run --rm -t \
 		-v $(DIR_ROOT):/code \
 		-v $(DIR_ROOT)/$(DIR_INIT_STG):/install \
 		-e OPENSSH_PRIVSEP_DIR=$(OPENSSH_PRIVSEP_DIR) \
@@ -247,7 +247,7 @@ $(DIR_KERNEL_STG)/boot/vmlinuz-$(KERNEL_VERSION): $(HAS_IMAGE_LOCAL) \
 		kernel/config \
 		hack/compile-kernel-ctr
 	@$(MAKE) $(DIR_KERNEL_STG)/boot/ $(DIR_KERNEL_STG)/$(DIR_ET)/
-	@docker run -it \
+	@docker run --rm -t \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(KERNEL_SRC):/code \
 		-v $(DIR_ROOT)/$(DIR_KERNEL_STG):/install \
 		-v $(DIR_ROOT)/kernel/config:/config \
@@ -283,7 +283,7 @@ $(DIR_OUT)/$(DIR_BTRFS_DEPS)/sbin/blkid.static $(DIR_OUT)/$(DIR_BTRFS_DEPS)/lib/
 		$(DIR_OUT)/$(UTIL_LINUX_SRC) \
 		hack/compile-blkid-ctr
 	@$(MAKE) $(DIR_OUT)/$(DIR_BTRFS_DEPS)/
-	@docker run -it \
+	@docker run --rm -t \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(UTIL_LINUX_SRC):/code \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(DIR_BTRFS_DEPS):/$(DIR_BTRFS_DEPS) \
 		-e DIR_BTRFS_DEPS=/$(DIR_BTRFS_DEPS) \
@@ -303,7 +303,7 @@ $(DIR_CHRONY_STG)/$(DIR_ET)/bin/chronyc: $(DIR_OUT)/$(CHRONY_SRC)/chronyd $(VAR_
 
 $(DIR_OUT)/$(CHRONY_SRC)/chronyd: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(CHRONY_SRC) $(VAR_DIR_ET) \
 		hack/compile-chrony-ctr
-	@docker run -it \
+	@docker run --rm -t \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(CHRONY_SRC):/code \
 		-e CHRONY_USER=$(CHRONY_USER) \
 		-e CHRONYRUNDIR=/$(DIR_ET)/run/chrony \
@@ -354,7 +354,7 @@ $(DIR_SSH_STG)/$(DIR_ET)/services/ssh: $(VAR_DIR_ET)
 $(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libz.a: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(ZLIB_SRC) \
 		hack/compile-zlib-ctr
 	@$(MAKE) $(DIR_OUT)/$(DIR_OPENSSH_DEPS)/
-	@docker run -it \
+	@docker run --rm -t \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(ZLIB_SRC):/code \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(DIR_OPENSSH_DEPS):/$(DIR_OPENSSH_DEPS) \
 		-e DIR_OPENSSH_DEPS=/$(DIR_OPENSSH_DEPS) \
@@ -363,7 +363,7 @@ $(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libz.a: $(HAS_IMAGE_LOCAL) $(DIR_OUT)/$(ZLIB_
 
 $(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libcrypto.a: $(DIR_OUT)/$(OPENSSL_SRC) \
 		$(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libz.a hack/compile-openssl-ctr
-	@docker run -it \
+	@docker run --rm -t \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(OPENSSL_SRC):/code \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(DIR_OPENSSH_DEPS):/$(DIR_OPENSSH_DEPS) \
 		-e DIR_OPENSSH_DEPS=/$(DIR_OPENSSH_DEPS) \
@@ -373,7 +373,7 @@ $(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libcrypto.a: $(DIR_OUT)/$(OPENSSL_SRC) \
 $(DIR_OUT)/$(OPENSSH_SRC)/sshd: $(DIR_OUT)/$(OPENSSH_SRC) $(VAR_DIR_ET) \
 		$(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libcrypto.a \
 		$(DIR_OUT)/$(DIR_OPENSSH_DEPS)/lib/libz.a hack/compile-openssh-ctr
-	@docker run -it \
+	@docker run --rm -t \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(OPENSSH_SRC):/code \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(DIR_OPENSSH_DEPS):/$(DIR_OPENSSH_DEPS) \
 		-e OPENSSH_DEFAULT_PATH=$(OPENSSH_DEFAULT_PATH) \
@@ -385,7 +385,7 @@ $(DIR_OUT)/$(OPENSSH_SRC)/sshd: $(DIR_OUT)/$(OPENSSH_SRC) $(VAR_DIR_ET) \
 	@touch $(DIR_OUT)/$(OPENSSH_SRC)/sshd
 
 $(DIR_OUT)/$(SUDO_SRC)/src/sudo: $(DIR_OUT)/$(SUDO_SRC) $(VAR_DIR_ET) hack/compile-sudo-ctr
-	@docker run -it \
+	@docker run --rm -t \
 		-v $(DIR_ROOT)/$(DIR_OUT)/$(SUDO_SRC):/code \
 		-e DIR_ET_ROOT=/$(DIR_ET) \
 		-w /code \
@@ -466,7 +466,7 @@ $(DIR_OUT)/ctr2disk: $(HAS_IMAGE_LOCAL) \
 		go.mod \
 		$(shell find cmd/ctr2disk -type f -path '*.go' ! -path '*_test.go') \
 		$(shell find pkg -type f -path '*.go' ! -path '*_test.go')
-	@docker run -it \
+	@docker run --rm -t \
 		-v $(DIR_ROOT):/code \
 		-e OPENSSH_PRIVSEP_DIR=$(OPENSSH_PRIVSEP_DIR) \
 		-e OPENSSH_PRIVSEP_USER=$(OPENSSH_PRIVSEP_USER) \
@@ -547,7 +547,7 @@ $(DIR_OSARCH_BUILD)/easyto: $(HAS_IMAGE_LOCAL) \
 		go.mod \
 		$(shell find cmd/easyto -type f -path '*.go' ! -path '*_test.go')
 	@[ -d $(DIR_OSARCH_BUILD) ] || mkdir -p $(DIR_OSARCH_BUILD)
-	@docker run -it \
+	@docker run --rm -t \
 		-v $(DIR_ROOT):/code \
 		-e DIR_ET_ROOT=/$(DIR_ET) \
 		-e DIR_OUT=/code/$(DIR_OUT)/osarch/$(OS)/$(ARCH) \
