@@ -141,13 +141,17 @@ assets-kernel: $(DIR_RELEASE_ASSETS)/kernel.tar
 
 release-one: $(DIR_RELEASE)/easyto-$(VERSION)-$(OS)-$(ARCH).tar.gz
 
-release:
-	for os in linux darwin; do \
-		for arch in amd64 arm64; do \
-			$(MAKE) $(DIR_OUT)/release/$${os}/$${arch}/easyto-$(VERSION)-$${os}-$${arch}.tar.gz \
-				OS=$${os} ARCH=$${arch}; \
-		done; \
-	done
+release-linux-%:
+	$(MAKE) OS=linux ARCH=$* VERSION=$(VERSION) release-one
+
+release-darwin-%:
+	$(MAKE) OS=darwin ARCH=$* VERSION=$(VERSION) release-one
+
+release-windows-%:
+	$(MAKE) OS=windows ARCH=$* VERSION=$(VERSION) release-one
+
+release: release-linux-amd64 release-linux-arm64 release-darwin-amd64 \
+		release-darwin-arm64 release-windows-amd64
 
 $(DIR_BOOTLOADER_TMP)/data.tar.xz: $(HAS_COMMAND_AR) $(HAS_COMMAND_XZCAT) \
 		$(DIR_OUT)/$(SYSTEMD_BOOT_ARCHIVE)
