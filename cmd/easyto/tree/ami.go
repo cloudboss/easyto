@@ -109,14 +109,21 @@ func init() {
 
 	this, err := os.Executable()
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "Unable to get executable path: %s\n", err)
+		os.Exit(1)
 	}
-	assetDir, err := filepath.Abs(filepath.Join(filepath.Dir(this), "..", "assets"))
+	// In case we are a symlink, get the real path.
+	realThis, err := filepath.EvalSymlinks(this)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to get real path of executable: %s\n", err)
+		os.Exit(1)
+	}
+	assetDir, err := filepath.Abs(filepath.Join(filepath.Dir(realThis), "..", "assets"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to get absolute path of asset directory: %s\n", err)
 		os.Exit(1)
 	}
-	packerDir, err := filepath.Abs(filepath.Join(filepath.Dir(this), "..", "packer"))
+	packerDir, err := filepath.Abs(filepath.Join(filepath.Dir(realThis), "..", "packer"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to get absolute path of packer directory: %s\n", err)
 		os.Exit(1)
