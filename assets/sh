@@ -1,3 +1,0 @@
-#!/__ROOT_DIR__/bin/busybox sh
-
-exec /__ROOT_DIR__/bin/busybox sh --noprofile ${@}

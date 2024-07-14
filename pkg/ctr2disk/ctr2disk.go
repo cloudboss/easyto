@@ -37,6 +37,7 @@ const (
 	pathPrefixKernel = "./boot/vmlinuz-"
 	pathProcNetPNP   = constants.DirProc + "/net/pnp"
 
+	archiveBase       = "base.tar"
 	archiveBootloader = "boot.tar"
 	archiveChrony     = "chrony.tar"
 	archiveInit       = "init.tar"
@@ -127,6 +128,7 @@ type Builder struct {
 	Debug         bool
 
 	kernelVersion  string
+	pathBase       string
 	pathBootloader string
 	pathChrony     string
 	pathInit       string
@@ -194,6 +196,7 @@ func NewBuilder(opts ...BuilderOpt) (*Builder, error) {
 		return nil, errors.New("asset directory must be defined")
 	}
 
+	builder.pathBase = filepath.Join(builder.AssetDir, archiveBase)
 	builder.pathBootloader = filepath.Join(builder.AssetDir, archiveBootloader)
 	builder.pathChrony = filepath.Join(builder.AssetDir, archiveChrony)
 	builder.pathKernel = filepath.Join(builder.AssetDir, archiveKernel)
@@ -234,12 +237,17 @@ func (b *Builder) MakeVMImage() (err error) {
 		return err
 	}
 
-	err = b.setupBootloader()
+	err = untarFile(b.pathBase, b.VMImageMount)
 	if err != nil {
 		return err
 	}
 
-	err = b.setupInit()
+	err = untarFile(b.pathInit, b.VMImageMount)
+	if err != nil {
+		return err
+	}
+
+	err = b.setupBootloader()
 	if err != nil {
 		return err
 	}
@@ -309,10 +317,6 @@ func (b *Builder) setupBootloader() error {
 	}
 
 	return nil
-}
-
-func (b *Builder) setupInit() error {
-	return untarFile(b.pathInit, b.VMImageMount)
 }
 
 func (b *Builder) setupKernel() error {
