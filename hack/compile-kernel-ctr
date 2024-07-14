@@ -1,9 +1,0 @@
-#!/bin/sh
-
-set -e
-
-diff /config .config || cp /config .config && \
-    make olddefconfig && \
-    make -j$(nproc) && \
-    make modules_install INSTALL_MOD_STRIP=1 && \
-    make install

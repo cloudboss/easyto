@@ -1,7 +1,0 @@
-#!/bin/sh
-
-set -e
-
-./configure --prefix=${DIR_OPENSSH_DEPS} --static && \
-    make -j$(nproc) && \
-    make install
