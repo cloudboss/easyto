@@ -162,6 +162,10 @@ $(DIR_RELEASE)/easyto-$(VERSION)-$(OS)-$(ARCH).tar.gz: \
 		--xform "s|^|easyto-$(VERSION)/|" \
 		-f $(DIR_ROOT)/$(DIR_RELEASE)/easyto-$(VERSION)-$(OS)-$(ARCH).tar.gz assets bin packer
 
+test:
+	go vet -v ./...
+	go test -v ./...
+
 release-one: $(DIR_RELEASE)/easyto-$(VERSION)-$(OS)-$(ARCH).tar.gz
 
 release-linux-%:
@@ -181,6 +185,7 @@ clean:
 	@chmod -R +w $(DIR_OUT)/go
 	@rm -rf $(DIR_OUT)
 
-.PHONY: release-one release-linux-amd64 release-linux-arm64 \
+.PHONY: test release-one \
+	release-linux-amd64 release-linux-arm64 \
 	release-darwin-amd64 release-darwin-arm64 \
 	release-windows-amd64 release clean
