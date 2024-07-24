@@ -87,15 +87,15 @@ See the [examples](./examples) folder for more.
 
 The full specification is as follows:
 
-`args`: (Optional, type _list_ of _string_, default is dependent on the image and the value of `command`) - Arguments to `command`. If `args` is not defined in user data, it defaults to the container image [cmd](https://docs.docker.com/reference/dockerfile/#cmd), unless `command` is defined in user data, in which case it defaults to an empty list.
+`args`: (Optional, type _list_ of _string_, default is dependent on the image and the value of `command`) - Arguments to `command`. If `args` is not defined in user data, it defaults to the container image [cmd](https://docs.docker.com/reference/dockerfile/#cmd), unless `command` is defined in user data, in which case it defaults to an empty list. Elements in the list can refer to variables defined in `env` and `env-from` (see [variable expansion](#variable-expansion)).
 
-`command`: (Optional, type _list_ of _string_, default is the image [entrypoint](https://docs.docker.com/reference/dockerfile/#entrypoint), if defined) - Override of the image's entrypoint.
+`command`: (Optional, type _list_ of _string_, default is the image [entrypoint](https://docs.docker.com/reference/dockerfile/#entrypoint), if defined) - Override of the image's entrypoint. Elements in the list can refer to variables defined in `env` and `env-from` (see [variable expansion](#variable-expansion)).
 
 `debug`: (Optional, type _bool_, default `false`) - Whether or not to enable debug logging.
 
 `disable-services`: (Optional, type _list_ of _string_, default `[]`) - A list of services to disable at runtime if they were included in the image, e.g. with `easyto ami --services=[...]`.
 
-`env`: (Optional, type _list_ of [_name-value_](#name-value-object) objects, default `[]`) - The names and values of environment variables to be passed to `command`.
+`env`: (Optional, type _list_ of [_name-value_](#name-value-object) objects, default `[]`) - The names and values of environment variables to be passed to `command`. Values can refer to variables defined in `env` and `env-from` (see [variable expansion](#variable-expansion)).
 
 `env-from`: (Optional, type _list_ of [_env-from_](#env-from-object) objects, default `[]`) - Environment variables to be passed to `command`, to be retrieved from the given sources.
 
@@ -273,6 +273,52 @@ A Secrets Manager volume is a pseudo-volume, as the secret from Secrets Manager 
 `options`: (Optional, type _list_ of _string_, default `[]`) - Options for filesystem mounting, dependent on the filesystem type. These are the options that would be passed to the `mount` command with `-o`.
 
 `user-id`: (Optional, type _int_, default is the value of `security.run-as-user-id`) - The user ID of the destination.
+
+#### Variable expansion
+
+In environment variables, commands, and arguments, other variables can be referenced by using the syntax `$(VAR)`.
+
+To escape variables and prevent expansion, use double `$` characters; `$$(VAR)` will be passed as `$(VAR)`.
+
+Variables do not expand recursively. References to variables containing other variables will expand to their initial value, not the value after expansion.
+
+Variables that are not found will be passed as-is with no attempt to expand them.
+
+Example with a command:
+
+```
+command:
+  - /application
+  - -a
+  - $(abc)
+env:
+  - name: abc
+    value: xyz
+```
+
+Example with multiple references:
+
+```
+env:
+  - name: ABC
+    value: 123
+  - name: DEF
+    value: 456
+  - name: GHI
+    value: $(ABC) and $(DEF)
+```
+
+Example with an environment variable referencing another resolved with `env-from`:
+
+```
+env:
+  - name: PGPASSWORD
+    # password resolved from ssm
+    value: $(password)
+env-from:
+  - secrets-manager:
+      secret-id: /database/abc/credentials
+```
 
 ## System services
 

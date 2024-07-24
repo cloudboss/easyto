@@ -114,6 +114,15 @@ func (n NameValueSource) Find(key string) (string, int) {
 	return "", -1
 }
 
+// ToMap converts a NameValueSource to a map[string]string.
+func (n NameValueSource) ToMap() map[string]string {
+	m := map[string]string{}
+	for _, item := range n {
+		m[item.Name] = item.Value
+	}
+	return m
+}
+
 type nameValueTransformer struct{}
 
 // Transformer merges NameValueSource types. Values from src override values from dst if

@@ -21,6 +21,7 @@ import (
 	"github.com/cloudboss/easyto/pkg/initial/aws"
 	"github.com/cloudboss/easyto/pkg/initial/service"
 	"github.com/cloudboss/easyto/pkg/initial/vmspec"
+	"github.com/cloudboss/easyto/third_party/forked/golang/expansion"
 	"github.com/google/go-containerregistry/pkg/v1"
 	"github.com/spf13/afero"
 	"golang.org/x/sys/unix"
@@ -383,10 +384,10 @@ func readMetadata(metadataPath string) (*v1.ConfigFile, error) {
 	return metadata, nil
 }
 
-func fullCommand(spec *vmspec.VMSpec) ([]string, error) {
-	ex := append(spec.Command, spec.Args...)
-	if ex == nil {
-		ex = []string{"/bin/sh"}
+func fullCommand(spec *vmspec.VMSpec, env vmspec.NameValueSource) ([]string, error) {
+	exe := append(spec.Command, spec.Args...)
+	if exe == nil {
+		exe = []string{"/bin/sh"}
 	}
 
 	pathEnv := pathEnvDefault
@@ -394,14 +395,22 @@ func fullCommand(spec *vmspec.VMSpec) ([]string, error) {
 		pathEnv = pathVMSpec
 	}
 
-	if !strings.HasPrefix(ex[0], constants.DirRoot) {
-		executablePath, err := findExecutableInPath(ex[0], pathEnv)
+	if !strings.HasPrefix(exe[0], constants.DirRoot) {
+		executablePath, err := findExecutableInPath(exe[0], pathEnv)
 		if err != nil {
 			return nil, err
 		}
-		ex[0] = executablePath
+		exe[0] = executablePath
 	}
-	return ex, nil
+
+	// Expand $(VAR) references from the environment.
+	resolvedExe := make([]string, len(exe))
+	mapping := expansion.MappingFuncFor(env.ToMap())
+	for i, arg := range exe {
+		resolvedExe[i] = expansion.Expand(arg, mapping)
+	}
+
+	return resolvedExe, nil
 }
 
 // envToEnv converts an array of "key=value" strings to a NameValueSource.
@@ -873,6 +882,18 @@ func resolveSSMEnvFrom(conn aws.Connection, ssm *vmspec.SSMEnvSource) (vmspec.Na
 	return resolveEnvFrom(ssm.Name, ssm.Base64Encode, bg, mg)
 }
 
+func expandEnv(env, resolvedEnv vmspec.NameValueSource) vmspec.NameValueSource {
+	nvs := make(vmspec.NameValueSource, len(env))
+	mappingFunc := expansion.MappingFuncFor(env.ToMap(), resolvedEnv.ToMap())
+	i := 0
+	for _, e := range env {
+		expanded := expansion.Expand(e.Value, mappingFunc)
+		nvs[i] = vmspec.NameValue{Name: e.Name, Value: expanded}
+		i++
+	}
+	return nvs
+}
+
 func resolveAllEnvs(conn aws.Connection, env vmspec.NameValueSource,
 	envFrom vmspec.EnvFromSource) (vmspec.NameValueSource, error) {
 	var (
@@ -914,10 +935,11 @@ func resolveAllEnvs(conn aws.Connection, env vmspec.NameValueSource,
 		return nil, errs
 	}
 
+	expandedEnv := expandEnv(env, resolvedEnv)
 	lenEnv := len(env)
 	allEnv := make(vmspec.NameValueSource, lenEnv+len(resolvedEnv))
 
-	for i, e := range env {
+	for i, e := range expandedEnv {
 		allEnv[i] = e
 	}
 
@@ -1084,16 +1106,16 @@ func Run() error {
 		}
 	}
 
-	command, err := fullCommand(spec)
-	if err != nil {
-		return err
-	}
-
 	resolvedEnv, err := resolveAllEnvs(conn, spec.Env, spec.EnvFrom)
 	if err != nil {
 		return fmt.Errorf("unable to resolve all environment variables: %w", err)
 	}
 	env := resolvedEnv.ToStrings()
+
+	command, err := fullCommand(spec, resolvedEnv)
+	if err != nil {
+		return err
+	}
 
 	err = <-writeInitScriptsErrC
 	if err != nil {

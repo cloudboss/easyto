@@ -482,6 +482,122 @@ func Test_resolveAllEnvs(t *testing.T) {
 			},
 			err: nil,
 		},
+		{
+			description: "Expand variables within values",
+			env: vmspec.NameValueSource{
+				{
+					Name:  "ENV",
+					Value: "value",
+				},
+				{
+					Name:  "EXPAND_ENV",
+					Value: "$(ENV)",
+				},
+				{
+					Name:  "ESCAPED",
+					Value: "$$(ENV)",
+				},
+				{
+					Name:  "NOT_FOUND",
+					Value: "$(NOT_FOUND)",
+				},
+				{
+					Name:  "NO_EXPAND_EXPANDED",
+					Value: "$(EXPAND_ENV)",
+				},
+				{
+					Name:  "EXPAND_ASM",
+					Value: "$(ASM)",
+				},
+				{
+					Name:  "EXPAND_S3",
+					Value: "$(S3)",
+				},
+				{
+					Name:  "EXPAND_SSM",
+					Value: "$(SSM)",
+				},
+				{
+					Name:  "EXPAND_MULTIPLE",
+					Value: "ENV: $(ENV), ASM: $(ASM), S3: $(S3), SSM: $(SSM)",
+				},
+			},
+			envFrom: vmspec.EnvFromSource{
+				{
+					SecretsManager: &vmspec.SecretsManagerEnvSource{
+						Base64Encode: true,
+						SecretID:     "secret-id",
+						Name:         "ASM",
+					},
+				},
+				{
+					S3: &vmspec.S3EnvSource{
+						Base64Encode: true,
+						Bucket:       "thebucket",
+						Key:          "/aaaaa",
+						Name:         "S3",
+					},
+				},
+				{
+					SSM: &vmspec.SSMEnvSource{
+						Base64Encode: true,
+						Path:         "/bbbbb",
+						Name:         "SSM",
+					},
+				},
+			},
+			result: vmspec.NameValueSource{
+				{
+					Name:  "ENV",
+					Value: "value",
+				},
+				{
+					Name:  "EXPAND_ENV",
+					Value: "value",
+				},
+				{
+					Name:  "ESCAPED",
+					Value: "$(ENV)",
+				},
+				{
+					Name:  "NOT_FOUND",
+					Value: "$(NOT_FOUND)",
+				},
+				{
+					Name:  "NO_EXPAND_EXPANDED",
+					Value: "$(ENV)",
+				},
+				{
+					Name:  "EXPAND_ASM",
+					Value: "VHdvIGJlZm9yZSBuYXJyb3cgbm90IHJlbGllZCBob3cgZXhjZXB0IG1vbWVudCBteXNlbGY=",
+				},
+				{
+					Name:  "EXPAND_S3",
+					Value: "SGFkIGRlbm90aW5nIHByb3Blcmx5IGpvaW50dXJlIHlvdSBvY2Nhc2lvbiBkaXJlY3RseSByYWlsbGVyeQ==",
+				},
+				{
+					Name:  "EXPAND_SSM",
+					Value: "T2NjYXNpb25hbCBtaWRkbGV0b25zIGV2ZXJ5dGhpbmcgc28gdG8=",
+				},
+				{
+					Name:  "EXPAND_MULTIPLE",
+					Value: "ENV: value, ASM: VHdvIGJlZm9yZSBuYXJyb3cgbm90IHJlbGllZCBob3cgZXhjZXB0IG1vbWVudCBteXNlbGY=, S3: SGFkIGRlbm90aW5nIHByb3Blcmx5IGpvaW50dXJlIHlvdSBvY2Nhc2lvbiBkaXJlY3RseSByYWlsbGVyeQ==, SSM: T2NjYXNpb25hbCBtaWRkbGV0b25zIGV2ZXJ5dGhpbmcgc28gdG8=",
+				},
+				{
+					Name:  "ASM",
+					Value: "VHdvIGJlZm9yZSBuYXJyb3cgbm90IHJlbGllZCBob3cgZXhjZXB0IG1vbWVudCBteXNlbGY=",
+				},
+				{
+					Name:  "S3",
+					Value: "SGFkIGRlbm90aW5nIHByb3Blcmx5IGpvaW50dXJlIHlvdSBvY2Nhc2lvbiBkaXJlY3RseSByYWlsbGVyeQ==",
+				},
+				{
+					Name:  "SSM",
+					Value: "T2NjYXNpb25hbCBtaWRkbGV0b25zIGV2ZXJ5dGhpbmcgc28gdG8=",
+				},
+			},
+			err: nil,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
