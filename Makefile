@@ -70,6 +70,7 @@ $(DIR_STG_INIT)/$(DIR_ET)/sbin/init: \
 		go.mod \
 		$(shell find cmd/initial -type f -path '*.go' ! -path '*_test.go') \
 		$(shell find pkg -type f -path '*.go' ! -path '*_test.go') \
+		$(shell find third_party -type f -path '*.go' ! -path '*_test.go') \
 		| $(HAS_IMAGE_LOCAL) $(VAR_DIR_ET) $(DIR_STG_INIT)/$(DIR_ET)/sbin/
 	@docker run --rm -t \
 		-v $(DIR_ROOT):/code \
@@ -163,6 +164,8 @@ $(DIR_RELEASE)/easyto-$(VERSION)-$(OS)-$(ARCH).tar.gz: \
 		-f $(DIR_ROOT)/$(DIR_RELEASE)/easyto-$(VERSION)-$(OS)-$(ARCH).tar.gz assets bin packer
 
 test:
+	go vet -v ./third_party/...
+	go test -v ./third_party/...
 	go vet -v ./...
 	go test -v ./...
 
