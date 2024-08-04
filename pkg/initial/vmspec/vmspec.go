@@ -176,13 +176,24 @@ type EnvFromSource []EnvFrom
 
 type EnvFrom struct {
 	Prefix         string                   `json:"prefix,omitempty"`
+	IMDS           *IMDSEnvSource           `json:"imds,omitempty"`
 	S3             *S3EnvSource             `json:"s3,omitempty"`
 	SecretsManager *SecretsManagerEnvSource `json:"secrets-manager,omitempty"`
 	SSM            *SSMEnvSource            `json:"ssm,omitempty"`
 }
 
 func (e *EnvFrom) Validate() error {
-	envNames := []string{}
+	var (
+		envNames []string
+		errs     error
+	)
+	if e.IMDS != nil {
+		if len(e.IMDS.Name) == 0 {
+			err := fmt.Errorf("imds name is required")
+			errs = errors.Join(errs, err)
+		}
+		envNames = append(envNames, "imds")
+	}
 	if e.S3 != nil {
 		envNames = append(envNames, "s3-object")
 	}
@@ -194,10 +205,20 @@ func (e *EnvFrom) Validate() error {
 	}
 	lenEnvNames := len(envNames)
 	if lenEnvNames > 1 {
-		return fmt.Errorf("expected 1 environment source, got %d: %s", lenEnvNames,
-			strings.Join(envNames, ", "))
+		err := fmt.Errorf("expected 1 environment source, got %d: %s",
+			lenEnvNames, strings.Join(envNames, ", "))
+		errs = errors.Join(errs, err)
+	}
+	if errs != nil {
+		return fmt.Errorf("env-from: %w", errs)
 	}
 	return nil
+}
+
+type IMDSEnvSource struct {
+	Name     string `json:"name,omitempty"`
+	Path     string `json:"path,omitempty"`
+	Optional bool   `json:"optional,omitempty"`
 }
 
 type S3EnvSource struct {

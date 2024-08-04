@@ -851,6 +851,15 @@ func resolveEnvFrom(name string, b64encode bool, bg bufGet, mg mapGet) (vmspec.N
 	return nvs, nil
 }
 
+func resolveIMDSEnvFrom(imds *vmspec.IMDSEnvSource) (vmspec.NameValueSource, error) {
+	value, err := aws.GetIMDS(imds.Path)
+	if err != nil {
+		return nil, err
+	}
+	nvs := vmspec.NameValueSource{vmspec.NameValue{Name: imds.Name, Value: value}}
+	return nvs, nil
+}
+
 func resolveS3EnvFrom(conn aws.Connection, s3 *vmspec.S3EnvSource) (vmspec.NameValueSource, error) {
 	bg := func() ([]byte, error) {
 		return conn.S3Client().GetObjectValue(s3.Bucket, s3.Key)
@@ -902,6 +911,15 @@ func resolveAllEnvs(conn aws.Connection, env vmspec.NameValueSource,
 	)
 
 	for _, e := range envFrom {
+		if e.IMDS != nil {
+			imdsEnv, err := resolveIMDSEnvFrom(e.IMDS)
+			if !(err == nil || e.IMDS.Optional) {
+				errs = errors.Join(errs, err)
+			}
+			if err == nil {
+				resolvedEnv = append(resolvedEnv, imdsEnv...)
+			}
+		}
 		if e.S3 != nil {
 			s3Env, err := resolveS3EnvFrom(conn, e.S3)
 			if !(err == nil || e.S3.Optional) {

@@ -133,11 +133,21 @@ The full specification is as follows:
 
 The following sources are available for environment variables. Each can be specified multiple times.
 
+`imds`: (Optional, type [_imds-env_](#imds-env-object) object) - Configuration for an [IMDS](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html) environment source.
+
 `s3`: (Optional, type [_s3-env_](#s3-env-object) object) - Configuration for an S3 environment source.
 
 `ssm`: (Optional, type [_ssm-env_](#ssm-env-object) object) - Configuration for an SSM environment source.
 
 `secrets-manager`: (Optional, type [_secrets-manager-env_](#secrets-manager-env-object) object) - Configuration for a Secrets Manager environment source.
+
+#### imds-env object
+
+`name`: (Required, type _string_) - The name of the environment variable.
+
+`path`: (Required, type _string_) - The path of the metadata value. Paths start after `/latest/meta-data`. A leading slash is not required. For example, to get the AWS region, use `placement/region`.
+
+`optional`: (Optional, type _bool_, default `false`) - Whether or not the variable is optional. If `true`, then a failure to fetch the value will not be treated as an error.
 
 #### s3-env object
 
@@ -289,11 +299,12 @@ Example with a command:
 ```
 command:
   - /application
-  - -a
-  - $(abc)
-env:
-  - name: abc
-    value: xyz
+  - --bind-address
+  - $(IPv4_ADDRESS):8080
+env-from:
+  - imds:
+      name: IPv4_ADDRESS
+      path: local-ipv4
 ```
 
 Example with multiple references:
