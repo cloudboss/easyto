@@ -535,3 +535,55 @@ func Test_VMSpec_Merge(t *testing.T) {
 		})
 	}
 }
+
+func Test_VMSpec_Validate(t *testing.T) {
+	testCases := []struct {
+		description string
+		orig        *VMSpec
+		other       *VMSpec
+		errMsg      *string
+	}{
+		{
+			description: "Null test case",
+			orig:        &VMSpec{},
+			other:       &VMSpec{},
+		},
+		{
+			description: "IMDS name required",
+			orig:        &VMSpec{},
+			other: &VMSpec{
+				EnvFrom: EnvFromSource{
+					{
+						IMDS: &IMDSEnvSource{},
+					},
+				},
+			},
+			errMsg: p("env-from: imds name is required"),
+		},
+		{
+			description: "Multiple sources and errors",
+			orig:        &VMSpec{},
+			other: &VMSpec{
+				EnvFrom: EnvFromSource{
+					{
+						IMDS: &IMDSEnvSource{},
+						S3:   &S3EnvSource{},
+					},
+				},
+			},
+			errMsg: p("env-from: imds name is required\nexpected 1 environment source, got 2: imds, s3-object"),
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			err := tc.orig.Merge(tc.other)
+			assert.NoError(t, err)
+			err = tc.orig.Validate()
+			if tc.errMsg != nil {
+				assert.EqualError(t, err, *tc.errMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

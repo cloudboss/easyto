@@ -15,6 +15,22 @@ var (
 	imdsClient = imds.New(imds.Options{})
 )
 
+func GetIMDS(path string) (string, error) {
+	resp, err := imdsClient.GetMetadata(context.Background(), &imds.GetMetadataInput{
+		Path: path,
+	})
+	if err != nil {
+		return "", fmt.Errorf("error getting %s from instance metadata: %w", path, err)
+	}
+
+	content, err := io.ReadAll(resp.Content)
+	if err != nil {
+		return "", fmt.Errorf("error reading the contents of %s: %w", path, err)
+	}
+
+	return string(content), nil
+}
+
 func GetUserData() (*vmspec.VMSpec, error) {
 	spec := &vmspec.VMSpec{}
 
