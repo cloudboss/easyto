@@ -115,115 +115,13 @@ func mounts() error {
 			target: constants.DirETRun,
 		},
 		{
-			source: "tmpfs",
-			flags:  syscall.MS_NODEV | syscall.MS_NOEXEC | syscall.MS_NOSUID,
-			fsType: "tmpfs",
+			source: "cgroup2",
+			flags:  syscall.MS_NODEV | syscall.MS_NOEXEC | syscall.MS_NOSUID | syscall.MS_RELATIME,
+			fsType: "cgroup2",
 			options: []string{
-				"mode=0755",
+				"nsdelegate",
 			},
 			target: "/sys/fs/cgroup",
-		},
-		{
-			source: "cgroup",
-			flags:  syscall.MS_NODEV | syscall.MS_NOEXEC | syscall.MS_NOSUID | syscall.MS_RELATIME,
-			fsType: "cgroup",
-			mode:   0555,
-			options: []string{
-				"net_cls",
-				"net_prio",
-			},
-			target: "/sys/fs/cgroup/net_cls,net_prio",
-		},
-		{
-			source: "cgroup",
-			flags:  syscall.MS_NODEV | syscall.MS_NOEXEC | syscall.MS_NOSUID | syscall.MS_RELATIME,
-			fsType: "cgroup",
-			mode:   0555,
-			options: []string{
-				"hugetlb",
-			},
-			target: "/sys/fs/cgroup/hugetlb",
-		},
-		{
-			source: "cgroup",
-			flags:  syscall.MS_NODEV | syscall.MS_NOEXEC | syscall.MS_NOSUID | syscall.MS_RELATIME,
-			fsType: "cgroup",
-			mode:   0555,
-			options: []string{
-				"pids",
-			},
-			target: "/sys/fs/cgroup/pids",
-		},
-		{
-			source: "cgroup",
-			flags:  syscall.MS_NODEV | syscall.MS_NOEXEC | syscall.MS_NOSUID | syscall.MS_RELATIME,
-			fsType: "cgroup",
-			mode:   0555,
-			options: []string{
-				"freezer",
-			},
-			target: "/sys/fs/cgroup/freezer",
-		},
-		{
-			source: "cgroup",
-			flags:  syscall.MS_NODEV | syscall.MS_NOEXEC | syscall.MS_NOSUID | syscall.MS_RELATIME,
-			fsType: "cgroup",
-			mode:   0555,
-			options: []string{
-				"cpu",
-				"cpuacct",
-			},
-			target: "/sys/fs/cgroup/cpu,cpuacct",
-		},
-		{
-			source: "cgroup",
-			flags:  syscall.MS_NODEV | syscall.MS_NOEXEC | syscall.MS_NOSUID | syscall.MS_RELATIME,
-			fsType: "cgroup",
-			mode:   0555,
-			options: []string{
-				"devices",
-			},
-			target: "/sys/fs/cgroup/devices",
-		},
-		{
-			source: "cgroup",
-			flags:  syscall.MS_NODEV | syscall.MS_NOEXEC | syscall.MS_NOSUID | syscall.MS_RELATIME,
-			fsType: "cgroup",
-			mode:   0555,
-			options: []string{
-				"blkio",
-			},
-			target: "/sys/fs/cgroup/blkio",
-		},
-		{
-			source: "cgroup",
-			flags:  syscall.MS_NODEV | syscall.MS_NOEXEC | syscall.MS_NOSUID | syscall.MS_RELATIME,
-			fsType: "cgroup",
-			mode:   0555,
-			options: []string{
-				"memory",
-			},
-			target: "/sys/fs/cgroup/memory",
-		},
-		{
-			source: "cgroup",
-			flags:  syscall.MS_NODEV | syscall.MS_NOEXEC | syscall.MS_NOSUID | syscall.MS_RELATIME,
-			fsType: "cgroup",
-			mode:   0555,
-			options: []string{
-				"perf_event",
-			},
-			target: "/sys/fs/cgroup/perf_event",
-		},
-		{
-			source: "cgroup",
-			flags:  syscall.MS_NODEV | syscall.MS_NOEXEC | syscall.MS_NOSUID | syscall.MS_RELATIME,
-			fsType: "cgroup",
-			mode:   0555,
-			options: []string{
-				"cpuset",
-			},
-			target: "/sys/fs/cgroup/cpuset",
 		},
 		{
 			source: "nodev",
