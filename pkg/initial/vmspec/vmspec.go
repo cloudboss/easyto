@@ -10,6 +10,10 @@ import (
 	"dario.cat/mergo"
 )
 
+const (
+	pathEnvDefault = "/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
+)
+
 var DefaultServices = []string{"chrony", "ssh"}
 
 type VMSpec struct {
@@ -43,6 +47,11 @@ func (v *VMSpec) Merge(other *VMSpec) error {
 }
 
 func (v *VMSpec) SetDefaults() {
+	_, i := v.Env.Find("PATH")
+	if i < 0 {
+		pathEnv := NameValue{Name: "PATH", Value: pathEnvDefault}
+		v.Env = append(v.Env, pathEnv)
+	}
 	if v.Security.RunAsGroupID == nil {
 		v.Security.RunAsGroupID = p(0)
 	}

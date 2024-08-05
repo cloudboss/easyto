@@ -18,6 +18,12 @@ func Test_VMSpec_Merge(t *testing.T) {
 			orig:        &VMSpec{},
 			other:       &VMSpec{},
 			expected: &VMSpec{
+				Env: NameValueSource{
+					{
+						Name:  "PATH",
+						Value: pathEnvDefault,
+					},
+				},
 				Security: SecurityContext{
 					RunAsGroupID: p(0),
 					RunAsUserID:  p(0),
@@ -33,6 +39,12 @@ func Test_VMSpec_Merge(t *testing.T) {
 			},
 			expected: &VMSpec{
 				Debug: true,
+				Env: NameValueSource{
+					{
+						Name:  "PATH",
+						Value: pathEnvDefault,
+					},
+				},
 				Security: SecurityContext{
 					RunAsGroupID: p(0),
 					RunAsUserID:  p(0),
@@ -47,6 +59,12 @@ func Test_VMSpec_Merge(t *testing.T) {
 			},
 			expected: &VMSpec{
 				ReplaceInit: true,
+				Env: NameValueSource{
+					{
+						Name:  "PATH",
+						Value: pathEnvDefault,
+					},
+				},
 				Security: SecurityContext{
 					RunAsGroupID: p(0),
 					RunAsUserID:  p(0),
@@ -66,6 +84,12 @@ func Test_VMSpec_Merge(t *testing.T) {
 			expected: &VMSpec{
 				Args:    []string{"xyz"},
 				Command: []string{"/usr/bin/abc"},
+				Env: NameValueSource{
+					{
+						Name:  "PATH",
+						Value: pathEnvDefault,
+					},
+				},
 				Security: SecurityContext{
 					RunAsGroupID: p(0),
 					RunAsUserID:  p(0),
@@ -84,6 +108,12 @@ func Test_VMSpec_Merge(t *testing.T) {
 			expected: &VMSpec{
 				Args:    nil,
 				Command: []string{"/usr/bin/abc"},
+				Env: NameValueSource{
+					{
+						Name:  "PATH",
+						Value: pathEnvDefault,
+					},
+				},
 				Security: SecurityContext{
 					RunAsGroupID: p(0),
 					RunAsUserID:  p(0),
@@ -107,6 +137,12 @@ func Test_VMSpec_Merge(t *testing.T) {
 				},
 			},
 			expected: &VMSpec{
+				Env: NameValueSource{
+					{
+						Name:  "PATH",
+						Value: pathEnvDefault,
+					},
+				},
 				Security: SecurityContext{
 					ReadonlyRootFS: true,
 					RunAsGroupID:   p(1234),
@@ -133,6 +169,12 @@ func Test_VMSpec_Merge(t *testing.T) {
 				},
 			},
 			expected: &VMSpec{
+				Env: NameValueSource{
+					{
+						Name:  "PATH",
+						Value: pathEnvDefault,
+					},
+				},
 				Security: SecurityContext{
 					ReadonlyRootFS: true,
 					RunAsGroupID:   p(0),
@@ -151,6 +193,12 @@ func Test_VMSpec_Merge(t *testing.T) {
 			},
 			expected: &VMSpec{
 				DisableServices: []string{"ssh"},
+				Env: NameValueSource{
+					{
+						Name:  "PATH",
+						Value: pathEnvDefault,
+					},
+				},
 				Security: SecurityContext{
 					RunAsGroupID: p(0),
 					RunAsUserID:  p(0),
@@ -186,6 +234,12 @@ func Test_VMSpec_Merge(t *testing.T) {
 				},
 			},
 			expected: &VMSpec{
+				Env: NameValueSource{
+					{
+						Name:  "PATH",
+						Value: pathEnvDefault,
+					},
+				},
 				Volumes: Volumes{
 					{
 						SSM: &SSMVolumeSource{
@@ -222,6 +276,12 @@ func Test_VMSpec_Merge(t *testing.T) {
 			},
 			other: &VMSpec{},
 			expected: &VMSpec{
+				Env: NameValueSource{
+					{
+						Name:  "PATH",
+						Value: pathEnvDefault,
+					},
+				},
 				Volumes: Volumes{
 					{
 						SSM: &SSMVolumeSource{
@@ -260,6 +320,12 @@ func Test_VMSpec_Merge(t *testing.T) {
 			},
 			other: &VMSpec{},
 			expected: &VMSpec{
+				Env: NameValueSource{
+					{
+						Name:  "PATH",
+						Value: pathEnvDefault,
+					},
+				},
 				Volumes: Volumes{
 					{
 						SSM: &SSMVolumeSource{
@@ -286,7 +352,12 @@ func Test_VMSpec_Merge(t *testing.T) {
 				Env: NameValueSource{},
 			},
 			expected: &VMSpec{
-				Env: NameValueSource{},
+				Env: NameValueSource{
+					{
+						Name:  "PATH",
+						Value: pathEnvDefault,
+					},
+				},
 				Security: SecurityContext{
 					RunAsGroupID: p(0),
 					RunAsUserID:  p(0),
@@ -317,6 +388,10 @@ func Test_VMSpec_Merge(t *testing.T) {
 						Name:  "abc",
 						Value: "yxz",
 					},
+					{
+						Name:  "PATH",
+						Value: pathEnvDefault,
+					},
 				},
 				Security: SecurityContext{
 					RunAsGroupID: p(0),
@@ -343,6 +418,36 @@ func Test_VMSpec_Merge(t *testing.T) {
 						Name:  "abc",
 						Value: "xyz",
 					},
+					{
+						Name:  "PATH",
+						Value: pathEnvDefault,
+					},
+				},
+				Security: SecurityContext{
+					RunAsGroupID: p(0),
+					RunAsUserID:  p(0),
+				},
+			},
+		},
+		{
+			description: "NameValue PATH exists so not merged",
+			orig: &VMSpec{
+				Env: NameValueSource{
+					{
+						Name:  "PATH",
+						Value: "/bin:/usr/bin",
+					},
+				},
+			},
+			other: &VMSpec{
+				Env: NameValueSource{},
+			},
+			expected: &VMSpec{
+				Env: NameValueSource{
+					{
+						Name:  "PATH",
+						Value: "/bin:/usr/bin",
+					},
 				},
 				Security: SecurityContext{
 					RunAsGroupID: p(0),
@@ -368,6 +473,10 @@ func Test_VMSpec_Merge(t *testing.T) {
 					{
 						Name:  "abc",
 						Value: "xyz",
+					},
+					{
+						Name:  "PATH",
+						Value: pathEnvDefault,
 					},
 				},
 				Security: SecurityContext{
@@ -415,6 +524,10 @@ func Test_VMSpec_Merge(t *testing.T) {
 					{
 						Name:  "bar",
 						Value: "foo",
+					},
+					{
+						Name:  "PATH",
+						Value: pathEnvDefault,
 					},
 				},
 				Security: SecurityContext{
@@ -491,6 +604,10 @@ func Test_VMSpec_Merge(t *testing.T) {
 					{
 						Name:  "xyz",
 						Value: "123",
+					},
+					{
+						Name:  "PATH",
+						Value: pathEnvDefault,
 					},
 				},
 				Security: SecurityContext{

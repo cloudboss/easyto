@@ -97,6 +97,9 @@ The full specification is as follows:
 
 `env`: (Optional, type _list_ of [_name-value_](#name-value-object) objects, default `[]`) - The names and values of environment variables to be passed to `command`. Values can refer to variables defined in `env` and `env-from` (see [variable expansion](#variable-expansion)).
 
+> [!NOTE]
+> If the `PATH` environment variable is not set in the container image or user data, a default `PATH` of `/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin` will be set on boot.
+
 `env-from`: (Optional, type _list_ of [_env-from_](#env-from-object) objects, default `[]`) - Environment variables to be passed to `command`, to be retrieved from the given sources.
 
 `init-scripts`: (Optional, type _list_ of _string_, default `[]`) - A list of scripts to run on boot. They must start with `#!` and have a valid interpreter available in the image. For lightweight images that have no shell in the container image they are derived from, `/.easyto/bin/busybox sh` can be used. The AMI will always have `/.easyto/bin/busybox` available as a source of utilities that can be used in the scripts. Init scripts run just before any services have started and `command` is executed.

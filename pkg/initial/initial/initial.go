@@ -28,10 +28,9 @@ import (
 )
 
 const (
-	fileCACerts    = "amazon.pem"
-	fileMounts     = constants.DirProc + "/mounts"
-	execBits       = 0111
-	pathEnvDefault = "/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
+	fileCACerts = "amazon.pem"
+	fileMounts  = constants.DirProc + "/mounts"
+	execBits    = 0111
 )
 
 type link struct {
@@ -288,10 +287,7 @@ func fullCommand(spec *vmspec.VMSpec, env vmspec.NameValueSource) ([]string, err
 		exe = []string{"/bin/sh"}
 	}
 
-	pathEnv := pathEnvDefault
-	if pathVMSpec, i := spec.Env.Find("PATH"); i >= 0 {
-		pathEnv = pathVMSpec
-	}
+	pathEnv, _ := spec.Env.Find("PATH")
 
 	if !strings.HasPrefix(exe[0], constants.DirRoot) {
 		executablePath, err := findExecutableInPath(exe[0], pathEnv)
