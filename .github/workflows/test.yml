@@ -6,24 +6,7 @@ on:
       - "**"
 
 jobs:
-  test:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - run: make test
-
-  build-release:
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        arch: [amd64, arm64]
-        os: [darwin, linux]
-    needs:
-      - test
-    steps:
-      - uses: actions/checkout@v4
-      - run: |
-          make release-one \
-              ARCH=${{ matrix.arch }} \
-              OS=${{ matrix.os }} \
-              VERSION=v0.0.0
+  test-build:
+    uses: ./.github/workflows/common.yml
+    with:
+      version: v0.0.0
