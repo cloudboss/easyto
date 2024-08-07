@@ -1,0 +1,36 @@
+name: easyto-common
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: make test
+
+  build-release:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+        os: [darwin, linux]
+    needs:
+      - test
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          make release-one \
+              ARCH=${{ matrix.arch }} \
+              OS=${{ matrix.os }} \
+              VERSION=${{ inputs.version }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.os }}-${{ matrix.arch }}
+          path: _output/release/*.tar.gz
+

@@ -6,36 +6,15 @@ on:
       - "v[0-9]+.[0-9]+.[0-9]+*"
 
 jobs:
-  test:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - run: make test
-
-  build-release:
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        arch: [amd64, arm64]
-        os: [darwin, linux]
-    needs:
-      - test
-    steps:
-      - uses: actions/checkout@v4
-      - run: |
-          make release-one \
-              ARCH=${{ matrix.arch }} \
-              OS=${{ matrix.os }} \
-              VERSION=${{ github.ref_name }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-${{ matrix.os }}-${{ matrix.arch }}
-          path: _output/release/*.tar.gz
+  test-build:
+    uses: ./.github/workflows/common.yml
+    with:
+      version: ${{ github.ref_name }}
 
   release:
     runs-on: ubuntu-24.04
     needs:
-      - build-release
+      - test-build
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
