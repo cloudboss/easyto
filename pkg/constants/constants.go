@@ -1,16 +1,14 @@
 package constants
 
 const (
-	DirRoot = "/"
 	DirProc = "/proc"
-	DirRun  = "/run"
-	DirTmp  = "/tmp"
 
 	FileEtcPasswd  = "/etc/passwd"
 	FileEtcShadow  = "/etc/shadow"
 	FileEtcGroup   = "/etc/group"
 	FileEtcGShadow = "/etc/gshadow"
-	FileMetadata   = "metadata.json"
+
+	FileMetadata = "metadata.json"
 
 	GroupNameWheel = "wheel"
 
@@ -26,11 +24,8 @@ var (
 	SSHPrivsepDir  string
 	SSHPrivsepUser string
 
-	DirETRoot     string
-	DirETBin      = DirETRoot + "/bin"
-	DirETSbin     = DirETRoot + "/sbin"
-	DirETEtc      = DirETRoot + "/etc"
-	DirETHome     = DirETRoot + "/home"
-	DirETRun      = DirETRoot + "/run"
-	DirETServices = DirETRoot + "/services"
+	DirETRoot string
+	DirETBin  = DirETRoot + "/bin"
+	DirETSbin = DirETRoot + "/sbin"
+	DirETHome = DirETRoot + "/home"
 )

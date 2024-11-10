@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/cloudboss/easyto/pkg/constants"
-	"github.com/cloudboss/easyto/pkg/initial/vmspec"
 	"github.com/spf13/cobra"
 )
 
@@ -41,7 +40,7 @@ var (
 			}
 			amiCfg.packerDir = packerDir
 
-			return vmspec.ValidateServices(amiCfg.services)
+			return validateServices(amiCfg.services)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			quotedServices := bytes.NewBufferString("")
@@ -179,4 +178,16 @@ func expandPath(pth string) (string, error) {
 	}
 
 	return filepath.Abs(expanded)
+}
+
+func validateServices(services []string) error {
+	for _, svc := range services {
+		switch svc {
+		case "chrony", "ssh":
+			continue
+		default:
+			return fmt.Errorf("invalid service %s", svc)
+		}
+	}
+	return nil
 }
