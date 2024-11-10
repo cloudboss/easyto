@@ -30,6 +30,11 @@ EASYTO_ASSETS_PACKER_URL = $(EASYTO_ASSETS_RELEASES)/$(EASYTO_ASSETS_VERSION)/$(
 EASYTO_ASSETS_RUNTIME = easyto-assets-runtime-$(EASYTO_ASSETS_VERSION)
 EASYTO_ASSETS_RUNTIME_ARCHIVE = $(EASYTO_ASSETS_RUNTIME).tar.gz
 EASYTO_ASSETS_RUNTIME_URL = $(EASYTO_ASSETS_RELEASES)/$(EASYTO_ASSETS_VERSION)/$(EASYTO_ASSETS_RUNTIME_ARCHIVE)
+EASYTO_INIT_RELEASES = https://github.com/cloudboss/easyto-init/releases/download
+EASYTO_INIT_VERSION = v0.1.1
+EASYTO_INIT = easyto-init-$(EASYTO_INIT_VERSION)
+EASYTO_INIT_ARCHIVE = easyto-init-$(EASYTO_INIT_VERSION).tar.gz
+EASYTO_INIT_URL = $(EASYTO_INIT_RELEASES)/$(EASYTO_INIT_VERSION)/$(EASYTO_INIT_ARCHIVE)
 
 EASYTO_ASSETS_PACKER_OUT = $(DIR_STG_PACKER)/$(PACKER_EXE) \
 	$(DIR_STG_PACKER_PLUGIN)/$(PACKER_PLUGIN_AMZ_EXE) \
@@ -65,26 +70,8 @@ $(DIR_OUT)/$(EASYTO_ASSETS_PACKER_ARCHIVE): | $(HAS_COMMAND_CURL) $(DIR_OUT)
 $(DIR_OUT)/$(EASYTO_ASSETS_RUNTIME_ARCHIVE): | $(HAS_COMMAND_CURL) $(DIR_OUT)
 	@curl -L -o $(DIR_OUT)/$(EASYTO_ASSETS_RUNTIME_ARCHIVE) $(EASYTO_ASSETS_RUNTIME_URL)
 
-$(DIR_STG_INIT)/$(DIR_ET)/sbin/init: \
-		hack/compile-init-ctr \
-		go.mod \
-		$(shell find cmd/initial -type f -path '*.go' ! -path '*_test.go') \
-		$(shell find pkg -type f -path '*.go' ! -path '*_test.go') \
-		$(shell find third_party -type f -path '*.go' ! -path '*_test.go') \
-		| $(HAS_IMAGE_LOCAL) $(VAR_DIR_ET) $(DIR_STG_INIT)/$(DIR_ET)/sbin/
-	@docker run --rm -t \
-		-v $(DIR_ROOT):/code \
-		-v $(DIR_ROOT)/$(DIR_STG_INIT):/install \
-		-e OPENSSH_PRIVSEP_DIR=$(OPENSSH_PRIVSEP_DIR) \
-		-e OPENSSH_PRIVSEP_USER=$(OPENSSH_PRIVSEP_USER) \
-		-e CHRONY_USER=$(CHRONY_USER) \
-		-e DIR_ET_ROOT=/$(DIR_ET) \
-		-e DIR_OUT=/install/$(DIR_ET)/sbin \
-		-e GOPATH=/code/$(DIR_OUT)/go \
-		-e GOCACHE=/code/$(DIR_OUT)/gocache \
-		-e CGO_ENABLED=1 \
-		-w /code \
-		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-init-ctr)"
+$(DIR_OUT)/$(EASYTO_INIT_ARCHIVE): | $(HAS_COMMAND_CURL) $(DIR_OUT)
+	@curl -L -o $(DIR_OUT)/$(EASYTO_INIT_ARCHIVE) $(EASYTO_INIT_URL)
 
 $(EASYTO_ASSETS_PACKER_OUT) &: $(DIR_OUT)/$(EASYTO_ASSETS_PACKER_ARCHIVE) | $(DIR_STG_PACKER)/
 	@tar -zmx \
@@ -124,10 +111,11 @@ $(DIR_OUT)/ctr2disk: \
 		-w /code \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-ctr2disk-ctr)"
 
-$(DIR_STG_ASSETS)/init.tar: \
-		$(DIR_STG_INIT)/$(DIR_ET)/sbin/init \
-		| $(HAS_COMMAND_FAKEROOT) $(DIR_STG_ASSETS)/
-	@cd $(DIR_STG_INIT) && fakeroot tar cf $(DIR_ROOT)/$(DIR_STG_ASSETS)/init.tar .
+
+$(DIR_STG_ASSETS)/init.tar: $(DIR_OUT)/$(EASYTO_INIT_ARCHIVE) | $(DIR_STG_ASSETS)/
+	@tar -zmx \
+		--xform "s|^$(EASYTO_INIT)|$(DIR_STG_ASSETS)|" \
+		-f $(DIR_OUT)/$(EASYTO_INIT_ARCHIVE)
 
 $(DIR_STG_BIN)/easyto: \
 		hack/compile-easyto-ctr \
@@ -164,8 +152,6 @@ $(DIR_RELEASE)/easyto-$(VERSION)-$(OS)-$(ARCH).tar.gz: \
 		-f $(DIR_ROOT)/$(DIR_RELEASE)/easyto-$(VERSION)-$(OS)-$(ARCH).tar.gz assets bin packer
 
 test:
-	go vet -v ./third_party/...
-	go test -v ./third_party/...
 	go vet -v ./...
 	go test -v ./...
 
