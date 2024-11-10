@@ -267,7 +267,7 @@ An SSM volume is a pseudo-volume, as the parameters from SSM Parameter Store are
 > [!NOTE]
 > The EC2 instance must have an instance profile with permission to call `secretsmanager:GetSecretValue`, and `kms:Decrypt` for the KMS key used to encrypt the secret if a customer-managed key was used.
 
-A Secrets Manager volume is a pseudo-volume, as the secret from Secrets Manager is copied as a file to the path defined in `mount.destination` one time on boot. Any updates to the secret would require a reboot to get the new value. The file is always written with a mode of `0600`. The owner and group of the file defaults to `security.run-as-user-id` and `security.run-as-group-id` unless explicitly specified in the volume's `mount.user-id` and `mount.group-id`.
+A Secrets Manager volume is a pseudo-volume, as the secret from Secrets Manager is copied as a file to the path defined in `mount.destination` one time on boot. Any updates to the secret would require a reboot to get the new value. This volume results in a single file being written, not a directory tree as is possible with S3 and SSM volumes. The file is always written with a mode of `0600`. The owner and group of the file defaults to `security.run-as-user-id` and `security.run-as-group-id` unless explicitly specified in the volume's `mount.user-id` and `mount.group-id`.
 
 `mount`: (Required, type [_mount_](#mount-object) object) - Configuration of the destination for the secret.
 
