@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.0] - 2024-11-10
+
+### Changed
+
+- Update easyto-assets to v0.4.0 to speed boot time.
+- Update README to clarify behavior of `secrets-manager` volume.
+
+### Removed
+
+- Remove init from this repository. It has been replaced with a version developed in its [own repository](https://github.com/cloudboss/easyto-init).
+
 ## [0.2.0] - 2024-08-06
 
 ### Added
@@ -29,5 +40,6 @@
 
 Initial release
 
+[0.3.0]: https://github.com/cloudboss/easyto/releases/tag/v0.3.0
 [0.2.0]: https://github.com/cloudboss/easyto/releases/tag/v0.2.0
 [0.1.0]: https://github.com/cloudboss/easyto/releases/tag/v0.1.0
