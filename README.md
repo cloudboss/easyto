@@ -4,7 +4,7 @@ If you have a container image that you want to run directly on EC2, then easyto 
 
 ## How does it work?
 
-It creates a temporary EC2 AMI build instance[^1] with an EBS volume attached. The EBS volume is partitioned and formatted, and the container image layers are written to the main partition. Then a Linux kernel, bootloader, and custom init and utilities are added. The EBS volume is then snapshotted and an AMI is created from it.
+It creates a temporary EC2 AMI build instance[^1] with an EBS volume attached. The EBS volume is partitioned and formatted, and the container image layers are written to the main partition. Then a Linux kernel, bootloader, and [custom init](https://github.com/cloudboss/easyto-init) and utilities are added. The EBS volume is then snapshotted and an AMI is created from it.
 
 The `metadata.json` from the container image is written into the AMI so init will know what command to start on boot, and behave as specified in the Dockerfile. The command can be overridden, much like you can with docker or Kubernetes. This is accomplished with a custom [EC2 user data](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-add-user-data.html) format [defined below](#user-data) that is intended to be similar to a Kubernetes pod definition.
 
@@ -163,7 +163,7 @@ The following sources are available for environment variables. Each can be speci
 
 `key`: (Required, type _string_) - The name of the object in the S3 bucket.
 
-`name`: (Optional, type _string_) - If defined, this will be the name of the environment variable and the S3 object's value will be the value. If not defined, the object's value must contain JSON key/value strings one level deep, whose keys will be the environment variable names and whose values will be the values.
+`name`: (Optional, type _string_) - If defined, this will be the name of the environment variable and the S3 object's value will be the value. If not defined, the object's contents must contain JSON key/value strings one level deep, whose keys will be the environment variable names and whose values will be the values.
 
 > [!WARNING]
 > There is no check on the size of the value; values too large can prevent `command` from starting.
@@ -177,7 +177,7 @@ The following sources are available for environment variables. Each can be speci
 
 `base64-encode`: (Optional, type _bool_, default `false`) - Whether or not to Base64 encode the value, if `name` is defined.
 
-`name`: (Optional, type _string_) - If defined, this will be the name of the environment variable and the SSM parameter's value will be the value. If not defined, the parameter's value must contain JSON key/value strings one level deep, whose keys will be the environment variable names and whose values will be the values.
+`name`: (Optional, type _string_) - If defined, this will be the name of the environment variable and the SSM parameter's value will be the value. If not defined, the parameter's contents must contain JSON key/value strings one level deep, whose keys will be the environment variable names and whose values will be the values.
 
 > [!WARNING]
 > There is no check on the size of the value; values too large can prevent `command` from starting.
@@ -193,7 +193,7 @@ The following sources are available for environment variables. Each can be speci
 
 `base64-encode`: (Optional, type _bool_, default `false`) - Whether or not to Base64 encode the value, if `name` is defined.
 
-`name`: (Optional, type _string_) - If defined, this will be the name of the environment variable and the secret's value will be the value. If not defined, the secret's value must contain JSON key/value strings one level deep, whose keys will be the environment variable names and whose values will be the values.
+`name`: (Optional, type _string_) - If defined, this will be the name of the environment variable and the secret's value will be the value. If not defined, the secret's contents must contain JSON key/value strings one level deep, whose keys will be the environment variable names and whose values will be the values.
 
 > [!WARNING]
 > There is no check on the size of the value; values too large can prevent `command` from starting.
@@ -289,9 +289,11 @@ A Secrets Manager volume is a pseudo-volume, as the secret from Secrets Manager 
 
 #### Variable expansion
 
-In environment variables, commands, and arguments, other variables can be referenced by using the syntax `$(VAR)`.
+In `env`, `command`, and `args`, environment variables can be referenced by using the syntax `$(VAR)`.
 
 To escape variables and prevent expansion, use double `$` characters; `$$(VAR)` will be passed as `$(VAR)`.
+
+Environment variables defined in `env` can only reference other variables in `env` that are defined before them, whereas variables defined in `env-from` can be referenced anywhere in `env`. In `command` and `args`, any variable defined in `env` or `env-from` can be referenced.
 
 Variables do not expand recursively. References to variables containing other variables will expand to their initial value, not the value after expansion.
 
@@ -303,10 +305,10 @@ Example with a command:
 command:
   - /application
   - --bind-address
-  - $(IPv4_ADDRESS):8080
+  - $(IPV4_ADDRESS):8080
 env-from:
   - imds:
-      name: IPv4_ADDRESS
+      name: IPV4_ADDRESS
       path: local-ipv4
 ```
 
@@ -327,10 +329,11 @@ Example with an environment variable referencing another resolved with `env-from
 ```
 env:
   - name: PGPASSWORD
-    # password resolved from ssm
+    # The value of `password` is resolved from Secrets Manager.
     value: $(password)
 env-from:
   - secrets-manager:
+      # The contents of /database/abc/credentials is a JSON mapping one level deep containing the key `password`.
       secret-id: /database/abc/credentials
 ```
 
