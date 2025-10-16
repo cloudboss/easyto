@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.0] - 2025-10-16
+
+### Added
+
+- Add CLI option to choose SSH interface for image builder.
+
+### Changed
+
+- Update easyto-init to v0.2.0. This enables attaching of EBS volumes at runtime based on tags.
+- Update `github.com/docker/docker` and `github.com/ulikunitz/xz` dependencies for security advisories.
+
 ## [0.3.0] - 2024-11-10
 
 ### Changed
@@ -40,6 +51,7 @@
 
 Initial release
 
+[0.4.0]: https://github.com/cloudboss/easyto/releases/tag/v0.4.0
 [0.3.0]: https://github.com/cloudboss/easyto/releases/tag/v0.3.0
 [0.2.0]: https://github.com/cloudboss/easyto/releases/tag/v0.2.0
 [0.1.0]: https://github.com/cloudboss/easyto/releases/tag/v0.1.0
