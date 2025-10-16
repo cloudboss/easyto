@@ -56,6 +56,8 @@ The `ami` subcommand takes the following options:
 
 `--root-device-name`: (Optional, default `/dev/xvda`) - Name of the AMI root device.
 
+`--ssh-interface`: (Optional, default `public_ip`) - The SSH interface to use to connect to the image builder. This must be one of `public_ip` or `private_ip`.
+
 `--debug`: (Optional) - Enable debug output.
 
 `--help` or `-h`: (Optional) - Show help output.

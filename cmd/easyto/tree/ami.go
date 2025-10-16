@@ -3,6 +3,7 @@ package tree
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -40,7 +41,9 @@ var (
 			}
 			amiCfg.packerDir = packerDir
 
-			return validateServices(amiCfg.services)
+			svcErr := validateServices(amiCfg.services)
+			sshErr := validateSSHInterface(amiCfg.sshInterface)
+			return errors.Join(svcErr, sshErr)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			quotedServices := bytes.NewBufferString("")
@@ -61,6 +64,7 @@ var (
 				"-var", fmt.Sprintf("root_device_name=%s", amiCfg.rootDeviceName),
 				"-var", fmt.Sprintf("root_vol_size=%d", amiCfg.size),
 				"-var", fmt.Sprintf("services=%s", quotedServices.String()),
+				"-var", fmt.Sprintf("ssh_interface=%s", amiCfg.sshInterface),
 				"-var", fmt.Sprintf("subnet_id=%s", amiCfg.subnetID),
 				"build.pkr.hcl",
 			}
@@ -100,6 +104,7 @@ type amiConfig struct {
 	rootDeviceName string
 	services       []string
 	size           int
+	sshInterface   string
 	subnetID       string
 }
 
@@ -154,12 +159,15 @@ func init() {
 	amiCmd.Flags().StringVar(&amiCfg.rootDeviceName, "root-device-name", "/dev/xvda",
 		"Name of the AMI root device.")
 
+	amiCmd.Flags().StringSliceVar(&amiCfg.services, "services", []string{"chrony"},
+		"Comma separated list of services to enable [chrony,ssh]. Use an empty string to disable all services.")
+
+	amiCmd.Flags().StringVarP(&amiCfg.sshInterface, "ssh-interface", "i", "public_ip",
+		"The interface for ssh connection to the builder. Must be one of 'public_ip' or 'private_ip'.")
+
 	amiCmd.Flags().StringVarP(&amiCfg.subnetID, "subnet-id", "s", "",
 		"ID of the subnet in which to run the image builder.")
 	amiCmd.MarkFlagRequired("subnet-id")
-
-	amiCmd.Flags().StringSliceVar(&amiCfg.services, "services", []string{"chrony"},
-		"Comma separated list of services to enable [chrony,ssh]. Use an empty string to disable all services.")
 
 	amiCmd.Flags().BoolVar(&amiCfg.debug, "debug", false, "Enable debug output.")
 }
@@ -190,4 +198,13 @@ func validateServices(services []string) error {
 		}
 	}
 	return nil
+}
+
+func validateSSHInterface(sshInterface string) error {
+	switch sshInterface {
+	case "public_ip", "private_ip":
+		return nil
+	default:
+		return fmt.Errorf("invalid ssh interface %s", sshInterface)
+	}
 }
