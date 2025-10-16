@@ -79,10 +79,9 @@ env-from:
 volumes:
   - ebs:
       device: /dev/sdb
-      fs-type: ext4
-      make-fs: true
       mount:
         destination: /var/lib/postgresql
+        fs-type: ext4
 ```
 
 See the [examples](./examples) folder for more.
@@ -224,11 +223,14 @@ The following sources are available for environment variables. Each can be speci
 
 #### ebs-volume object
 
+`attachment`: (Optional, type _list_ of [_ebs-attachment_](#ebs-attachment-object)) - Configuration of EBS volume attachment, which enables a volume to be attached at runtime based on its tags.
+
+> [!NOTE]
+> The EC2 instance must have an instance profile with permission to call `ec2:AttachVolume` and `ec2:DescribeVolumes`.
+
 `device`: (Required, type _string_) - Name of the device as defined in the EC2 instance's block device mapping.
 
-`fs-type`: (Required, type _string_) - Filesystem type of the device. Available types are `ext2`, `ext3`, `ext4`, and `btrfs`. The filesystem will be formatted on the first boot.
-
-`mount`: (Required, type [_mount_](#mount-object) object) - Configuration of the mount for the EBS volume.
+`mount`: (Optional, type [_mount_](#mount-object) object) - Configuration of the mount for the EBS volume. If not defined, no filesystem will be formatted and the volume will not be mounted.
 
 #### s3-volume object
 
@@ -277,9 +279,23 @@ A Secrets Manager volume is a pseudo-volume, as the secret from Secrets Manager 
 
 `secret-id`: (Required, type _string_) - The name or ARN of the secret. If it is in another AWS account, the ARN must be used.
 
+#### ebs-attachment object
+
+`tags`: (Required, type [_tag-key-value_](#tag-key-value-object)) - A list of tags used to filter the EBS volume when calling `ec2:DescribeVolumes`.
+
+`timeout`: (Optional, type _int_, default `300`) - How long to wait in seconds for the EBS volume to be available.
+
+#### tag-key-value object
+
+`key`: (Required, type _string_) - The name of the tag.
+
+`value`: (Optional, type _string_) - The value of the tag. If not defined, only the key is used as a filter.
+
 #### mount object
 
 `destination`: (Required, type _string_) - The mount destination. This may be a file or a directory depending on the configuration of the volume.
+
+`fs-type`: (Conditional, type _string_) - Filesystem type of the device. Available types are `ext2`, `ext3`, `ext4`, and `btrfs`. The filesystem will be formatted on the first boot. Required for EBS volumes and ignored otherwise.
 
 `group-id`: (Optional, type _int_, default is the value of `security.run-as-group-id`) - The group ID of the destination.
 
