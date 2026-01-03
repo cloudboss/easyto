@@ -277,10 +277,21 @@ func (b *Builder) MakeVMImage() (err error) {
 }
 
 func (b *Builder) formatBootEntry(partUUID string) string {
-	contentFmt := `linux /vmlinuz-%s
-options rw root=PARTUUID=%s console=tty0 console=ttyS0,115200 earlyprintk=ttyS0,115200 consoleblank=0 ip=dhcp init=%s/init
-`
-	return fmt.Sprintf(contentFmt, b.kernelVersion, partUUID, constants.DirETSbin)
+	options := []string{
+		"rw",
+		"root=PARTUUID=" + partUUID,
+		"console=tty0",
+		"console=ttyS0,115200",
+		"earlyprintk=ttyS0,115200",
+		"consoleblank=0",
+		"ip=dhcp",
+		"init=" + filepath.Join(constants.DirETSbin, "init"),
+	}
+	lines := []string{
+		"linux /vmlinuz-" + b.kernelVersion,
+		"options " + strings.Join(options, " "),
+	}
+	return strings.Join(lines, "\n") + "\n"
 }
 
 func (b *Builder) setupBootloader() error {
