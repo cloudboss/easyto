@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0] - 2026-01-03
+
+### Changed
+
+- Update easyto-assets to v0.5.0. This updates the kernel to 6.12.63.
+- Update easyto-init to v0.3.0. The new version includes modification of network configuration, bug fixes, and refactorings that do not change the interface.
+
 ## [0.4.0] - 2025-10-16
 
 ### Added
@@ -51,6 +58,7 @@
 
 Initial release
 
+[0.5.0]: https://github.com/cloudboss/easyto/releases/tag/v0.5.0
 [0.4.0]: https://github.com/cloudboss/easyto/releases/tag/v0.4.0
 [0.3.0]: https://github.com/cloudboss/easyto/releases/tag/v0.3.0
 [0.2.0]: https://github.com/cloudboss/easyto/releases/tag/v0.2.0
