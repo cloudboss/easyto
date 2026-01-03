@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	if err := tree.Execute(); err != nil {
+	if err := tree.RootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
 }

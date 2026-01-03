@@ -17,7 +17,7 @@ import (
 
 var (
 	amiCfg = &amiConfig{}
-	amiCmd = &cobra.Command{
+	AMICmd = &cobra.Command{
 		Use:   "ami",
 		Short: "Convert a container image to an EC2 AMI",
 		PreRunE: func(cmd *cobra.Command, args []string) error {
@@ -109,8 +109,6 @@ type amiConfig struct {
 }
 
 func init() {
-	rootCmd.AddCommand(amiCmd)
-
 	this, err := os.Executable()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to get executable path: %s\n", err)
@@ -133,43 +131,43 @@ func init() {
 		os.Exit(1)
 	}
 
-	amiCmd.Flags().StringVarP(&amiCfg.amiName, "ami-name", "a", "", "Name of the AMI.")
-	amiCmd.MarkFlagRequired("ami-name")
+	AMICmd.Flags().StringVarP(&amiCfg.amiName, "ami-name", "a", "", "Name of the AMI.")
+	AMICmd.MarkFlagRequired("ami-name")
 
-	amiCmd.Flags().StringVarP(&amiCfg.assetDir, "asset-directory", "A", assetDir,
+	AMICmd.Flags().StringVarP(&amiCfg.assetDir, "asset-directory", "A", assetDir,
 		"Path to a directory containing asset files.")
 
-	amiCmd.Flags().StringVarP(&amiCfg.packerDir, "packer-directory", "P", packerDir,
+	AMICmd.Flags().StringVarP(&amiCfg.packerDir, "packer-directory", "P", packerDir,
 		"Path to a directory containing packer and its configuration.")
 
-	amiCmd.Flags().StringVarP(&amiCfg.containerImage, "container-image", "c", "",
+	AMICmd.Flags().StringVarP(&amiCfg.containerImage, "container-image", "c", "",
 		"Name of the container image.")
-	amiCmd.MarkFlagRequired("container-image")
+	AMICmd.MarkFlagRequired("container-image")
 
-	amiCmd.Flags().IntVarP(&amiCfg.size, "size", "S", 10,
+	AMICmd.Flags().IntVarP(&amiCfg.size, "size", "S", 10,
 		"Size of the image root volume in GB.")
 
-	amiCmd.Flags().StringVar(&amiCfg.loginUser, "login-user", "cloudboss",
+	AMICmd.Flags().StringVar(&amiCfg.loginUser, "login-user", "cloudboss",
 		"Login user to create in the VM image if ssh service is enabled.")
 
 	loginShell := filepath.Join(constants.DirETBin, "sh")
-	amiCmd.Flags().StringVar(&amiCfg.loginShell, "login-shell", loginShell,
+	AMICmd.Flags().StringVar(&amiCfg.loginShell, "login-shell", loginShell,
 		"Shell to use for the login user if ssh service is enabled.")
 
-	amiCmd.Flags().StringVar(&amiCfg.rootDeviceName, "root-device-name", "/dev/xvda",
+	AMICmd.Flags().StringVar(&amiCfg.rootDeviceName, "root-device-name", "/dev/xvda",
 		"Name of the AMI root device.")
 
-	amiCmd.Flags().StringSliceVar(&amiCfg.services, "services", []string{"chrony"},
+	AMICmd.Flags().StringSliceVar(&amiCfg.services, "services", []string{"chrony"},
 		"Comma separated list of services to enable [chrony,ssh]. Use an empty string to disable all services.")
 
-	amiCmd.Flags().StringVarP(&amiCfg.sshInterface, "ssh-interface", "i", "public_ip",
+	AMICmd.Flags().StringVarP(&amiCfg.sshInterface, "ssh-interface", "i", "public_ip",
 		"The interface for ssh connection to the builder. Must be one of 'public_ip' or 'private_ip'.")
 
-	amiCmd.Flags().StringVarP(&amiCfg.subnetID, "subnet-id", "s", "",
+	AMICmd.Flags().StringVarP(&amiCfg.subnetID, "subnet-id", "s", "",
 		"ID of the subnet in which to run the image builder.")
-	amiCmd.MarkFlagRequired("subnet-id")
+	AMICmd.MarkFlagRequired("subnet-id")
 
-	amiCmd.Flags().BoolVar(&amiCfg.debug, "debug", false, "Enable debug output.")
+	AMICmd.Flags().BoolVar(&amiCfg.debug, "debug", false, "Enable debug output.")
 }
 
 func expandPath(pth string) (string, error) {

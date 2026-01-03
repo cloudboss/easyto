@@ -5,12 +5,12 @@ import (
 )
 
 var (
-	rootCmd = &cobra.Command{
+	RootCmd = &cobra.Command{
 		Use:   "easyto",
 		Short: "A container image conversion tool",
 	}
 )
 
-func Execute() error {
-	return rootCmd.Execute()
+func init() {
+	RootCmd.AddCommand(AMICmd)
 }
