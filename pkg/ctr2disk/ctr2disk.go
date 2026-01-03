@@ -284,7 +284,6 @@ func (b *Builder) formatBootEntry(partUUID string) string {
 		"console=ttyS0,115200",
 		"earlyprintk=ttyS0,115200",
 		"consoleblank=0",
-		"ip=dhcp",
 		"init=" + filepath.Join(constants.DirETSbin, "init"),
 	}
 	lines := []string{
