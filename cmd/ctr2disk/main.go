@@ -21,6 +21,7 @@ var (
 			builder, err := ctr2disk.NewBuilder(
 				ctr2disk.WithAssetDir(cfg.assetDir),
 				ctr2disk.WithCTRImageName(cfg.image),
+				ctr2disk.WithCTRImageSource("remote"),
 				ctr2disk.WithVMImageDevice(cfg.vmImageDevice),
 				ctr2disk.WithVMImageMount(cfg.vmImageMount),
 				ctr2disk.WithServices(cfg.services),

@@ -19,6 +19,7 @@ import (
 	"github.com/cloudboss/easyto/pkg/login"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/daemon"
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/spf13/afero"
@@ -118,14 +119,15 @@ func newErrExtract(code rune, wrap error) error {
 }
 
 type Builder struct {
-	AssetDir      string
-	CTRImageName  string
-	VMImageDevice string
-	VMImageMount  string
-	Services      []string
-	LoginUser     string
-	LoginShell    string
-	Debug         bool
+	AssetDir       string
+	CTRImageName   string
+	CTRImageSource string
+	VMImageDevice  string
+	VMImageMount   string
+	Services       []string
+	LoginUser      string
+	LoginShell     string
+	Debug          bool
 
 	kernelVersion  string
 	pathBase       string
@@ -147,6 +149,12 @@ func WithAssetDir(assetDir string) BuilderOpt {
 func WithCTRImageName(ctrImageName string) BuilderOpt {
 	return func(b *Builder) {
 		b.CTRImageName = ctrImageName
+	}
+}
+
+func WithCTRImageSource(ctrImageSource string) BuilderOpt {
+	return func(b *Builder) {
+		b.CTRImageSource = ctrImageSource
 	}
 }
 
@@ -224,9 +232,9 @@ func (b *Builder) MakeVMImage() (err error) {
 	}
 	slog.Debug("Container image reference", "short", ctrImageRef, "long", ctrImageRef.Name())
 
-	ctrImage, err := remote.Image(ctrImageRef)
+	ctrImage, err := loadImage(ctrImageRef, b.CTRImageSource)
 	if err != nil {
-		return fmt.Errorf("unable to retrieve remote image: %w", err)
+		return fmt.Errorf("unable to retrieve container image: %w", err)
 	}
 
 	imageReader := mutate.Extract(ctrImage)
@@ -521,6 +529,17 @@ func kernelVersionFromArchive(pathKernelArchive string) (string, error) {
 	}
 
 	return fields[1], nil
+}
+
+func loadImage(ref name.Reference, source string) (v1.Image, error) {
+	switch source {
+	case "remote":
+		return remote.Image(ref)
+	case "daemon":
+		return daemon.Image(ref)
+	default:
+		return nil, fmt.Errorf("unknown image source: %s", source)
+	}
 }
 
 func untarReader(reader io.Reader, destDir string) error {
