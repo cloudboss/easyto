@@ -1,6 +1,6 @@
 module github.com/cloudboss/easyto
 
-go 1.24.0
+go 1.25
 
 require (
 	github.com/google/go-containerregistry v0.20.7
