@@ -1,12 +1,4 @@
 _output/
-libguestfs-1.48.6/
-linux-*/
-linuxroot/
-tmp/
-ctr2ami/ctr
-ctr2ami/initrd*
-ctr2ami/kern/
-preinit/init
 *.img
 *.deb
 *.tar
