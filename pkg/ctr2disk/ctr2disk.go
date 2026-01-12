@@ -2,7 +2,6 @@ package ctr2disk
 
 import (
 	"archive/tar"
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,7 +26,6 @@ import (
 )
 
 const (
-	devicePartRoot   = "/dev/sda2"
 	modeDirStd       = 0755
 	tarCodeMode      = 'Y'
 	tarCodeTimestamp = 'Z'
@@ -51,38 +49,6 @@ var (
 
 type errExtract struct {
 	code rune
-}
-
-// dd is a minimal implementation of the `dd` command, where `if` is always /dev/zero
-// and `bs` is expected to be given in bytes.
-func dd(of string, bs, count int) (err error) {
-	dest, err := os.Create(of)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		destErr := dest.Close()
-		if destErr != nil && err == nil {
-			err = destErr
-		}
-	}()
-
-	buf := bytes.NewBuffer(make([]byte, bs))
-	rdr := bytes.NewReader(buf.Bytes())
-
-	for i := 0; i < count; i++ {
-		_, err = rdr.Seek(0, 0)
-		if err != nil {
-			return err
-		}
-
-		_, err = io.Copy(dest, rdr)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func (e errExtract) Error() string {
