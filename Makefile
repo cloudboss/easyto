@@ -92,9 +92,28 @@ $(EASYTO_ASSETS_RUNTIME_OUT) &: $(DIR_OUT)/$(EASYTO_ASSETS_RUNTIME_ARCHIVE) | $(
 $(DIR_STG_ASSETS)/ctr2disk: $(DIR_OUT)/ctr2disk | $(DIR_STG_ASSETS)/
 	@install -m 0755 $(DIR_OUT)/ctr2disk $(DIR_STG_ASSETS)/ctr2disk
 
+$(DIR_OUT)/mke2fs-tmp/base.tar: $(DIR_OUT)/$(EASYTO_ASSETS_RUNTIME_ARCHIVE) | $(DIR_OUT)/mke2fs-tmp/
+	@tar -zxf $(DIR_OUT)/$(EASYTO_ASSETS_RUNTIME_ARCHIVE) \
+		--wildcards \
+		--xform "s|^$(EASYTO_ASSETS_RUNTIME).*/||" \
+		-C $(DIR_OUT)/mke2fs-tmp \
+		$(EASYTO_ASSETS_RUNTIME)/./base.tar
+	@touch $(DIR_OUT)/mke2fs-tmp/base.tar
+
+$(DIR_OUT)/mke2fs-tmp/mke2fs: $(DIR_OUT)/mke2fs-tmp/base.tar
+	@tar -xf $(DIR_OUT)/mke2fs-tmp/base.tar \
+		--wildcards \
+		'*/mke2fs' \
+		--xform "s|.*/||"
+	@touch $(DIR_OUT)/mke2fs-tmp/mke2fs
+
+embed/mke2fs.bin: $(DIR_OUT)/mke2fs-tmp/mke2fs
+	@cp $(DIR_OUT)/mke2fs-tmp/mke2fs embed/mke2fs.bin
+
 $(DIR_OUT)/ctr2disk: \
 		hack/compile-ctr2disk-ctr \
 		go.mod \
+		embed/mke2fs.bin \
 		$(shell find cmd/ctr2disk -type f -path '*.go' ! -path '*_test.go') \
 		$(shell find pkg -type f -path '*.go' ! -path '*_test.go') \
 		| $(HAS_IMAGE_LOCAL) $(VAR_DIR_ET)
@@ -110,7 +129,6 @@ $(DIR_OUT)/ctr2disk: \
 		-e CGO_ENABLED=0 \
 		-w /code \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat hack/compile-ctr2disk-ctr)"
-
 
 $(DIR_STG_ASSETS)/init.tar: $(DIR_OUT)/$(EASYTO_INIT_ARCHIVE) | $(DIR_STG_ASSETS)/
 	@tar -zmx \
@@ -133,7 +151,6 @@ $(DIR_STG_BIN)/easyto: \
 		-e GOOS=$(OS) \
 		-w /code \
 		$(CTR_IMAGE_LOCAL) /bin/sh -c "$$(cat $(DIR_ROOT)/hack/compile-easyto-ctr)"
-
 
 $(DIR_RELEASE)/easyto-$(VERSION)-$(OS)-$(ARCH).tar.gz: \
 		$(EASYTO_ASSETS_PACKER_OUT) \

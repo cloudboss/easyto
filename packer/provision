@@ -18,34 +18,6 @@ done
 
 chmod 0755 ${EXEC_CTR2DISK}
 
-apt-get update
-apt-get install -y --no-install-recommends \
-    dosfstools \
-    parted
-
-ROOT_DEVICE=$(readlink -f ${ROOT_DEVICE})
-
-[ -n "$(blkid -s PTTYPE -o value ${ROOT_DEVICE})" ] || \
-    parted ${ROOT_DEVICE} mklabel gpt
-
-[ -n "$(blkid -s PARTUUID -o value ${ROOT_DEVICE}p1)" ] || \
-    parted ${ROOT_DEVICE} mkpart efi fat16 1MiB 257MiB set 1 esp on
-
-[ -n "$(blkid -s PARTUUID -o value ${ROOT_DEVICE}p2)" ] || \
-    parted ${ROOT_DEVICE} mkpart root ext4 257MiB 100%
-
-parted ${ROOT_DEVICE} print
-
-[ -n "$(blkid -s TYPE -o value ${ROOT_DEVICE}p1)" ] || \
-    mkfs -t vfat ${ROOT_DEVICE}p1
-
-[ -n "$(blkid -s TYPE -o value ${ROOT_DEVICE}p2)" ] || \
-    mkfs -t ext4 ${ROOT_DEVICE}p2
-
-mountpoint -q /mnt || mount ${ROOT_DEVICE}p2 /mnt
-mkdir -p -m 0755 /mnt/boot
-mountpoint -q /mnt/boot || mount ${ROOT_DEVICE}p1 /mnt/boot
-
 [ "${DEBUG}" = "true" ] && debug_arg=--debug
 
 ${EXEC_CTR2DISK} \

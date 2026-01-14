@@ -8,19 +8,25 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/cloudboss/easyto/embed"
 	"github.com/cloudboss/easyto/pkg/constants"
 	"github.com/cloudboss/easyto/pkg/login"
+	diskfs "github.com/diskfs/go-diskfs"
+	filebackend "github.com/diskfs/go-diskfs/backend/file"
+	diskpkg "github.com/diskfs/go-diskfs/disk"
+	"github.com/diskfs/go-diskfs/filesystem"
+	"github.com/diskfs/go-diskfs/partition/gpt"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/daemon"
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/google/uuid"
 	"github.com/spf13/afero"
 	"golang.org/x/sys/unix"
 )
@@ -101,6 +107,8 @@ type Builder struct {
 	pathInit       string
 	pathKernel     string
 	pathSSH        string
+	uuidRoot       string
+	vmImageDevice  string
 }
 
 type BuilderOpt func(*Builder)
@@ -169,12 +177,22 @@ func NewBuilder(opts ...BuilderOpt) (*Builder, error) {
 		return nil, errors.New("asset directory must be defined")
 	}
 
+	if len(builder.VMImageDevice) == 0 {
+		return nil, errors.New("VM image device must be defined")
+	}
+
 	builder.pathBase = filepath.Join(builder.AssetDir, archiveBase)
 	builder.pathBootloader = filepath.Join(builder.AssetDir, archiveBootloader)
 	builder.pathChrony = filepath.Join(builder.AssetDir, archiveChrony)
 	builder.pathKernel = filepath.Join(builder.AssetDir, archiveKernel)
 	builder.pathInit = filepath.Join(builder.AssetDir, archiveInit)
 	builder.pathSSH = filepath.Join(builder.AssetDir, archiveSSH)
+
+	vmImageDevice, err := readlink(builder.VMImageDevice)
+	if err != nil {
+		return nil, fmt.Errorf("unable to resolve path of VM image device: %w", err)
+	}
+	builder.vmImageDevice = vmImageDevice
 
 	kernelVersion, err := kernelVersionFromArchive(builder.pathKernel)
 	if err != nil {
@@ -189,6 +207,16 @@ func (b *Builder) MakeVMImage() (err error) {
 	slog.SetLogLoggerLevel(slog.LevelInfo)
 	if b.Debug {
 		slog.SetLogLoggerLevel(slog.LevelDebug)
+	}
+
+	err = b.partitionDisk()
+	if err != nil {
+		return err
+	}
+
+	err = b.mountDisk()
+	if err != nil {
+		return err
 	}
 
 	ctrImageRef, err := name.ParseReference(b.CTRImageName)
@@ -244,6 +272,114 @@ func (b *Builder) MakeVMImage() (err error) {
 	return nil
 }
 
+func (b *Builder) partitionDisk() error {
+	const (
+		sectorSize    = 512
+		sectorsPerMiB = 1024 * 1024 / sectorSize
+		efiStart      = uint64(1 * sectorsPerMiB)
+		efiEnd        = uint64(257*sectorsPerMiB - 1)
+		rootStart     = uint64(efiEnd + 1)
+	)
+
+	backend, err := filebackend.OpenFromPath(b.vmImageDevice, false)
+	if err != nil {
+		return err
+	}
+
+	disk, err := diskfs.OpenBackend(backend, diskfs.WithOpenMode(diskfs.ReadWrite))
+	if err != nil {
+		return err
+	}
+
+	uuidEFI, err := uuid.NewRandom()
+	if err != nil {
+		return fmt.Errorf("failed to generate EFI partition GUID: %w", err)
+	}
+	uuidRoot, err := uuid.NewRandom()
+	if err != nil {
+		return fmt.Errorf("failed to generate root partition GUID: %w", err)
+	}
+	b.uuidRoot = uuidRoot.String()
+
+	diskTotalSectors := disk.Size / sectorSize
+	diskUsableLastSector := uint64(diskTotalSectors - 34) // Leave room for the backup GPT.
+	rootMaxSize := diskUsableLastSector - rootStart + 1
+	rootMaxSizeAligned := (rootMaxSize / sectorsPerMiB) * sectorsPerMiB
+	rootLastSector := rootStart + rootMaxSizeAligned - 1
+	table := &gpt.Table{
+		LogicalSectorSize:  int(diskfs.SectorSize512),
+		PhysicalSectorSize: int(diskfs.SectorSize512),
+		ProtectiveMBR:      true,
+		Partitions: []*gpt.Partition{
+			{
+				Start: efiStart,
+				End:   efiEnd,
+				Size:  (efiEnd - efiStart + 1) * sectorSize,
+				Type:  gpt.EFISystemPartition,
+				Name:  "efi",
+				GUID:  uuidEFI.String(),
+			},
+			{
+				Start: rootStart,
+				End:   rootLastSector,
+				Size:  (rootLastSector - rootStart + 1) * sectorSize,
+				Type:  gpt.LinuxFilesystem,
+				Name:  "root",
+				GUID:  b.uuidRoot,
+			},
+		},
+	}
+
+	if err = disk.Partition(table); err != nil {
+		return fmt.Errorf("failed to partition disk %s: %w", b.vmImageDevice, err)
+	}
+
+	_, err = disk.CreateFilesystem(diskpkg.FilesystemSpec{
+		Partition:   1,
+		FSType:      filesystem.TypeFat32,
+		VolumeLabel: "efi",
+	})
+	if err != nil {
+		return fmt.Errorf("failed to format EFI partition: %w", err)
+	}
+
+	if err = disk.Close(); err != nil {
+		return fmt.Errorf("failed to close disk %s: %w", b.vmImageDevice, err)
+	}
+
+	partRoot := partitionName(b.vmImageDevice, 2)
+	if err = embed.MkfsExt4(partRoot, "-L", "root"); err != nil {
+		return fmt.Errorf("failed to format root partition: %w", err)
+	}
+
+	if err = flushDevice(b.vmImageDevice); err != nil {
+		return fmt.Errorf("unable to flush device %s: %w", b.vmImageDevice, err)
+	}
+
+	return nil
+}
+
+func (b *Builder) mountDisk() error {
+	partBoot := partitionName(b.vmImageDevice, 1)
+	partRoot := partitionName(b.vmImageDevice, 2)
+	err := unix.Mount(partRoot, b.VMImageMount, "ext4", 0, "")
+	if err != nil {
+		return fmt.Errorf("unable to mount %s to %s: %w", partRoot,
+			b.VMImageMount, err)
+	}
+	mountpointBoot := filepath.Join(b.VMImageMount, "boot")
+	err = os.MkdirAll(mountpointBoot, 0755)
+	if err != nil {
+		return fmt.Errorf("unable to create mount point %s: %w", mountpointBoot, err)
+	}
+	err = unix.Mount(partBoot, mountpointBoot, "vfat", 0, "")
+	if err != nil {
+		return fmt.Errorf("unable to mount %s to %s: %w", partBoot,
+			mountpointBoot, err)
+	}
+	return nil
+}
+
 func (b *Builder) formatBootEntry(partUUID string) string {
 	options := []string{
 		"rw",
@@ -266,15 +402,7 @@ func (b *Builder) setupBootloader() error {
 	if err != nil {
 		return err
 	}
-
-	devicePartRoot := b.VMImageDevice + "p2"
-	cmd := exec.Command("blkid", "-s", "PARTUUID", "-o", "value", devicePartRoot)
-	out, err := cmd.Output()
-	if err != nil {
-		return err
-	}
-	partRootUUID := strings.TrimSpace(string(out))
-	slog.Debug("Partition UUID", "uuid", partRootUUID)
+	slog.Debug("Partition UUID", "uuid", b.uuidRoot)
 
 	bootEntryPath := filepath.Join(b.VMImageMount, "boot/loader/entries/cb.conf")
 	err = os.MkdirAll(filepath.Dir(bootEntryPath), 0755)
@@ -282,7 +410,7 @@ func (b *Builder) setupBootloader() error {
 		return fmt.Errorf("unable to make directory %s: %w", bootEntryPath, err)
 	}
 
-	bootEntryContent := b.formatBootEntry(partRootUUID)
+	bootEntryContent := b.formatBootEntry(b.uuidRoot)
 
 	bootEntry, err := os.Create(bootEntryPath)
 	if err != nil {
@@ -603,6 +731,59 @@ func untarFile(srcFile, destDir string) error {
 	err = untarReader(reader, destDir)
 	if err != nil {
 		return fmt.Errorf("unable to extract %s to %s: %w", srcFile, destDir, err)
+	}
+
+	return nil
+}
+
+func partitionName(disk string, partition int) string {
+	lastChar := disk[len(disk)-1]
+	if lastChar >= '0' && lastChar <= '9' {
+		return fmt.Sprintf("%sp%d", disk, partition)
+	}
+	return fmt.Sprintf("%s%d", disk, partition)
+}
+
+func readlink(path string) (string, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+
+	fi, err := os.Lstat(abs)
+	if err != nil {
+		return "", err
+	}
+
+	if fi.Mode()&os.ModeSymlink == 0 {
+		return abs, nil
+	}
+
+	target, err := os.Readlink(abs)
+	if err != nil {
+		return "", err
+	}
+
+	if filepath.IsAbs(target) {
+		return filepath.Clean(target), nil
+	}
+
+	return filepath.Clean(filepath.Join(filepath.Dir(abs), target)), nil
+}
+
+func flushDevice(path string) error {
+	fd, err := os.OpenFile(path, os.O_RDWR, 0)
+	if err != nil {
+		return fmt.Errorf("unable to open %s for flushing: %w", path, err)
+	}
+	defer fd.Close()
+
+	if err := unix.Fsync(int(fd.Fd())); err != nil {
+		return fmt.Errorf("unable to fsync %s: %w", path, err)
+	}
+
+	if err := unix.IoctlSetInt(int(fd.Fd()), unix.BLKFLSBUF, 0); err != nil {
+		return fmt.Errorf("unable to flush block device %s buffer: %w", path, err)
 	}
 
 	return nil
