@@ -1,4 +1,5 @@
 _output/
+embed/mke2fs.bin
 *.img
 *.deb
 *.tar
