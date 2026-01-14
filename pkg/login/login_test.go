@@ -1,6 +1,7 @@
 package login
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -474,4 +475,752 @@ func TestAddRootUser(t *testing.T) {
 
 func p[T any](v T) *T {
 	return &v
+}
+
+// Test parsing functions
+
+func TestParsePasswd(t *testing.T) {
+	testCases := []struct {
+		description string
+		content     string
+		wantErr     bool
+		wantUIDs    []uint16
+		wantNames   []string
+	}{
+		{
+			description: "Valid passwd file",
+			content: `root:x:0:0:root:/root:/bin/bash
+bin:x:1:1:bin:/bin:/sbin/nologin
+daemon:x:2:2:daemon:/sbin:/sbin/nologin
+`,
+			wantErr:   false,
+			wantUIDs:  []uint16{0, 1, 2},
+			wantNames: []string{"root", "bin", "daemon"},
+		},
+		{
+			description: "Invalid field count",
+			content:     "root:x:0:0:root:/root\n",
+			wantErr:     true,
+		},
+		{
+			description: "Invalid UID",
+			content:     "root:x:invalid:0:root:/root:/bin/bash\n",
+			wantErr:     true,
+		},
+		{
+			description: "Invalid GID",
+			content:     "root:x:0:invalid:root:/root:/bin/bash\n",
+			wantErr:     true,
+		},
+		{
+			description: "Empty file",
+			content:     "",
+			wantErr:     false,
+			wantUIDs:    []uint16{},
+			wantNames:   []string{},
+		},
+		{
+			description: "UID overflow",
+			content:     "test:x:70000:0:test:/:/bin/sh\n",
+			wantErr:     true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			fs := afero.NewMemMapFs()
+			passwdFile := "/etc/passwd"
+			afero.WriteFile(fs, passwdFile, []byte(tc.content), 0644)
+
+			byUID, byName, list, err := ParsePasswd(fs, passwdFile)
+
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, len(tc.wantUIDs), len(byUID))
+				assert.Equal(t, len(tc.wantNames), len(byName))
+				assert.Equal(t, len(tc.wantUIDs), len(list))
+
+				for _, uid := range tc.wantUIDs {
+					assert.Contains(t, byUID, uid)
+				}
+				for _, name := range tc.wantNames {
+					assert.Contains(t, byName, name)
+				}
+			}
+		})
+	}
+}
+
+func TestParsePasswdFileNotFound(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	_, _, _, err := ParsePasswd(fs, "/nonexistent")
+	assert.Error(t, err)
+}
+
+func TestParseGroup(t *testing.T) {
+	testCases := []struct {
+		description string
+		content     string
+		wantErr     bool
+		wantGIDs    []uint16
+		wantNames   []string
+	}{
+		{
+			description: "Valid group file",
+			content: `root:x:0:
+bin:x:1:root,bin,daemon
+wheel:x:10:alice,bob
+`,
+			wantErr:   false,
+			wantGIDs:  []uint16{0, 1, 10},
+			wantNames: []string{"root", "bin", "wheel"},
+		},
+		{
+			description: "Invalid field count",
+			content:     "root:x:0\n",
+			wantErr:     true,
+		},
+		{
+			description: "Invalid GID",
+			content:     "root:x:invalid:\n",
+			wantErr:     true,
+		},
+		{
+			description: "Empty users list",
+			content:     "root:x:0:\n",
+			wantErr:     false,
+			wantGIDs:    []uint16{0},
+			wantNames:   []string{"root"},
+		},
+		{
+			description: "Multiple users",
+			content:     "wheel:x:10:alice,bob,charlie\n",
+			wantErr:     false,
+			wantGIDs:    []uint16{10},
+			wantNames:   []string{"wheel"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			fs := afero.NewMemMapFs()
+			groupFile := "/etc/group"
+			afero.WriteFile(fs, groupFile, []byte(tc.content), 0644)
+
+			byGID, byName, list, err := ParseGroup(fs, groupFile)
+
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, len(tc.wantGIDs), len(byGID))
+				assert.Equal(t, len(tc.wantNames), len(byName))
+				assert.Equal(t, len(tc.wantGIDs), len(list))
+
+				for _, gid := range tc.wantGIDs {
+					assert.Contains(t, byGID, gid)
+				}
+				for _, name := range tc.wantNames {
+					assert.Contains(t, byName, name)
+				}
+			}
+		})
+	}
+}
+
+func TestParseGroupFileNotFound(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	_, _, _, err := ParseGroup(fs, "/nonexistent")
+	assert.Error(t, err)
+}
+
+func TestParseShadow(t *testing.T) {
+	testCases := []struct {
+		description string
+		content     string
+		wantErr     bool
+		wantNames   []string
+	}{
+		{
+			description: "Valid shadow file",
+			content: `root:*:19460:0:99999:7:::
+bin:!!:19460::::::
+daemon:!!:19460:0:99999:7:10:20:30
+`,
+			wantErr:   false,
+			wantNames: []string{"root", "bin", "daemon"},
+		},
+		{
+			description: "Invalid field count",
+			content:     "root:*:19460:0:99999:7::\n",
+			wantErr:     true,
+		},
+		{
+			description: "Invalid lastChange",
+			content:     "root:*:invalid:0:99999:7:::\n",
+			wantErr:     true,
+		},
+		{
+			description: "Empty optional fields",
+			content:     "root:*:::::::\n",
+			wantErr:     false,
+			wantNames:   []string{"root"},
+		},
+		{
+			description: "Invalid minAge",
+			content:     "root:*:19460:invalid:99999:7:::\n",
+			wantErr:     true,
+		},
+		{
+			description: "Invalid maxAge",
+			content:     "root:*:19460:0:invalid:7:::\n",
+			wantErr:     true,
+		},
+		{
+			description: "Invalid warningPeriod",
+			content:     "root:*:19460:0:99999:invalid:::\n",
+			wantErr:     true,
+		},
+		{
+			description: "Invalid inactivityPeriod",
+			content:     "root:*:19460:0:99999:7:invalid::\n",
+			wantErr:     true,
+		},
+		{
+			description: "Invalid expiration",
+			content:     "root:*:19460:0:99999:7::invalid:\n",
+			wantErr:     true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			fs := afero.NewMemMapFs()
+			shadowFile := "/etc/shadow"
+			afero.WriteFile(fs, shadowFile, []byte(tc.content), 0600)
+
+			byName, list, err := ParseShadow(fs, shadowFile)
+
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, len(tc.wantNames), len(byName))
+				assert.Equal(t, len(tc.wantNames), len(list))
+
+				for _, name := range tc.wantNames {
+					assert.Contains(t, byName, name)
+				}
+			}
+		})
+	}
+}
+
+func TestParseShadowFileNotFound(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	_, _, err := ParseShadow(fs, "/nonexistent")
+	assert.Error(t, err)
+}
+
+func TestParseGShadow(t *testing.T) {
+	testCases := []struct {
+		description string
+		content     string
+		wantErr     bool
+		wantNames   []string
+	}{
+		{
+			description: "Valid gshadow file",
+			content: `root:::
+wheel:::alice,bob
+bin:!!:admin1,admin2:user1,user2
+`,
+			wantErr:   false,
+			wantNames: []string{"root", "wheel", "bin"},
+		},
+		{
+			description: "Invalid field count",
+			content:     "root::\n",
+			wantErr:     true,
+		},
+		{
+			description: "Empty admins and users",
+			content:     "root:::\n",
+			wantErr:     false,
+			wantNames:   []string{"root"},
+		},
+		{
+			description: "Only admins",
+			content:     "wheel:!!:admin1:\n",
+			wantErr:     false,
+			wantNames:   []string{"wheel"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			fs := afero.NewMemMapFs()
+			gshadowFile := "/etc/gshadow"
+			afero.WriteFile(fs, gshadowFile, []byte(tc.content), 0600)
+
+			byName, list, err := ParseGShadow(fs, gshadowFile)
+
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, len(tc.wantNames), len(byName))
+				assert.Equal(t, len(tc.wantNames), len(list))
+
+				for _, name := range tc.wantNames {
+					assert.Contains(t, byName, name)
+				}
+			}
+		})
+	}
+}
+
+func TestParseGShadowFileNotFound(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	_, _, err := ParseGShadow(fs, "/nonexistent")
+	assert.Error(t, err)
+}
+
+// Test String() methods
+
+func TestPasswdEntryString(t *testing.T) {
+	entry := PasswdEntry{
+		Username: "testuser",
+		Password: "x",
+		UID:      1000,
+		GID:      1000,
+		Comment:  "Test User",
+		HomeDir:  "/home/testuser",
+		Shell:    "/bin/bash",
+	}
+	expected := "testuser:x:1000:1000:Test User:/home/testuser:/bin/bash"
+	assert.Equal(t, expected, entry.String())
+}
+
+func TestGroupEntryString(t *testing.T) {
+	testCases := []struct {
+		description string
+		entry       GroupEntry
+		expected    string
+	}{
+		{
+			description: "With users",
+			entry: GroupEntry{
+				Groupname: "testgroup",
+				Password:  "x",
+				GID:       1000,
+				Users:     []string{"alice", "bob"},
+			},
+			expected: "testgroup:x:1000:alice,bob",
+		},
+		{
+			description: "No users",
+			entry: GroupEntry{
+				Groupname: "testgroup",
+				Password:  "x",
+				GID:       1000,
+				Users:     []string{},
+			},
+			expected: "testgroup:x:1000:",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.entry.String())
+		})
+	}
+}
+
+func TestShadowEntryString(t *testing.T) {
+	testCases := []struct {
+		description string
+		entry       ShadowEntry
+		expected    string
+	}{
+		{
+			description: "All fields populated",
+			entry: ShadowEntry{
+				Username:         "testuser",
+				Password:         "*",
+				LastChange:       19460,
+				MinAge:           0,
+				MaxAge:           99999,
+				WarningPeriod:    7,
+				InactivityPeriod: 10,
+				Expiration:       20,
+				Unused:           "",
+			},
+			expected: "testuser:*:19460:0:99999:7:10:20:",
+		},
+		{
+			description: "Empty optional fields (negative values)",
+			entry: ShadowEntry{
+				Username:         "testuser",
+				Password:         "!!",
+				LastChange:       -1,
+				MinAge:           -1,
+				MaxAge:           -1,
+				WarningPeriod:    -1,
+				InactivityPeriod: -1,
+				Expiration:       -1,
+				Unused:           "",
+			},
+			expected: "testuser:!!:::::::",
+		},
+		{
+			description: "With unused field",
+			entry: ShadowEntry{
+				Username:         "testuser",
+				Password:         "!!",
+				LastChange:       -1,
+				MinAge:           -1,
+				MaxAge:           -1,
+				WarningPeriod:    -1,
+				InactivityPeriod: -1,
+				Expiration:       -1,
+				Unused:           "reserved",
+			},
+			expected: "testuser:!!:::::::reserved",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.entry.String())
+		})
+	}
+}
+
+func TestGShadowEntryString(t *testing.T) {
+	testCases := []struct {
+		description string
+		entry       GShadowEntry
+		expected    string
+	}{
+		{
+			description: "With admins and users",
+			entry: GShadowEntry{
+				Groupname: "testgroup",
+				Password:  "!!",
+				Admins:    []string{"admin1", "admin2"},
+				Users:     []string{"user1", "user2"},
+			},
+			expected: "testgroup:!!:admin1,admin2:user1,user2",
+		},
+		{
+			description: "Empty admins and users",
+			entry: GShadowEntry{
+				Groupname: "testgroup",
+				Password:  "!!",
+				Admins:    []string{},
+				Users:     []string{},
+			},
+			expected: "testgroup:!!::",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.entry.String())
+		})
+	}
+}
+
+// Test helper functions
+
+func TestNextID(t *testing.T) {
+	testCases := []struct {
+		description string
+		entries     map[uint16]string
+		min         uint16
+		max         uint16
+		wantID      uint16
+		wantErr     error
+	}{
+		{
+			description: "Find first available ID",
+			entries:     map[uint16]string{},
+			min:         100,
+			max:         105,
+			wantID:      100,
+			wantErr:     nil,
+		},
+		{
+			description: "Skip used IDs",
+			entries: map[uint16]string{
+				100: "used",
+				101: "used",
+			},
+			min:     100,
+			max:     105,
+			wantID:  102,
+			wantErr: nil,
+		},
+		{
+			description: "No available IDs",
+			entries: map[uint16]string{
+				100: "used",
+				101: "used",
+				102: "used",
+			},
+			min:     100,
+			max:     102,
+			wantID:  0,
+			wantErr: ErrNoAvailableIDs,
+		},
+		{
+			description: "Last available ID",
+			entries: map[uint16]string{
+				100: "used",
+				101: "used",
+			},
+			min:     100,
+			max:     102,
+			wantID:  102,
+			wantErr: nil,
+		},
+		{
+			description: "All IDs in range are used",
+			entries: map[uint16]string{
+				1000: "used",
+				1001: "used",
+				1002: "used",
+				1003: "used",
+			},
+			min:     1000,
+			max:     1003,
+			wantID:  0,
+			wantErr: ErrNoAvailableIDs,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			id, err := nextID(tc.entries, tc.min, tc.max)
+			assert.Equal(t, tc.wantErr, err)
+			if err == nil {
+				assert.Equal(t, tc.wantID, id)
+			}
+		})
+	}
+}
+
+func TestNonEmptyStrings(t *testing.T) {
+	testCases := []struct {
+		description string
+		input       []string
+		expected    []string
+	}{
+		{
+			description: "All non-empty",
+			input:       []string{"a", "b", "c"},
+			expected:    []string{"a", "b", "c"},
+		},
+		{
+			description: "Some empty",
+			input:       []string{"a", "", "b", "", "c"},
+			expected:    []string{"a", "b", "c"},
+		},
+		{
+			description: "All empty",
+			input:       []string{"", "", ""},
+			expected:    []string{},
+		},
+		{
+			description: "Empty slice",
+			input:       []string{},
+			expected:    []string{},
+		},
+		{
+			description: "Whitespace not filtered",
+			input:       []string{" ", "  ", "a"},
+			expected:    []string{" ", "  ", "a"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			result := nonEmptyStrings(tc.input)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestHasEntry(t *testing.T) {
+	entries := []string{"alice", "bob", "charlie"}
+
+	assert.True(t, hasEntry(entries, "alice"))
+	assert.True(t, hasEntry(entries, "bob"))
+	assert.True(t, hasEntry(entries, "charlie"))
+	assert.False(t, hasEntry(entries, "dave"))
+	assert.False(t, hasEntry(entries, ""))
+	assert.False(t, hasEntry([]string{}, "alice"))
+}
+
+func TestFileExists(t *testing.T) {
+	fs := afero.NewMemMapFs()
+
+	// Create a file
+	afero.WriteFile(fs, "/exists", []byte("content"), 0644)
+
+	exists, err := fileExists(fs, "/exists")
+	assert.NoError(t, err)
+	assert.True(t, exists)
+
+	exists, err = fileExists(fs, "/not-exists")
+	assert.NoError(t, err)
+	assert.False(t, exists)
+}
+
+func TestWriteLines(t *testing.T) {
+	fs := afero.NewMemMapFs()
+
+	entries := []PasswdEntry{
+		{Username: "root", Password: "x", UID: 0, GID: 0, Comment: "root", HomeDir: "/root", Shell: "/bin/bash"},
+		{Username: "bin", Password: "x", UID: 1, GID: 1, Comment: "bin", HomeDir: "/bin", Shell: "/sbin/nologin"},
+	}
+
+	err := writeLines(fs, "/tmp/passwd", entries, 0644)
+	assert.NoError(t, err)
+
+	content, err := afero.ReadFile(fs, "/tmp/passwd")
+	assert.NoError(t, err)
+
+	expected := "root:x:0:0:root:/root:/bin/bash\nbin:x:1:1:bin:/bin:/sbin/nologin\n"
+	assert.Equal(t, expected, string(content))
+
+	// Verify temp file was cleaned up
+	exists, _ := fileExists(fs, "/tmp/passwd+")
+	assert.False(t, exists)
+}
+
+func TestWriteLinesEmptyList(t *testing.T) {
+	fs := afero.NewMemMapFs()
+
+	entries := []PasswdEntry{}
+	err := writeLines(fs, "/tmp/passwd", entries, 0644)
+	assert.NoError(t, err)
+
+	content, err := afero.ReadFile(fs, "/tmp/passwd")
+	assert.NoError(t, err)
+	assert.Equal(t, "", string(content))
+}
+
+func TestCreateHomeDir(t *testing.T) {
+	fs := afero.NewMemMapFs()
+
+	err := createHomeDir(fs, "/home/testuser", 1000, 1000)
+	assert.NoError(t, err)
+
+	// Check home directory exists
+	info, err := fs.Stat("/home/testuser")
+	assert.NoError(t, err)
+	assert.True(t, info.IsDir())
+
+	// Check .ssh directory exists with correct permissions
+	sshInfo, err := fs.Stat("/home/testuser/.ssh")
+	assert.NoError(t, err)
+	assert.True(t, sshInfo.IsDir())
+	assert.Equal(t, os.FileMode(0700), sshInfo.Mode().Perm())
+}
+
+func TestCreateHomeDirNestedPath(t *testing.T) {
+	fs := afero.NewMemMapFs()
+
+	err := createHomeDir(fs, "/home/users/testuser", 1000, 1000)
+	assert.NoError(t, err)
+
+	// Check nested parent directory was created
+	info, err := fs.Stat("/home/users")
+	assert.NoError(t, err)
+	assert.True(t, info.IsDir())
+
+	// Check home directory exists
+	info, err = fs.Stat("/home/users/testuser")
+	assert.NoError(t, err)
+	assert.True(t, info.IsDir())
+}
+
+// Test edge cases for AddUser variations
+
+func TestAddUserEdgeCases(t *testing.T) {
+	testCases := []struct {
+		description string
+		setup       func(afero.Fs)
+		username    string
+		groupname   string
+		wantErr     error
+	}{
+		{
+			description: "Duplicate user in existing file",
+			setup: func(fs afero.Fs) {
+				afero.WriteFile(fs, constants.FileEtcPasswd, []byte("testuser:x:1000:1000::/home/testuser:/bin/bash\n"), 0644)
+			},
+			username:  "testuser",
+			groupname: "testuser",
+			wantErr:   ErrUsernameExists,
+		},
+		{
+			description: "Empty username",
+			setup:       func(fs afero.Fs) {},
+			username:    "",
+			groupname:   "testgroup",
+			wantErr:     ErrUsernameLength,
+		},
+		{
+			description: "Empty groupname",
+			setup:       func(fs afero.Fs) {},
+			username:    "testuser",
+			groupname:   "",
+			wantErr:     ErrGroupnameLength,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			fs := afero.NewMemMapFs()
+			tc.setup(fs)
+
+			_, _, err := AddSystemUser(fs, tc.username, tc.groupname, "/nonexistent", "")
+			assert.Equal(t, tc.wantErr, err)
+		})
+	}
+}
+
+func TestAddLoginUserWheelGroupIntegration(t *testing.T) {
+	fs := afero.NewMemMapFs()
+
+	// Add first login user - should create wheel group
+	uid1, gid1, err := AddLoginUser(fs, "alice", "alice", "/home/alice", "/bin/bash", "")
+	assert.NoError(t, err)
+	assert.Equal(t, uint16(1000), uid1)
+	assert.Equal(t, uint16(1000), gid1)
+
+	// Verify wheel group was created
+	_, groupByName, _, err := ParseGroup(fs, constants.FileEtcGroup)
+	assert.NoError(t, err)
+	wheelGroup, ok := groupByName[constants.GroupNameWheel]
+	assert.True(t, ok)
+	assert.Contains(t, wheelGroup.Users, "alice")
+
+	// Add second login user - should add to existing wheel group
+	uid2, gid2, err := AddLoginUser(fs, "bob", "bob", "/home/bob", "/bin/bash", "")
+	assert.NoError(t, err)
+	assert.Equal(t, uint16(1001), uid2)
+	assert.Equal(t, uint16(1001), gid2)
+
+	// Verify both users in wheel group
+	_, groupByName, _, err = ParseGroup(fs, constants.FileEtcGroup)
+	assert.NoError(t, err)
+	wheelGroup = groupByName[constants.GroupNameWheel]
+	assert.Contains(t, wheelGroup.Users, "alice")
+	assert.Contains(t, wheelGroup.Users, "bob")
 }
