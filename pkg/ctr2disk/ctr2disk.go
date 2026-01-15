@@ -167,7 +167,7 @@ func WithDebug(debug bool) BuilderOpt {
 	}
 }
 
-func NewBuilder(opts ...BuilderOpt) (*Builder, error) {
+func NewBuilder(fs afero.Fs, opts ...BuilderOpt) (*Builder, error) {
 	builder := &Builder{}
 	for _, opt := range opts {
 		opt(builder)
@@ -194,7 +194,7 @@ func NewBuilder(opts ...BuilderOpt) (*Builder, error) {
 	}
 	builder.vmImageDevice = vmImageDevice
 
-	kernelVersion, err := kernelVersionFromArchive(builder.pathKernel)
+	kernelVersion, err := kernelVersionFromArchive(fs, builder.pathKernel)
 	if err != nil {
 		return nil, fmt.Errorf("unable to determine kernel version from archive: %w", err)
 	}
@@ -233,17 +233,17 @@ func (b *Builder) MakeVMImage() (err error) {
 	imageReader := mutate.Extract(ctrImage)
 	defer imageReader.Close()
 
-	err = untarReader(imageReader, dirMnt)
+	err = untarReader(fs, imageReader, dirMnt)
 	if err != nil {
 		return err
 	}
 
-	err = untarFile(b.pathBase, b.VMImageMount)
+	err = untarFile(fs, b.pathBase, b.VMImageMount)
 	if err != nil {
 		return err
 	}
 
-	err = untarFile(b.pathInit, b.VMImageMount)
+	err = untarFile(fs, b.pathInit, b.VMImageMount)
 	if err != nil {
 		return err
 	}
@@ -398,7 +398,7 @@ func (b *Builder) formatBootEntry(partUUID string) string {
 }
 
 func (b *Builder) setupBootloader() error {
-	err := untarFile(b.pathBootloader, b.VMImageMount)
+	err := untarFile(fs, b.pathBootloader, b.VMImageMount)
 	if err != nil {
 		return err
 	}
@@ -426,7 +426,7 @@ func (b *Builder) setupBootloader() error {
 }
 
 func (b *Builder) setupKernel() error {
-	err := untarFile(b.pathKernel, b.VMImageMount)
+	err := untarFile(fs, b.pathKernel, b.VMImageMount)
 	if err != nil {
 		return err
 	}
@@ -502,7 +502,7 @@ type ts struct {
 }
 
 func (b *Builder) setupChrony() error {
-	err := untarFile(b.pathChrony, b.VMImageMount)
+	err := untarFile(fs, b.pathChrony, b.VMImageMount)
 	if err != nil {
 		return err
 	}
@@ -520,7 +520,7 @@ func (b *Builder) setupSSH() error {
 	oldMask := syscall.Umask(0)
 	defer syscall.Umask(oldMask)
 
-	err := untarFile(b.pathSSH, b.VMImageMount)
+	err := untarFile(fs, b.pathSSH, b.VMImageMount)
 	if err != nil {
 		return err
 	}
@@ -556,8 +556,8 @@ func (b *Builder) setupSSH() error {
 	return nil
 }
 
-func kernelVersionFromArchive(pathKernelArchive string) (string, error) {
-	f, err := os.Open(pathKernelArchive)
+func kernelVersionFromArchive(fs afero.Fs, pathKernelArchive string) (string, error) {
+	f, err := fs.Open(pathKernelArchive)
 	if err != nil {
 		return "", fmt.Errorf("unable to open %s: %w", pathKernelArchive, err)
 	}
@@ -598,7 +598,7 @@ func loadImage(ref name.Reference, source string) (v1.Image, error) {
 	}
 }
 
-func untarReader(reader io.Reader, destDir string) error {
+func untarReader(fs afero.Fs, reader io.Reader, destDir string) error {
 	oldMask := syscall.Umask(0)
 	defer syscall.Umask(oldMask)
 
@@ -664,7 +664,7 @@ func untarReader(reader io.Reader, destDir string) error {
 				return newErrExtract(tar.TypeLink, err)
 			}
 		case tar.TypeReg:
-			err = copyFile(treader, dest, perm)
+			err = copyFile(fs, treader, dest, perm)
 			if err != nil {
 				return newErrExtract(tar.TypeReg, err)
 			}
@@ -710,8 +710,8 @@ func untarReader(reader io.Reader, destDir string) error {
 	return nil
 }
 
-func copyFile(src io.Reader, dest string, perm os.FileMode) error {
-	f, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY, perm)
+func copyFile(fs afero.Fs, src io.Reader, dest string, perm os.FileMode) error {
+	f, err := fs.OpenFile(dest, os.O_CREATE|os.O_WRONLY, perm)
 	if err != nil {
 		return err
 	}
@@ -721,14 +721,14 @@ func copyFile(src io.Reader, dest string, perm os.FileMode) error {
 	return err
 }
 
-func untarFile(srcFile, destDir string) error {
-	reader, err := os.Open(srcFile)
+func untarFile(fs afero.Fs, srcFile, destDir string) error {
+	reader, err := fs.Open(srcFile)
 	if err != nil {
 		return fmt.Errorf("unable to open %s for reading: %w", srcFile, err)
 	}
 	defer reader.Close()
 
-	err = untarReader(reader, destDir)
+	err = untarReader(fs, reader, destDir)
 	if err != nil {
 		return fmt.Errorf("unable to extract %s to %s: %w", srcFile, destDir, err)
 	}
