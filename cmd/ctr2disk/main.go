@@ -7,6 +7,7 @@ import (
 
 	"github.com/cloudboss/easyto/pkg/constants"
 	"github.com/cloudboss/easyto/pkg/ctr2disk"
+	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 )
 
@@ -19,6 +20,7 @@ var (
 			cmd.SilenceUsage = true
 
 			builder, err := ctr2disk.NewBuilder(
+				afero.NewOsFs(),
 				ctr2disk.WithAssetDir(cfg.assetDir),
 				ctr2disk.WithCTRImageName(cfg.image),
 				ctr2disk.WithCTRImageSource("remote"),
