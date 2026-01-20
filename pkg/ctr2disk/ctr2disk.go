@@ -32,12 +32,10 @@ import (
 )
 
 const (
-	modeDirStd       = 0755
 	tarCodeMode      = 'Y'
 	tarCodeTimestamp = 'Z'
 
-	dirLibModules = "/lib/modules"
-	dirMnt        = "/mnt"
+	dirMnt = "/mnt"
 
 	pathPrefixKernel = "./boot/vmlinuz-"
 
@@ -426,27 +424,7 @@ func (b *Builder) setupBootloader() error {
 }
 
 func (b *Builder) setupKernel() error {
-	err := untarFile(fs, b.pathKernel, b.VMImageMount)
-	if err != nil {
-		return err
-	}
-
-	libModulesPath := filepath.Join(b.VMImageMount, dirLibModules)
-	if _, err = os.Stat(libModulesPath); os.IsNotExist(err) {
-		err = os.MkdirAll(libModulesPath, modeDirStd)
-		if err != nil {
-			return fmt.Errorf("unable to create kernel modules directory: %w", err)
-		}
-	}
-
-	linkPath := filepath.Join(b.VMImageMount, dirLibModules, b.kernelVersion)
-	linkTargetPath := filepath.Join(constants.DirETRoot, dirLibModules, b.kernelVersion)
-	err = os.Symlink(linkTargetPath, linkPath)
-	if err != nil {
-		return fmt.Errorf("unable to link %s to %s: %w", linkPath, linkTargetPath, err)
-	}
-
-	return nil
+	return untarFile(fs, b.pathKernel, b.VMImageMount)
 }
 
 func (b *Builder) setupServices() error {
