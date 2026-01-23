@@ -26,6 +26,7 @@ var (
 
 	DirETRoot string
 	DirETBin  = DirETRoot + "/bin"
+	DirETEtc  = DirETRoot + "/etc"
 	DirETSbin = DirETRoot + "/sbin"
 	DirETHome = DirETRoot + "/home"
 )
