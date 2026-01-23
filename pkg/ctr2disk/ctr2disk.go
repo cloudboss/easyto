@@ -387,6 +387,8 @@ func (b *Builder) formatBootEntry(partUUID string) string {
 		"earlyprintk=ttyS0,115200",
 		"consoleblank=0",
 		"init=" + filepath.Join(constants.DirETSbin, "init"),
+		// Unrecognized arguments are passed as environment variables.
+		"SSL_CERT_FILE=" + filepath.Join(constants.DirETEtc, "amazon.pem"),
 	}
 	lines := []string{
 		"linux /vmlinuz-" + b.kernelVersion,
