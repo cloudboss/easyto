@@ -29,4 +29,6 @@ var (
 	DirETEtc  = DirETRoot + "/etc"
 	DirETSbin = DirETRoot + "/sbin"
 	DirETHome = DirETRoot + "/home"
+
+	ETVersion string
 )
