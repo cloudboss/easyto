@@ -212,7 +212,7 @@ func (b *Builder) MakeVMImage() (err error) {
 		return err
 	}
 
-	err = b.mountDisk()
+	err = b.mountPartitions()
 	if err != nil {
 		return err
 	}
@@ -267,7 +267,7 @@ func (b *Builder) MakeVMImage() (err error) {
 		return err
 	}
 
-	return nil
+	return b.unmountPartitions()
 }
 
 func (b *Builder) partitionDisk() error {
@@ -357,7 +357,7 @@ func (b *Builder) partitionDisk() error {
 	return nil
 }
 
-func (b *Builder) mountDisk() error {
+func (b *Builder) mountPartitions() error {
 	partBoot := partitionName(b.vmImageDevice, 1)
 	partRoot := partitionName(b.vmImageDevice, 2)
 	err := unix.Mount(partRoot, b.VMImageMount, "ext4", 0, "")
@@ -374,6 +374,23 @@ func (b *Builder) mountDisk() error {
 	if err != nil {
 		return fmt.Errorf("unable to mount %s to %s: %w", partBoot,
 			mountpointBoot, err)
+	}
+	return nil
+}
+
+func (b *Builder) unmountPartitions() error {
+	mountpointBoot := filepath.Join(b.VMImageMount, "boot")
+	err := unix.Unmount(mountpointBoot, 0)
+	if err != nil {
+		return fmt.Errorf("unable to unmount %s: %w", mountpointBoot, err)
+	}
+	err = unix.Unmount(b.VMImageMount, 0)
+	if err != nil {
+		return fmt.Errorf("unable to unmount %s: %w", b.VMImageMount, err)
+	}
+	err = flushDevice(b.vmImageDevice)
+	if err != nil {
+		return fmt.Errorf("unable to flush device %s: %w", b.vmImageDevice, err)
 	}
 	return nil
 }
