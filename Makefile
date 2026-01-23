@@ -144,6 +144,7 @@ $(DIR_STG_BIN)/easyto: \
 		-v $(DIR_ROOT):/code \
 		-e DIR_ET_ROOT=/$(DIR_ET) \
 		-e DIR_OUT=/code/$(DIR_STG_BIN) \
+		-e ET_VERSION=$(VERSION) \
 		-e GOPATH=/code/$(DIR_OUT)/go \
 		-e GOCACHE=/code/$(DIR_OUT)/gocache \
 		-e CGO_ENABLED=0 \

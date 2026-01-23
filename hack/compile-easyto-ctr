@@ -1,5 +1,6 @@
 #!/bin/sh
 
 var_dir_et_root="github.com/cloudboss/easyto/pkg/constants.DirETRoot=${DIR_ET_ROOT}"
-ldflags_vars="-X ${var_dir_et_root}"
+var_et_version="github.com/cloudboss/easyto/pkg/constants.ETVersion=${ET_VERSION:-v0.0.0}"
+ldflags_vars="-X ${var_dir_et_root} -X ${var_et_version}"
 go build -o ${DIR_OUT}/easyto -ldflags "${ldflags_vars} -s -w" ./cmd/easyto
