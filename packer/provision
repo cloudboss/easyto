@@ -28,12 +28,3 @@ ${EXEC_CTR2DISK} \
     --services=${SERVICES} \
     --vm-image-device=${ROOT_DEVICE} \
     ${debug_arg}
-
-if [ "${DEBUG}" = "true" ]; then
-    ls -la /mnt
-    find /mnt/boot -ls
-    cat /mnt/boot/loader/entries/cb.conf
-fi
-
-umount /mnt/boot
-umount /mnt
