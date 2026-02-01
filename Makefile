@@ -78,11 +78,23 @@ $(EASYTO_ASSETS_PACKER_OUT) &: $(DIR_OUT)/$(EASYTO_ASSETS_PACKER_ARCHIVE) | $(DI
 		--xform "s|^$(EASYTO_ASSETS_PACKER)|$(DIR_STG_PACKER)|" \
 		-f $(DIR_OUT)/$(EASYTO_ASSETS_PACKER_ARCHIVE)
 
-$(DIR_STG_PACKER)/build.pkr.hcl: $(DIR_ROOT)/packer/build.pkr.hcl | $(DIR_STG_PACKER)/
-	@install -m 0644 $(DIR_ROOT)/packer/build.pkr.hcl $(DIR_STG_PACKER)/build.pkr.hcl
+$(DIR_STG_PACKER)/fast/build.pkr.hcl: $(DIR_ROOT)/packer/fast/build.pkr.hcl | $(DIR_STG_PACKER)/fast/
+	@install -m 0644 $(DIR_ROOT)/packer/fast/build.pkr.hcl $(DIR_STG_PACKER)/fast/build.pkr.hcl
 
-$(DIR_STG_PACKER)/provision: $(DIR_ROOT)/packer/provision
-	@install -m 0755 $(DIR_ROOT)/packer/provision $(DIR_STG_PACKER)/provision
+$(DIR_STG_PACKER)/fast/provision: $(DIR_ROOT)/packer/fast/provision | $(DIR_STG_PACKER)/fast/
+	@install -m 0755 $(DIR_ROOT)/packer/fast/provision $(DIR_STG_PACKER)/fast/provision
+
+$(DIR_STG_PACKER)/slow/build.pkr.hcl: $(DIR_ROOT)/packer/slow/build.pkr.hcl | $(DIR_STG_PACKER)/slow/
+	@install -m 0644 $(DIR_ROOT)/packer/slow/build.pkr.hcl $(DIR_STG_PACKER)/slow/build.pkr.hcl
+
+$(DIR_STG_PACKER)/slow/provision: $(DIR_ROOT)/packer/slow/provision | $(DIR_STG_PACKER)/slow/
+	@install -m 0755 $(DIR_ROOT)/packer/slow/provision $(DIR_STG_PACKER)/slow/provision
+
+$(DIR_STG_PACKER)/fast/:
+	@mkdir -p $(DIR_STG_PACKER)/fast
+
+$(DIR_STG_PACKER)/slow/:
+	@mkdir -p $(DIR_STG_PACKER)/slow
 
 $(EASYTO_ASSETS_RUNTIME_OUT) &: $(DIR_OUT)/$(EASYTO_ASSETS_RUNTIME_ARCHIVE) | $(DIR_STG_ASSETS)/
 	@tar -zmx \
@@ -157,8 +169,10 @@ $(DIR_STG_BIN)/easyto: \
 
 $(DIR_RELEASE)/easyto-$(VERSION)-$(OS)-$(ARCH).tar.gz: \
 		$(EASYTO_ASSETS_PACKER_OUT) \
-		$(DIR_STG_PACKER)/build.pkr.hcl \
-		$(DIR_STG_PACKER)/provision \
+		$(DIR_STG_PACKER)/fast/build.pkr.hcl \
+		$(DIR_STG_PACKER)/fast/provision \
+		$(DIR_STG_PACKER)/slow/build.pkr.hcl \
+		$(DIR_STG_PACKER)/slow/provision \
 		$(EASYTO_ASSETS_RUNTIME_OUT) \
 		$(DIR_STG_ASSETS)/ctr2disk \
 		$(DIR_STG_ASSETS)/init.tar \
