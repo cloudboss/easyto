@@ -1,6 +1,11 @@
 package constants
 
 const (
+	AWSAccountCloudboss = "256008164056"
+	AWSAccountDebian    = "136693071363"
+	AMIPatternCloudboss = "ghcr.io-cloudboss-easyto-builder-"
+	AMIPatternDebian    = "debian-12-*"
+
 	DirProc = "/proc"
 
 	FileEtcPasswd  = "/etc/passwd"

@@ -2,6 +2,7 @@ package tree
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/cloudboss/easyto/pkg/constants"
+	"github.com/cloudboss/easyto/pkg/sourceami"
 	"github.com/spf13/cobra"
 )
 
@@ -43,20 +45,61 @@ var (
 
 			svcErr := validateServices(amiCfg.services)
 			sshErr := validateSSHInterface(amiCfg.sshInterface)
-			return errors.Join(svcErr, sshErr)
+			modeErr := validateBuilderImageMode(amiCfg.builderImageMode, amiCfg.builderImage)
+			return errors.Join(svcErr, sshErr, modeErr)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			quotedServices := bytes.NewBufferString("")
-			err := json.NewEncoder(quotedServices).Encode(amiCfg.services)
+			ctx := context.Background()
+
+			resp, err := sourceami.Resolve(ctx, amiCfg.builderImage, constants.ETVersion)
 			if err != nil {
-				// Unlikely that []string cannot be encoded to JSON, but check anyway.
+				return fmt.Errorf("failed to resolve builder AMI: %w", err)
+			}
+
+			if amiCfg.builderImage != "" && amiCfg.builderImageMode == "" {
+				fmt.Println("No --builder-image-mode specified, defaulting to slow mode")
+			}
+
+			if amiCfg.builderImageMode != "" {
+				switch amiCfg.builderImageMode {
+				case "fast":
+					resp.Mode = sourceami.ModeFast
+				case "slow":
+					resp.Mode = sourceami.ModeSlow
+				}
+			}
+
+			var packerSubdir, sshUsername string
+			switch resp.Mode {
+			case sourceami.ModeFast:
+				packerSubdir = "fast"
+				sshUsername = "cloudboss"
+			case sourceami.ModeSlow:
+				packerSubdir = "slow"
+				sshUsername = "admin"
+				if amiCfg.builderImage == "" {
+					fmt.Printf("Builder AMI %s%s not found, falling back to slow mode\n",
+						constants.AMIPatternCloudboss, constants.ETVersion)
+				}
+			}
+
+			if amiCfg.builderImage != "" {
+				sshUsername = amiCfg.builderImageLoginUser
+			}
+
+			if amiCfg.debug {
+				fmt.Printf("Using %s path with AMI %s\n", packerSubdir, resp.AMI)
+			}
+
+			quotedServices := bytes.NewBufferString("")
+			err = json.NewEncoder(quotedServices).Encode(amiCfg.services)
+			if err != nil {
 				return fmt.Errorf("unexpected value for services: %w", err)
 			}
 
 			packerArgs := []string{
 				"build",
 				"-var", fmt.Sprintf("ami_name=%s", amiCfg.amiName),
-				"-var", fmt.Sprintf("asset_dir=%s", amiCfg.assetDir),
 				"-var", fmt.Sprintf("container_image=%s", amiCfg.containerImage),
 				"-var", fmt.Sprintf("debug=%t", amiCfg.debug),
 				"-var", fmt.Sprintf("login_user=%s", amiCfg.loginUser),
@@ -64,18 +107,26 @@ var (
 				"-var", fmt.Sprintf("root_device_name=%s", amiCfg.rootDeviceName),
 				"-var", fmt.Sprintf("root_vol_size=%d", amiCfg.size),
 				"-var", fmt.Sprintf("services=%s", quotedServices.String()),
+				"-var", fmt.Sprintf("source_ami=%s", resp.AMI),
 				"-var", fmt.Sprintf("ssh_interface=%s", amiCfg.sshInterface),
+				"-var", fmt.Sprintf("ssh_username=%s", sshUsername),
 				"-var", fmt.Sprintf("subnet_id=%s", amiCfg.subnetID),
-				"build.pkr.hcl",
 			}
 
-			packer := exec.Command("./packer", packerArgs...)
+			if resp.Mode == sourceami.ModeSlow {
+				packerArgs = append(packerArgs, "-var", fmt.Sprintf("asset_dir=%s", amiCfg.assetDir))
+			}
+
+			packerArgs = append(packerArgs, "build.pkr.hcl")
+
+			packerWorkDir := filepath.Join(amiCfg.packerDir, packerSubdir)
+			packer := exec.Command(filepath.Join(amiCfg.packerDir, "packer"), packerArgs...)
 
 			packer.Stdin = os.Stdin
 			packer.Stdout = os.Stdout
 			packer.Stderr = os.Stderr
 
-			packer.Dir = amiCfg.packerDir
+			packer.Dir = packerWorkDir
 
 			packer.Env = append(os.Environ(), []string{
 				"CHECKPOINT_DISABLE=1",
@@ -94,18 +145,21 @@ var (
 )
 
 type amiConfig struct {
-	amiName        string
-	assetDir       string
-	containerImage string
-	debug          bool
-	loginUser      string
-	loginShell     string
-	packerDir      string
-	rootDeviceName string
-	services       []string
-	size           int
-	sshInterface   string
-	subnetID       string
+	amiName               string
+	assetDir              string
+	builderImage          string
+	builderImageLoginUser string
+	builderImageMode      string
+	containerImage        string
+	debug                 bool
+	loginUser             string
+	loginShell            string
+	packerDir             string
+	rootDeviceName        string
+	services              []string
+	size                  int
+	sshInterface          string
+	subnetID              string
 }
 
 func init() {
@@ -136,6 +190,15 @@ func init() {
 
 	AMICmd.Flags().StringVarP(&amiCfg.assetDir, "asset-directory", "A", assetDir,
 		"Path to a directory containing asset files.")
+
+	AMICmd.Flags().StringVar(&amiCfg.builderImage, "builder-image", "",
+		"AMI ID or name pattern for the builder image. If not specified, uses the easyto builder AMI matching the current version, falling back to Debian.")
+
+	AMICmd.Flags().StringVar(&amiCfg.builderImageLoginUser, "builder-image-login-user", "cloudboss",
+		"SSH login user for the builder image when using --builder-image.")
+
+	AMICmd.Flags().StringVar(&amiCfg.builderImageMode, "builder-image-mode", "",
+		"Build mode to use with --builder-image. Must be 'fast' or 'slow'. Fast mode assumes easyto is pre-installed on the builder image.")
 
 	AMICmd.Flags().StringVarP(&amiCfg.packerDir, "packer-directory", "P", packerDir,
 		"Path to a directory containing packer and its configuration.")
@@ -204,5 +267,20 @@ func validateSSHInterface(sshInterface string) error {
 		return nil
 	default:
 		return fmt.Errorf("invalid ssh interface %s", sshInterface)
+	}
+}
+
+func validateBuilderImageMode(mode, builderImage string) error {
+	if mode == "" {
+		return nil
+	}
+	if builderImage == "" {
+		return fmt.Errorf("--builder-image-mode requires --builder-image")
+	}
+	switch mode {
+	case "fast", "slow":
+		return nil
+	default:
+		return fmt.Errorf("invalid builder image mode %s, must be 'fast' or 'slow'", mode)
 	}
 }
