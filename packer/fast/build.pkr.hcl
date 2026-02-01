@@ -16,31 +16,8 @@ variable "architecture" {
   default = "x86_64"
 }
 
-variable "asset_dir" {
+variable "source_ami" {
   type    = string
-}
-
-variable "asset_files" {
-  type    = list(string)
-
-  default = [
-    "boot.tar",
-    "chrony.tar",
-    "ctr2disk",
-    "init.tar",
-    "kernel.tar",
-    "ssh.tar",
-  ]
-}
-
-variable "builder_ami_owner" {
-  type    = string
-  default = "136693071363"
-}
-
-variable "builder_ami_pattern" {
-  type    = string
-  default = "debian-12-*"
 }
 
 variable "builder_instance_type" {
@@ -86,7 +63,7 @@ variable "ssh_interface" {
 
 variable "ssh_username" {
   type    = string
-  default = "admin"
+  default = "cloudboss"
 }
 
 variable "subnet_id" {
@@ -98,20 +75,9 @@ variable "debug" {
 }
 
 locals {
-  remote_asset_dir        = "/tmp/assets"
   source_root_device_name = "/dev/xvdf"
 }
 
-data "amazon-ami" "builder_ami" {
-  filters                     = {
-    architecture              = "x86_64"
-    name                      = var.builder_ami_pattern
-    root-device-type          = "ebs"
-    virtualization-type       = "hvm"
-  }
-  most_recent                 = true
-  owners                      = [var.builder_ami_owner]
-}
 
 source "amazon-ebssurrogate" "builder_ami" {
   ami_description             = var.ami_name
@@ -130,12 +96,13 @@ source "amazon-ebssurrogate" "builder_ami" {
     Name                      = "ami-volume-${var.ami_name}"
   }
   snapshot_groups             = var.is_public ? ["all"] : []
-  source_ami                  = data.amazon-ami.builder_ami.id
+  source_ami                  = var.source_ami
   sriov_support               = true
   ssh_interface               = var.ssh_interface
   ssh_pty                     = true
   ssh_timeout                 = "5m"
   ssh_username                = var.ssh_username
+  ssh_file_transfer_method    = "sftp"
   subnet_id                   = var.subnet_id
   tags                        = {
     "container_image"         = var.container_image
@@ -159,16 +126,11 @@ source "amazon-ebssurrogate" "builder_ami" {
 build {
   sources                     = ["source.amazon-ebssurrogate.builder_ami"]
 
-  provisioner "file" {
-    destination               = "/tmp"
-    source                    = var.asset_dir
-  }
   provisioner "shell" {
     env                       = {
-      ASSET_DIR               = "/tmp/assets"
-      ASSET_FILES             = join(" ", var.asset_files)
+      ASSET_DIR               = "/easyto/assets"
       CONTAINER_IMAGE         = var.container_image
-      EXEC_CTR2DISK           = "/tmp/assets/ctr2disk"
+      EXEC_CTR2DISK           = "/easyto/assets/ctr2disk"
       ROOT_DEVICE             = local.source_root_device_name
       SERVICES                = join(",", var.services)
       LOGIN_USER              = var.login_user

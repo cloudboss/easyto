@@ -1,0 +1,16 @@
+#!/bin/sh -e
+
+if [ "${DEBUG}" = "true" ]; then
+    set -x
+fi
+
+[ "${DEBUG}" = "true" ] && debug_arg=--debug
+
+${EXEC_CTR2DISK} \
+    --asset-dir=${ASSET_DIR} \
+    --container-image=${CONTAINER_IMAGE} \
+    --login-user=${LOGIN_USER} \
+    --login-shell=${LOGIN_SHELL} \
+    --services=${SERVICES} \
+    --vm-image-device=${ROOT_DEVICE} \
+    ${debug_arg}
