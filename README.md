@@ -38,7 +38,7 @@ The `ami` subcommand takes the following options:
 
 `--ami-name` or `-a`: (Required) -  Name of the AMI, which must follow the name [constraints](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_RegisterImage.html) defined by Amazon.
 
-`--container-image` or `-c`: (Required) - Name of the container image.
+`--container-image` or `-c`: (Required) - Name of the container image from which the AMI is derived.
 
 `--subnet-id` or `-s`: (Required) - ID of the subnet in which to run the image builder.
 
@@ -48,7 +48,7 @@ The `ami` subcommand takes the following options:
 
 `--login-shell`: (Optional, default `/.easyto/bin/sh`) - Shell to use for the login user if ssh service is enabled.
 
-`--login-user`: (Optional, default `cloudboss`) - Login user to create in the VM image if ssh service is enabled.
+`--login-user`: (Optional, default `cloudboss`) - Login user to create in the AMI if ssh service is enabled.
 
 `--asset-directory` or `-A`: (Optional) - Path to a directory containing asset files. Normally not needed unless changing the layout of directories contained in the release.
 
