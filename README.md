@@ -32,6 +32,16 @@ To create an AMI, run the `ami` subcommand. For example, to create an AMI called
 easyto ami -a postgres-16.2-bullseye -c postgres:16.2-bullseye -s subnet-e358acdfe25b8fb3b --services=chrony,ssh
 ```
 
+### Fast vs slow mode
+
+The `ami` subcommand runs in one of *fast* or *slow* build modes.
+
+In fast mode, the build instance is created from an AMI that has easyto preinstalled. This is the default when the builder AMI matching your easyto version is available in your region. The AMI with the name `ghcr.io-cloudboss-easyto-builder-<version>` is searched for in your own account and in the official easyto account, where `<version>` is the same as the output of running `easyto version`.
+
+In slow mode, the build uses a Debian base AMI and copies easyto to the instance during the build process. This is slower but works without needing the builder AMI to be available. Slow mode is used automatically as a fallback when the fast mode AMI is not found.
+
+You can also specify a custom builder image with `--builder-image`, with `--builder-image-mode` to specify fast mode if easyto is preinstalled on it. When easyto is preinstalled, it must be the full bundle including assets directory, and the `easyto` executable or a link to it must be on the `PATH`.
+
 ### Command line options
 
 The `ami` subcommand takes the following options:
@@ -49,6 +59,12 @@ The `ami` subcommand takes the following options:
 `--login-shell`: (Optional, default `/.easyto/bin/sh`) - Shell to use for the login user if ssh service is enabled.
 
 `--login-user`: (Optional, default `cloudboss`) - Login user to create in the AMI if ssh service is enabled.
+
+`--builder-image`: (Optional) - AMI name pattern or ID for the builder image. If not specified, uses the easyto builder AMI matching the current version, falling back to Debian if not found.
+
+`--builder-image-login-user`: (Optional, default `cloudboss`) - SSH login user for the builder image when using `--builder-image`.
+
+`--builder-image-mode`: (Optional, default `slow`) - Build mode to use with `--builder-image` and has no effect if it is not defined. Must be one of `fast` or `slow`.
 
 `--asset-directory` or `-A`: (Optional) - Path to a directory containing asset files. Normally not needed unless changing the layout of directories contained in the release.
 
