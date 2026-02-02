@@ -6,8 +6,19 @@ fi
 
 [ "${DEBUG}" = "true" ] && debug_arg=--debug
 
+easyto_path=$(which easyto 2>/dev/null) || {
+    echo "easyto not found in PATH" >&2
+    exit 1
+}
+easyto_realpath=$(realpath ${easyto_path})
+asset_dir=$(realpath $(dirname ${easyto_realpath})/../assets)
+[ -d "${asset_dir}" ] || {
+    echo "easyto asset directory ${asset_dir} not found" >&2
+    exit 1
+}
+
 ${EXEC_CTR2DISK} \
-    --asset-dir=${ASSET_DIR} \
+    --asset-dir=${asset_dir} \
     --container-image=${CONTAINER_IMAGE} \
     --login-user=${LOGIN_USER} \
     --login-shell=${LOGIN_SHELL} \
