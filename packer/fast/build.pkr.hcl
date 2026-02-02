@@ -128,7 +128,6 @@ build {
 
   provisioner "shell" {
     env                       = {
-      ASSET_DIR               = "/easyto/assets"
       CONTAINER_IMAGE         = var.container_image
       EXEC_CTR2DISK           = "/easyto/assets/ctr2disk"
       ROOT_DEVICE             = local.source_root_device_name
