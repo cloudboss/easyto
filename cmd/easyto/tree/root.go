@@ -13,5 +13,6 @@ var (
 
 func init() {
 	RootCmd.AddCommand(AMICmd)
+	RootCmd.AddCommand(CopyBuilderCmd)
 	RootCmd.AddCommand(VersionCmd)
 }
