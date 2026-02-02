@@ -1,0 +1,19 @@
+FROM debian:trixie-20260112-slim AS builder
+
+ARG VERSION
+
+COPY _output/release/easyto-${VERSION}-linux-amd64.tar.gz /easyto-${VERSION}-linux-amd64.tar.gz
+
+RUN tar zxvf /easyto-${VERSION}-linux-amd64.tar.gz -C /
+
+FROM debian:trixie-20260112-slim
+
+ARG VERSION
+
+COPY --from=builder /easyto-${VERSION} /easyto
+
+RUN apt update && apt install -y ca-certificates && \
+    rm -rf /var/lib/apt/lists/* && \
+    ln -s /easyto/bin/easyto /usr/local/bin/easyto
+
+ENTRYPOINT ["tail", "-f", "/dev/null"]
