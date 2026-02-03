@@ -133,7 +133,7 @@ func TestCopyWithClients(t *testing.T) {
 				images: []ec2types.Image{
 					{
 						ImageId: aws.String("ami-source"),
-						Name:    aws.String("ghcr.io-cloudboss-easyto-builder-v1.0.0"),
+						Name:    aws.String("ghcr.io--cloudboss--easyto-builder--v1.0.0"),
 					},
 				},
 			},
@@ -141,9 +141,9 @@ func TestCopyWithClients(t *testing.T) {
 			waiter:     nil,
 			expectedResult: &Result{
 				SourceAMI:  "ami-source",
-				SourceName: "ghcr.io-cloudboss-easyto-builder-v1.0.0",
+				SourceName: "ghcr.io--cloudboss--easyto-builder--v1.0.0",
 				DestAMI:    "ami-dest",
-				DestName:   "ghcr.io-cloudboss-easyto-builder-v1.0.0",
+				DestName:   "ghcr.io--cloudboss--easyto-builder--v1.0.0",
 			},
 		},
 		{
@@ -157,7 +157,7 @@ func TestCopyWithClients(t *testing.T) {
 				images: []ec2types.Image{
 					{
 						ImageId: aws.String("ami-source"),
-						Name:    aws.String("ghcr.io-cloudboss-easyto-builder-v1.0.0"),
+						Name:    aws.String("ghcr.io--cloudboss--easyto-builder--v1.0.0"),
 					},
 				},
 			},
@@ -165,7 +165,7 @@ func TestCopyWithClients(t *testing.T) {
 			waiter:     nil,
 			expectedResult: &Result{
 				SourceAMI:  "ami-source",
-				SourceName: "ghcr.io-cloudboss-easyto-builder-v1.0.0",
+				SourceName: "ghcr.io--cloudboss--easyto-builder--v1.0.0",
 				DestAMI:    "ami-dest",
 				DestName:   "my-custom-name",
 			},
@@ -181,7 +181,7 @@ func TestCopyWithClients(t *testing.T) {
 				images: []ec2types.Image{
 					{
 						ImageId: aws.String("ami-source"),
-						Name:    aws.String("ghcr.io-cloudboss-easyto-builder-v1.0.0"),
+						Name:    aws.String("ghcr.io--cloudboss--easyto-builder--v1.0.0"),
 					},
 				},
 			},
@@ -189,9 +189,9 @@ func TestCopyWithClients(t *testing.T) {
 			waiter:     &mockWaiter{},
 			expectedResult: &Result{
 				SourceAMI:  "ami-source",
-				SourceName: "ghcr.io-cloudboss-easyto-builder-v1.0.0",
+				SourceName: "ghcr.io--cloudboss--easyto-builder--v1.0.0",
 				DestAMI:    "ami-dest",
-				DestName:   "ghcr.io-cloudboss-easyto-builder-v1.0.0",
+				DestName:   "ghcr.io--cloudboss--easyto-builder--v1.0.0",
 			},
 		},
 		{
@@ -214,7 +214,7 @@ func TestCopyWithClients(t *testing.T) {
 				images: []ec2types.Image{
 					{
 						ImageId: aws.String("ami-source"),
-						Name:    aws.String("ghcr.io-cloudboss-easyto-builder-v1.0.0"),
+						Name:    aws.String("ghcr.io--cloudboss--easyto-builder--v1.0.0"),
 					},
 				},
 			},
@@ -232,7 +232,7 @@ func TestCopyWithClients(t *testing.T) {
 				images: []ec2types.Image{
 					{
 						ImageId: aws.String("ami-source"),
-						Name:    aws.String("ghcr.io-cloudboss-easyto-builder-v1.0.0"),
+						Name:    aws.String("ghcr.io--cloudboss--easyto-builder--v1.0.0"),
 					},
 				},
 			},
@@ -240,9 +240,9 @@ func TestCopyWithClients(t *testing.T) {
 			waiter:     &mockWaiter{err: errors.New("timeout")},
 			expectedResult: &Result{
 				SourceAMI:  "ami-source",
-				SourceName: "ghcr.io-cloudboss-easyto-builder-v1.0.0",
+				SourceName: "ghcr.io--cloudboss--easyto-builder--v1.0.0",
 				DestAMI:    "ami-dest",
-				DestName:   "ghcr.io-cloudboss-easyto-builder-v1.0.0",
+				DestName:   "ghcr.io--cloudboss--easyto-builder--v1.0.0",
 			},
 			expectedErr: "AMI copy initiated but wait failed",
 		},
