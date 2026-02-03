@@ -102,6 +102,7 @@ var (
 				"-var", fmt.Sprintf("ami_name=%s", amiCfg.amiName),
 				"-var", fmt.Sprintf("container_image=%s", amiCfg.containerImage),
 				"-var", fmt.Sprintf("debug=%t", amiCfg.debug),
+				"-var", fmt.Sprintf("is_public=%t", amiCfg.public),
 				"-var", fmt.Sprintf("login_user=%s", amiCfg.loginUser),
 				"-var", fmt.Sprintf("login_shell=%s", amiCfg.loginShell),
 				"-var", fmt.Sprintf("root_device_name=%s", amiCfg.rootDeviceName),
@@ -155,6 +156,7 @@ type amiConfig struct {
 	loginUser             string
 	loginShell            string
 	packerDir             string
+	public                bool
 	rootDeviceName        string
 	services              []string
 	size                  int
@@ -231,6 +233,8 @@ func init() {
 	AMICmd.MarkFlagRequired("subnet-id")
 
 	AMICmd.Flags().BoolVar(&amiCfg.debug, "debug", false, "Enable debug output.")
+
+	AMICmd.Flags().BoolVar(&amiCfg.public, "public", false, "Make the AMI and its snapshots public.")
 }
 
 func expandPath(pth string) (string, error) {

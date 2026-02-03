@@ -26,6 +26,7 @@ var (
 				Name:         copyBuilderCfg.name,
 				CopyTags:     copyBuilderCfg.copyTags,
 				Wait:         copyBuilderCfg.wait,
+				Public:       copyBuilderCfg.public,
 				Output:       os.Stdout,
 			}
 
@@ -49,6 +50,7 @@ type copyBuilderConfig struct {
 	name         string
 	copyTags     bool
 	wait         bool
+	public       bool
 }
 
 func init() {
@@ -69,4 +71,7 @@ func init() {
 
 	CopyBuilderCmd.Flags().BoolVar(&copyBuilderCfg.wait, "wait", true,
 		"Wait for the AMI copy to complete.")
+
+	CopyBuilderCmd.Flags().BoolVar(&copyBuilderCfg.public, "public", false,
+		"Make the copied AMI and its snapshots public.")
 }
