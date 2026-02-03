@@ -5,11 +5,6 @@ on:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+*"
 
-permissions:
-  contents: write
-  packages: write
-  id-token: write
-
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: cloudboss/easyto-builder
@@ -24,6 +19,8 @@ jobs:
     runs-on: ubuntu-24.04
     needs:
       - test-build
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -41,6 +38,9 @@ jobs:
     runs-on: ubuntu-24.04
     needs:
       - test-build
+    permissions:
+      contents: read
+      packages: write
     outputs:
       image-tag: ${{ steps.meta.outputs.tags }}
     steps:
@@ -63,9 +63,8 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+          flavor: |
+            latest=false
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -82,6 +81,9 @@ jobs:
     runs-on: ubuntu-24.04
     needs:
       - build-push-image
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -116,6 +118,9 @@ jobs:
     runs-on: ubuntu-24.04
     needs:
       - build-ami
+    permissions:
+      id-token: write
+      contents: read
     strategy:
       matrix:
         region:
