@@ -45,6 +45,49 @@ func (m *mockCopyImageClient) CopyImage(
 	return &ec2.CopyImageOutput{ImageId: aws.String(m.imageID)}, nil
 }
 
+type mockEC2Client struct {
+	describeImages          *mockDescribeImagesClient
+	copyImage               *mockCopyImageClient
+	modifyImageAttrErr      error
+	modifySnapshotAttrErr   error
+	describeImagesForPublic []ec2types.Image
+}
+
+func (m *mockEC2Client) DescribeImages(
+	ctx context.Context,
+	input *ec2.DescribeImagesInput,
+	opts ...func(*ec2.Options),
+) (*ec2.DescribeImagesOutput, error) {
+	if m.describeImagesForPublic != nil {
+		return &ec2.DescribeImagesOutput{Images: m.describeImagesForPublic}, nil
+	}
+	return m.describeImages.DescribeImages(ctx, input, opts...)
+}
+
+func (m *mockEC2Client) CopyImage(
+	ctx context.Context,
+	input *ec2.CopyImageInput,
+	opts ...func(*ec2.Options),
+) (*ec2.CopyImageOutput, error) {
+	return m.copyImage.CopyImage(ctx, input, opts...)
+}
+
+func (m *mockEC2Client) ModifyImageAttribute(
+	ctx context.Context,
+	input *ec2.ModifyImageAttributeInput,
+	opts ...func(*ec2.Options),
+) (*ec2.ModifyImageAttributeOutput, error) {
+	return &ec2.ModifyImageAttributeOutput{}, m.modifyImageAttrErr
+}
+
+func (m *mockEC2Client) ModifySnapshotAttribute(
+	ctx context.Context,
+	input *ec2.ModifySnapshotAttributeInput,
+	opts ...func(*ec2.Options),
+) (*ec2.ModifySnapshotAttributeOutput, error) {
+	return &ec2.ModifySnapshotAttributeOutput{}, m.modifySnapshotAttrErr
+}
+
 type mockWaiter struct {
 	err error
 }
@@ -255,7 +298,12 @@ func TestCopyWithClients(t *testing.T) {
 				waiter = tc.waiter
 			}
 
-			result, err := CopyWithClients(ctx, tc.cfg, tc.sourceClient, tc.destClient, waiter)
+			ec2Client := &mockEC2Client{
+				describeImages: tc.sourceClient,
+				copyImage:      tc.destClient,
+			}
+
+			result, err := CopyWithClients(ctx, tc.cfg, tc.sourceClient, tc.destClient, ec2Client, waiter)
 
 			if tc.expectedErr != "" {
 				require.Error(t, err)
