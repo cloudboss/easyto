@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.6.0] - 2026-02-03
+
+### Added
+
+- Add container image source to ctr2image, instead of assuming a remote image. This will enable building AMIs from a local image in the future.
+- Add a number of new tests.
+- Add `SSL_CERT_FILE` parameter to the kernel command line, which will be passed to init as an environment variable.
+- Add `version` subcommand to print the easyto version.
+- Add a new *fast* build mode. When this is enabled, the Packer build instance will have easyto preinstalled instead of being pushed to the instance duing build. By default, an official AMI with easyto preinstalled will be searched for in the user's AWS account and in the easyto AWS account. If not found, easyto will fall back to slow mode. New command line options have also been added to enable specifying a custom build AMI.
+- Add a Dockerfile for the official build image.
+- Add a `copy-builder` subcommand to make it easy to copy the official build AMI to your own AWS account.
+- Add the ability to make images public.
+
+### Changed
+
+- Update Go to 1.25.
+- Modify functions to take an AferoFS parameter wherever possible to enable easier testing.
+- Update documentation with fixes and new functionality.
+- Update Actions workflow to publish official images.
+
+### Removed
+
+- Remove link from /proc/net/pnp to /etc/resolv.conf. Network configuration is now done by easyto-init.
+- Clean up obsolete and unused code.
+- Remove external dependencies during provisioning. The ctr2disk command now handles partitioning and creation of filesystems rather than using external utilities before running it. The unmounting of filesystems after provisioning is also now done in ctr2disk instead of by external utilities after it runs.
+- Remove symlink from /.easyto/lib/modules to /lib/modules. The included modprobe command now has the /.easyto path compiled in.
+
 ## [0.5.0] - 2026-01-03
 
 ### Changed
@@ -58,6 +85,7 @@
 
 Initial release
 
+[0.6.0]: https://github.com/cloudboss/easyto/releases/tag/v0.6.0
 [0.5.0]: https://github.com/cloudboss/easyto/releases/tag/v0.5.0
 [0.4.0]: https://github.com/cloudboss/easyto/releases/tag/v0.4.0
 [0.3.0]: https://github.com/cloudboss/easyto/releases/tag/v0.3.0
