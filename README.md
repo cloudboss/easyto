@@ -19,7 +19,7 @@ Download the release and unpack it. The `easyto` binary lives in the `bin` subdi
 
 ## Building an image
 
-First make sure your AWS credentials and region are in scope, for example:
+Building an image is done with the `ami` subcommand. AWS credentials and region are discovered from the environment or from another source like EC2 instance metadata. For example:
 
 ```
 export AWS_PROFILE=xyz
@@ -34,13 +34,11 @@ easyto ami -a postgres-16.2-bullseye -c postgres:16.2-bullseye -s subnet-e358acd
 
 ### Fast vs slow mode
 
-The `ami` subcommand runs in one of *fast* or *slow* build modes.
-
-In fast mode, the build instance is created from an AMI that has easyto preinstalled. This is the default when the builder AMI matching your easyto version is available in your region. The AMI with the name `ghcr.io-cloudboss-easyto-builder-<version>` is searched for in your own account and in the official easyto account, where `<version>` is the same as the output of running `easyto version`.
+The `ami` subcommand will attempt to run in *fast* mode if it finds the official builder AMI with easyto preinstalled in your configured region. It will search in your own AWS account or in the easyto account. A `copy-builder` subcommand is also available to copy to the image to your account.
 
 In slow mode, the build uses a Debian base AMI and copies easyto to the instance during the build process. This is slower but works without needing the builder AMI to be available. Slow mode is used automatically as a fallback when the fast mode AMI is not found.
 
-You can also specify a custom builder image with `--builder-image`, with `--builder-image-mode` to specify fast mode if easyto is preinstalled on it. When easyto is preinstalled, it must be the full bundle including assets directory, and the `easyto` executable or a link to it must be on the `PATH`.
+You can also specify a custom builder image with `--builder-image` and `--builder-image-mode` to specify fast mode for it. When easyto is preinstalled on your own image, it must be the full bundle including assets directory, and the `easyto` executable or a link to it must be on the `PATH`.
 
 ### Command line options
 
@@ -74,9 +72,33 @@ The `ami` subcommand takes the following options:
 
 `--ssh-interface`: (Optional, default `public_ip`) - The SSH interface to use to connect to the image builder. This must be one of `public_ip` or `private_ip`.
 
+`--public`: (Optional, default `false`) - If specified, the AMI and its snapshot will be made public. You may need to disable blocking of public access for images in your region, for example by running `aws ec2 disable-image-block-public-access`.
+
 `--debug`: (Optional) - Enable debug output.
 
 `--help` or `-h`: (Optional) - Show help output.
+
+## Copying the builder image to your own account
+
+The `copy-builder` subcommand will copy the official builder image from `us-east-1` to your own account and region. This will help to enable fast mode if the official AMI is not already available in your region. Currently it is published to `ap-northeast-1`, `ap-southeast-1`, `eu-central-1`, `eu-west-1`, `sa-east-1`, `us-east-1`, and `us-west-2`.
+
+Like with the `ami` subcommand, AWS credentials will be discovered from environment variables or EC2 instance metadata.
+
+### Command line options
+
+The `copy-builder` subcommand takes the following options:
+
+`--copy-tags`: (Optional, default `true`) - Copy tags from the source AMI.
+
+`--dest-region`: (Optional, defaults to the AWS SDK configured region) - AWS region to copy the AMI to.
+
+`--name`: (Optional, defaults to source AMI name) - Name for the copied AMI.
+
+`--public`: (Optional, default `false`) - Make the copied AMI and its snapshots public.
+
+`--version`: (Optional, defaults to the current easyto version) - Version of the builder AMI to copy.
+
+`--wait`: (Optional, default `true`) - Wait for the AMI copy to complete.
 
 ## Running an instance
 
