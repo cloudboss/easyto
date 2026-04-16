@@ -132,7 +132,7 @@ $(DIR_OUT)/ctr2disk: \
 		$(shell find pkg -type f -path '*.go' ! -path '*_test.go') \
 		| $(HAS_IMAGE_LOCAL) $(VAR_DIR_ET)
 	@docker run --rm -t \
-		-v $(DIR_ROOT):/code \
+		-v $(DIR_ROOT):/code:z \
 		-e OPENSSH_PRIVSEP_DIR=$(OPENSSH_PRIVSEP_DIR) \
 		-e OPENSSH_PRIVSEP_USER=$(OPENSSH_PRIVSEP_USER) \
 		-e CHRONY_USER=$(CHRONY_USER) \
@@ -155,7 +155,7 @@ $(DIR_STG_BIN)/easyto: \
 		$(shell find cmd/easyto -type f -path '*.go' ! -path '*_test.go') \
 		| $(HAS_IMAGE_LOCAL) $(VAR_DIR_ET) $(DIR_STG_BIN)/
 	@docker run --rm -t \
-		-v $(DIR_ROOT):/code \
+		-v $(DIR_ROOT):/code:z \
 		-e DIR_ET_ROOT=/$(DIR_ET) \
 		-e DIR_OUT=/code/$(DIR_STG_BIN) \
 		-e ET_VERSION=$(VERSION) \
