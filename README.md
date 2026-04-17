@@ -106,12 +106,43 @@ Instances are created "the usual way" with the AWS console, AWS CLI, or Terrafor
 
 ### User data
 
-The user data format is meant to be similar to a container configuration, and borrows some of its nomenclature from the Kubernetes pod spec.
+The user data format is in YAML and is meant to be similar to a container configuration, and borrows some of its nomenclature from the Kubernetes pod spec.
 
-Example:
+It is written to the file `/.easyto/var/lib/user-data` on the instance for easy reference.
 
+User data can be gzipped to reduce the size, and [easyto-init](https://github.com/cloudboss/easyto-init) will decompress it automatically.
+
+#### Terraform
+
+A [terraform module](https://registry.terraform.io/modules/cloudboss/easyto-user-data/aws/latest) is available to simplify creating the user data. You only need to pass variables as HCL, and it will validate the variables and render the YAML as an output.
+
+```hcl
+module "user_data" {
+  source  = "cloudboss/easyto-user-data/aws"
+  version = "0.5.0"
+
+  command = ["/app/start"]
+  env-from = [
+    {
+      imds = {
+        name = "IPV4_ADDRESS"
+        path = "local-ipv4"
+      }
+    },
+  ]
+}
+
+resource "aws_launch_template" "it" {
+  user_data                            = base64gzip(module.user_data.value) # gzip then base64 encode
 ```
+
+#### Example
+
+```yaml
 env-from:
+  - imds:
+      name: AWS_REGION
+      path: placement/region
   - ssm:
       path: /database/abc/credentials
 volumes:
@@ -120,6 +151,13 @@ volumes:
       mount:
         destination: /var/lib/postgresql
         fs-type: ext4
+  - template:
+      content: |
+        My region is {{aws_region}}.
+      variables:
+        aws_region: $(AWS_REGION)
+      mount:
+        destination: /region.txt
 ```
 
 See the [examples](./examples) folder for more.
@@ -152,6 +190,8 @@ The full specification is as follows:
 >     bb=/.easyto/bin/busybox
 >     (umask 277; ${bb} cp /path/to/secret /some/other/path)
 > ```
+
+`modules`: (Optional, type _list_ of _string_, default `[]`) - Linux kernel modules to be loaded, before sysctls are set.
 
 `replace-init`: (Optional, type _bool_, default `false`) - If `true`, `command` will replace init when executed. This may be useful if you want to run your own init process. However, easyto init will still do everything leading up to the execution of `command`, for example formatting and mounting filesystems defined in `volumes` and setting environment variables.
 
@@ -257,7 +297,9 @@ The following sources are available for environment variables. Each can be speci
 
 `ssm`: (Optional, type [_ssm-volume_](#ssm-volume-object) object, default `{}`) - Configuration of an SSM Parameter pseudo-volume.
 
-`secrets-manager`: (Optional, type [_secrets-manager-volume_](#secrets-manager-volume-object) object) - Configuration for Secrets Manager pseudo-volume.
+`secrets-manager`: (Optional, type [_secrets-manager-volume_](#secrets-manager-volume-object) object, default `{}`) - Configuration for Secrets Manager pseudo-volume.
+
+`template`: (Optional, type [_template-volume_](#template-volume-object) object, default `{}`) - Configuration for mustache template pseudo-volume.
 
 #### ebs-volume object
 
@@ -316,6 +358,18 @@ A Secrets Manager volume is a pseudo-volume, as the secret from Secrets Manager 
 `optional`: (Optional, type _bool_, default `false`) - Whether or not the secret is optional. If `true`, then a failure to fetch the secret will not be treated as an error.
 
 `secret-id`: (Required, type _string_) - The name or ARN of the secret. If it is in another AWS account, the ARN must be used.
+
+#### template-volume object
+
+A template volume is used to render a mustache template to a file. This is a pseudo-volume, as content is copied as a file to the path defined in `mount.destination` one time on boot. This volume results in a single file being written, not a directory tree, the same as with the Secrets Manager volumes. The owner and group of the file defaults to `security.run-as-user-id` and `security.run-as-group-id` unless explicitly specified in the volume's `mount.user-id` and `mount.group-id`.
+
+`content`: (Required, type _string_) - The content of the template, which uses [mustache](https://mustache.github.io/mustache.5.html) syntax.
+
+`mount`: (Required, type [_mount_](#mount-object) object) - Configuration of the destination for the file.
+
+`optional`: (Optional, type _bool_, default `false`) - Whether or not the template file is optional. If `true`, then failure during rendering or writing of the file will not be treated as an error.
+
+`variables`: (Optional, type _map_ from _string_ to _any_, default `{}`) - A map of string keys with any value, used to expand the template content. The values may contain "dollar" variables resolved from `env` and `env-from` (see [variable expansion](#variable-expansion)). If `variables` is not defined, `content` will be written as a literal string with no mustache template rendering.
 
 #### ebs-attachment object
 
