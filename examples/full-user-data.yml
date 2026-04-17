@@ -9,19 +9,22 @@ env:
   - name: ABC
     value: XYZ
 env-from:
-  s3:
-    bucket: cherk-twirm-muttle
-    key: zomple.json
-  s3:
-    bucket: verk-bibe-boff
-    key: whirm/chix/jom
-    base64-encode: true
-    name: WHIRM_CHIX_JOM
-  ssm:
-    path: /thork/database/credentials
-  secrets-manager:
-    secret-id: pleam-license
-    name: PLEAM_LICENSE
+  - imds:
+      name: AWS_REGION
+      path: placement/region
+  - s3:
+      bucket: cherk-twirm-muttle
+      key: zomple.json
+  - s3:
+      bucket: verk-bibe-boff
+      key: whirm/chix/jom
+      base64-encode: true
+      name: WHIRM_CHIX_JOM
+  - ssm:
+      path: /thork/database/credentials
+  - secrets-manager:
+      secret-id: pleam-license
+      name: PLEAM_LICENSE
 init-scripts:
   - |
     #!/.easyto/bin/busybox sh
@@ -31,6 +34,9 @@ init-scripts:
     #!/.easyto/bin/busybox sh
     bb=/.easyto/bin/busybox
     ${bb} echo "Running init script B"
+modules:
+  - br_netfilter
+  - overlay
 replace-init: false
 security:
   readonly-root-fs: true
@@ -61,4 +67,11 @@ volumes:
       fs-type: btrfs
       mount:
         destination: /application/state
+  - template:
+      content: |
+        My region is {{aws_region}}.
+      variables:
+        aws_region: $(AWS_REGION)
+      mount:
+        destination: /region.txt
 working-dir: /application
