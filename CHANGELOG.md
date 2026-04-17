@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.7.0] - 2026-04-17
+
+### Added
+
+- Add the ability to load kernel modules in user data.
+- Add the ability to create template pseudo-volumes in user data, to render mustache templates to files.
+- Add the ability to gzip user data.
+
+### Changed
+
+- Update [easyto-init](https://github.com/cloudboss/easyto-init) to `v0.4.1`, which enables all of the new features.
+- Update go dependencies.
+
 ## [0.6.0] - 2026-02-03
 
 ### Added
@@ -85,6 +98,7 @@
 
 Initial release
 
+[0.7.0]: https://github.com/cloudboss/easyto/releases/tag/v0.7.0
 [0.6.0]: https://github.com/cloudboss/easyto/releases/tag/v0.6.0
 [0.5.0]: https://github.com/cloudboss/easyto/releases/tag/v0.5.0
 [0.4.0]: https://github.com/cloudboss/easyto/releases/tag/v0.4.0
