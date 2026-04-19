@@ -387,7 +387,7 @@ A template volume is used to render a mustache template to a file. This is a pse
 
 `destination`: (Required, type _string_) - The mount destination. This may be a file or a directory depending on the configuration of the volume.
 
-`fs-type`: (Conditional, type _string_) - Filesystem type of the device. Available types are `ext2`, `ext3`, `ext4`, and `btrfs`. The filesystem will be formatted on the first boot. Required for EBS volumes and ignored otherwise.
+`fs-type`: (Conditional, type _string_) - Filesystem type of the device. Available types are `ext2`, `ext3`, `ext4`, `btrfs`, and `xfs`. The filesystem will be formatted on the first boot. Required for EBS volumes and ignored otherwise.
 
 `group-id`: (Optional, type _int_, default is the value of `security.run-as-group-id`) - The group ID of the destination.
 
