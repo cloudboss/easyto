@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.8.0] - 2026-04-19
+
+### Added
+
+- Add support for XFS filesystem on EBS volumes.
+
+### Changed
+
+- Update [easyto-assets](https://github.com/cloudboss/easyto-assets) to `v0.6.0`. This includes: a kernel configuration trimmed specifically for EC2 Nitro, new support for XFS, and version updates to zlib, OpenSSL, and OpenSSH.
+- Update [easyto-init](https://github.com/cloudboss/easyto-init) to `v0.5.0`.
+
 ## [0.7.0] - 2026-04-17
 
 ### Added
@@ -98,6 +109,7 @@
 
 Initial release
 
+[0.8.0]: https://github.com/cloudboss/easyto/releases/tag/v0.8.0
 [0.7.0]: https://github.com/cloudboss/easyto/releases/tag/v0.7.0
 [0.6.0]: https://github.com/cloudboss/easyto/releases/tag/v0.6.0
 [0.5.0]: https://github.com/cloudboss/easyto/releases/tag/v0.5.0
