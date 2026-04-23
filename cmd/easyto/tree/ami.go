@@ -100,6 +100,7 @@ var (
 			packerArgs := []string{
 				"build",
 				"-var", fmt.Sprintf("ami_name=%s", amiCfg.amiName),
+				"-var", fmt.Sprintf("builder_instance_type=%s", amiCfg.builderInstanceType),
 				"-var", fmt.Sprintf("container_image=%s", amiCfg.containerImage),
 				"-var", fmt.Sprintf("debug=%t", amiCfg.debug),
 				"-var", fmt.Sprintf("is_public=%t", amiCfg.public),
@@ -151,6 +152,7 @@ type amiConfig struct {
 	builderImage          string
 	builderImageLoginUser string
 	builderImageMode      string
+	builderInstanceType   string
 	containerImage        string
 	debug                 bool
 	loginUser             string
@@ -201,6 +203,9 @@ func init() {
 
 	AMICmd.Flags().StringVar(&amiCfg.builderImageMode, "builder-image-mode", "",
 		"Build mode to use with --builder-image. Must be 'fast' or 'slow'. Fast mode assumes easyto is pre-installed on the builder image.")
+
+	AMICmd.Flags().StringVar(&amiCfg.builderInstanceType, "builder-instance-type", "t3.micro",
+		"EC2 instance type to use for builder instance.")
 
 	AMICmd.Flags().StringVarP(&amiCfg.packerDir, "packer-directory", "P", packerDir,
 		"Path to a directory containing packer and its configuration.")
