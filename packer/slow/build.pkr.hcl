@@ -128,7 +128,7 @@ source "amazon-ebssurrogate" "builder_ami" {
   ssh_file_transfer_method    = "sftp"
   subnet_id                   = var.subnet_id
   tags                        = merge(var.ami_tags, {
-    "container_image"         = var.container_image
+    "cloudboss.co/easyto/container-image" = var.container_image
   })
 
   ami_root_device {
