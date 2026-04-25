@@ -331,7 +331,7 @@ func TestReadlink(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
-			result, err := readlink(tc.path)
+			result, err := readlink(afero.NewOsFs(), tc.path)
 			if tc.expectError {
 				assert.Error(t, err)
 			} else {
@@ -450,6 +450,10 @@ func TestNewBuilder(t *testing.T) {
 	}
 	kernelTar := filepath.Join(tmpDir, "kernel.tar")
 	err = testutil.WriteTarFile(testFS, kernelTar, kernelFiles)
+	require.NoError(t, err)
+
+	require.NoError(t, testFS.MkdirAll("/dev", 0755))
+	_, err = testFS.Create("/dev/loop0")
 	require.NoError(t, err)
 
 	testCases := []struct {

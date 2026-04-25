@@ -186,7 +186,7 @@ func NewBuilder(fs afero.Fs, opts ...BuilderOpt) (*Builder, error) {
 	builder.pathInit = filepath.Join(builder.AssetDir, archiveInit)
 	builder.pathSSH = filepath.Join(builder.AssetDir, archiveSSH)
 
-	vmImageDevice, err := readlink(builder.VMImageDevice)
+	vmImageDevice, err := readlink(fs, builder.VMImageDevice)
 	if err != nil {
 		return nil, fmt.Errorf("unable to resolve path of VM image device: %w", err)
 	}
@@ -741,13 +741,17 @@ func partitionName(disk string, partition int) string {
 	return fmt.Sprintf("%s%d", disk, partition)
 }
 
-func readlink(path string) (string, error) {
+func readlink(fs afero.Fs, path string) (string, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return "", err
 	}
 
-	fi, err := os.Lstat(abs)
+	lst, ok := fs.(afero.Lstater)
+	if !ok {
+		return "", errors.New("filesystem does not support Lstat")
+	}
+	fi, _, err := lst.LstatIfPossible(abs)
 	if err != nil {
 		return "", err
 	}
@@ -756,7 +760,11 @@ func readlink(path string) (string, error) {
 		return abs, nil
 	}
 
-	target, err := os.Readlink(abs)
+	rdr, ok := fs.(afero.LinkReader)
+	if !ok {
+		return "", afero.ErrNoReadlink
+	}
+	target, err := rdr.ReadlinkIfPossible(abs)
 	if err != nil {
 		return "", err
 	}
