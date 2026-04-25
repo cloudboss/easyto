@@ -97,9 +97,16 @@ var (
 				return fmt.Errorf("unexpected value for services: %w", err)
 			}
 
+			quotedTags := bytes.NewBufferString("")
+			err = json.NewEncoder(quotedTags).Encode(parseTags(amiCfg.tags))
+			if err != nil {
+				return fmt.Errorf("unexpected value for tags: %w", err)
+			}
+
 			packerArgs := []string{
 				"build",
 				"-var", fmt.Sprintf("ami_name=%s", amiCfg.amiName),
+				"-var", fmt.Sprintf("ami_tags=%s", quotedTags.String()),
 				"-var", fmt.Sprintf("builder_instance_type=%s", amiCfg.builderInstanceType),
 				"-var", fmt.Sprintf("container_image=%s", amiCfg.containerImage),
 				"-var", fmt.Sprintf("debug=%t", amiCfg.debug),
@@ -164,6 +171,7 @@ type amiConfig struct {
 	size                  int
 	sshInterface          string
 	subnetID              string
+	tags                  []string
 }
 
 func init() {
@@ -240,6 +248,9 @@ func init() {
 	AMICmd.Flags().BoolVar(&amiCfg.debug, "debug", false, "Enable debug output.")
 
 	AMICmd.Flags().BoolVar(&amiCfg.public, "public", false, "Make the AMI and its snapshots public.")
+
+	AMICmd.Flags().StringArrayVar(&amiCfg.tags, "tag", []string{},
+		"Tag to apply to the AMI in the form key=value. May be specified multiple times. If no '=' is given, the tag has no value.")
 }
 
 func expandPath(pth string) (string, error) {
@@ -277,6 +288,19 @@ func validateSSHInterface(sshInterface string) error {
 	default:
 		return fmt.Errorf("invalid ssh interface %s", sshInterface)
 	}
+}
+
+func parseTags(rawTags []string) map[string]string {
+	tags := map[string]string{}
+	for _, t := range rawTags {
+		parts := strings.SplitN(t, "=", 2)
+		if len(parts) == 1 {
+			tags[parts[0]] = ""
+			continue
+		}
+		tags[parts[0]] = parts[1]
+	}
+	return tags
 }
 
 func validateBuilderImageMode(mode, builderImage string) error {
