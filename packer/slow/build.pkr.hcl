@@ -11,6 +11,11 @@ variable "ami_name" {
   type    = string
 }
 
+variable "ami_tags" {
+  type    = map(string)
+  default = {}
+}
+
 variable "architecture" {
   type    = string
   default = "x86_64"
@@ -122,9 +127,9 @@ source "amazon-ebssurrogate" "builder_ami" {
   ssh_username                = var.ssh_username
   ssh_file_transfer_method    = "sftp"
   subnet_id                   = var.subnet_id
-  tags                        = {
+  tags                        = merge(var.ami_tags, {
     "container_image"         = var.container_image
-  }
+  })
 
   ami_root_device {
     delete_on_termination     = true
