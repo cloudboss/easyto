@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.10.0] - 2026-04-26
+
+### Added
+
+- Enable passing custom tags to AMIs.
+
+### Changed
+
+- Rename default AMI tag key for the container image from `container_image` to `cloudboss.co/easyto/container-image`.
+
+### Fixed
+
+- Fix readlink wrapper to take an `aferofs.Fs` argument to fix broken `ctr2disk.TestNewBuilder` test. This aligns it with most functions in `ctr2disk` that access the filesystem.
+
 ## [0.9.0] - 2026-04-23
 
 ### Added
@@ -119,6 +133,7 @@
 
 Initial release
 
+[0.10.0]: https://github.com/cloudboss/easyto/releases/tag/v0.10.0
 [0.9.0]: https://github.com/cloudboss/easyto/releases/tag/v0.9.0
 [0.8.0]: https://github.com/cloudboss/easyto/releases/tag/v0.8.0
 [0.7.0]: https://github.com/cloudboss/easyto/releases/tag/v0.7.0
