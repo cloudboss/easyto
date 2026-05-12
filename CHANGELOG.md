@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.11.0] - 2026-05-12
+
+### Changed
+
+- Update [easyto-init](https://github.com/cloudboss/easyto-init) to `v0.6.0`. This updates the Zig version to `0.16` and includes a number of refactors.
+
 ## [0.10.0] - 2026-04-26
 
 ### Added
@@ -133,6 +139,7 @@
 
 Initial release
 
+[0.11.0]: https://github.com/cloudboss/easyto/releases/tag/v0.11.0
 [0.10.0]: https://github.com/cloudboss/easyto/releases/tag/v0.10.0
 [0.9.0]: https://github.com/cloudboss/easyto/releases/tag/v0.9.0
 [0.8.0]: https://github.com/cloudboss/easyto/releases/tag/v0.8.0
