@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.12.0] - 2026-10-11
+
+### Changed
+
+- Update [easyto-init](https://github.com/cloudboss/easyto-init) to `v0.7.0`.
+- Update Go version to 1.27.2.
+
+### Removed
+
+- Remove copying of builder AMIs to additional regions in GitHub workflow.
+
 ## [0.11.0] - 2026-05-12
 
 ### Changed
@@ -139,6 +150,7 @@
 
 Initial release
 
+[0.12.0]: https://github.com/cloudboss/easyto/releases/tag/v0.12.0
 [0.11.0]: https://github.com/cloudboss/easyto/releases/tag/v0.11.0
 [0.10.0]: https://github.com/cloudboss/easyto/releases/tag/v0.10.0
 [0.9.0]: https://github.com/cloudboss/easyto/releases/tag/v0.9.0
