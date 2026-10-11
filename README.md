@@ -80,7 +80,7 @@ The `ami` subcommand takes the following options:
 
 ## Copying the builder image to your own account
 
-The `copy-builder` subcommand will copy the official builder image from `us-east-1` to your own account and region. This will help to enable fast mode if the official AMI is not already available in your region. Currently it is published to `ap-northeast-1`, `ap-southeast-1`, `eu-central-1`, `eu-west-1`, `sa-east-1`, `us-east-1`, and `us-west-2`.
+The `copy-builder` subcommand will copy the official builder image from `us-east-1` to your own account and region. This will help to enable fast mode if the official AMI is not already available in your region. The official builder image is published only in `us-east-1`.
 
 Like with the `ami` subcommand, AWS credentials will be discovered from environment variables or EC2 instance metadata.
 
